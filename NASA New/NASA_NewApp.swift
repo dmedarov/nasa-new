@@ -1,9 +1,17 @@
 import SwiftUI
+import UIKit
 
 @main
 struct NASA_NewApp: App {
-    @StateObject private var fetcher = NasaCollectionFetcher()
+    @StateObject private var fetcher: NasaCollectionFetcher
     @AppStorage("isDarkMode") var isDarkMode: Bool = true
+
+    init() {
+        AppRuntimeConfiguration.applyDeterministicOverrides()
+        let configuredFetcher = NasaCollectionFetcher()
+        configuredFetcher.configureFixtureModeIfNeeded()
+        _fetcher = StateObject(wrappedValue: configuredFetcher)
+    }
     
     private var isErrorPresented: Binding<Bool> {
         Binding(
@@ -20,12 +28,20 @@ struct NASA_NewApp: App {
     
     var body: some Scene {
         WindowGroup {
-            NavigationView {
-                SplashScreenView()
-                    .environmentObject(fetcher)
-                    .preferredColorScheme(isDarkMode ? .dark : .light)
+            Group {
+                if #available(iOS 16.0, *) {
+                    NavigationStack {
+                        SplashScreenView()
+                    }
+                } else {
+                    NavigationView {
+                        SplashScreenView()
+                    }
+                    .navigationViewStyle(.stack)
+                }
             }
-            .navigationViewStyle(.stack) // Ensure consistent navigation on all devices
+            .environmentObject(fetcher)
+            .preferredColorScheme(isDarkMode ? .dark : .light)
             .alert(isPresented: isErrorPresented) {
                 Alert(
                     title: Text("Error"),
@@ -46,6 +62,26 @@ struct NASA_NewApp: App {
             .accessibilityElement()
             .accessibilityLabel("NASA APOD App")
             .accessibilityHint("Displays NASA's Astronomy Picture of the Day with dark/light mode support.")
+        }
+    }
+}
+
+private enum AppRuntimeConfiguration {
+    static func applyDeterministicOverrides() {
+        let environment = ProcessInfo.processInfo.environment
+
+        if let locale = environment["UITEST_LOCALE"] {
+            UserDefaults.standard.set([locale], forKey: "AppleLanguages")
+            UserDefaults.standard.set(locale, forKey: "AppleLocale")
+        }
+
+        if let timeZoneIdentifier = environment["UITEST_TIMEZONE"],
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            NSTimeZone.default = timeZone
+        }
+
+        if environment["UITEST_DISABLE_ANIMATIONS"] == "1" {
+            UIView.setAnimationsEnabled(false)
         }
     }
 }

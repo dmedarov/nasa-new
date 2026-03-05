@@ -38,13 +38,30 @@ struct SplashScreenView: View {
                     }
                 }
             }
-            .onAppear {
-                Task {
+            .accessibilityIdentifier("splashScreenRoot")
+            .task {
+                guard !isActive else { return }
+                let environment = ProcessInfo.processInfo.environment
+                let holdSplashForUITest = environment["UITEST_HOLD_SPLASH"] == "1"
+                let stayOnSplashForUITest = environment["UITEST_STAY_ON_SPLASH"] == "1"
+
+                if !fetcher.isUsingFixtureData {
                     await fetcher.fetchData()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + (fetcher.error != nil ? 1.0 : 2.0)) {
-                        withAnimation { isActive = true }
-                    }
                 }
+
+                if stayOnSplashForUITest {
+                    return
+                }
+
+                let delay: UInt64
+                if holdSplashForUITest {
+                    delay = 4_000_000_000
+                } else {
+                    delay = fetcher.isUsingFixtureData ? 250_000_000 : (fetcher.error == nil ? 1_800_000_000 : 900_000_000)
+                }
+
+                try? await Task.sleep(nanoseconds: delay)
+                withAnimation { isActive = true }
             }
         }
     }

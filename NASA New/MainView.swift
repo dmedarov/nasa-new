@@ -11,16 +11,12 @@ struct MainView: View {
     @State private var isMediaAnimating = false
     @State private var isVideoLoading = false
     @State private var selectedDate = Date()
+    @State private var isSyncingSelectedDateFromModel = false
+    @State private var dateSelectionTask: Task<Void, Never>?
     
     @AppStorage("isDarkMode") private var isDarkMode: Bool = true
     @AppStorage("preferImages") private var preferImages: Bool = false
     private static let apodStartDate = Calendar.current.date(from: DateComponents(year: 1995, month: 6, day: 16)) ?? Date()
-    private static let apodDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-    
     private func resetImageState() {
         withAnimation(.spring()) {
             imageScale = 1
@@ -64,6 +60,22 @@ struct MainView: View {
             }
         }
         return result + (result.count < text.count ? "..." : "")
+    }
+
+    private func syncSelectedDateWithCurrentItem() {
+        guard let dateString = fetcher.currentNasa.date, let modelDate = fetcher.date(from: dateString) else { return }
+        guard !Calendar.current.isDate(selectedDate, inSameDayAs: modelDate) else { return }
+        isSyncingSelectedDateFromModel = true
+        selectedDate = modelDate
+    }
+
+    private func requestAPOD(for date: Date) {
+        dateSelectionTask?.cancel()
+        dateSelectionTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            await fetcher.fetchData(for: date)
+        }
     }
     
     var body: some View {
@@ -115,12 +127,9 @@ struct MainView: View {
                 Spacer()
                 
                 Button {
-                    let candidates = preferImages ? fetcher.apodData.filter { $0.mediaType == .image } : fetcher.apodData
-                    if let random = candidates.randomElement() {
-                        fetcher.currentNasa = random
-                        resetImageState()
-                        isVideoLoading = random.mediaType == .video
-                    }
+                    fetcher.selectRandom(preferImagesOnly: preferImages)
+                    resetImageState()
+                    isVideoLoading = fetcher.currentNasa.mediaType == .video
                 } label: {
                     Image(systemName: "arrow.clockwise.circle")
                         .resizable()
@@ -130,7 +139,7 @@ struct MainView: View {
                         .accessibilityHint("Loads a random Astronomy Picture of the Day")
                 }
                 .padding(.horizontal, 15)
-                .disabled(fetcher.isFetching)
+                .disabled(fetcher.isFetching || fetcher.apodData.isEmpty)
             }
             .padding(.horizontal)
             
@@ -148,15 +157,21 @@ struct MainView: View {
                 withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
                 if fetcher.apodData.isEmpty && !fetcher.isFetching {
                     Task { await fetcher.fetchData() }
+                } else {
+                    syncSelectedDateWithCurrentItem()
                 }
             }
             .onChange(of: selectedDate) { date in
-                let dateString = Self.apodDateFormatter.string(from: date)
-                Task { await fetcher.fetchData(for: dateString) }
+                if isSyncingSelectedDateFromModel {
+                    isSyncingSelectedDateFromModel = false
+                    return
+                }
+                requestAPOD(for: date)
             }
             .onChange(of: fetcher.currentNasa.date) { _ in
                 isVideoLoading = fetcher.currentNasa.mediaType == .video
                 resetImageState()
+                syncSelectedDateWithCurrentItem()
             }
             
             VStack {
@@ -221,6 +236,11 @@ struct MainView: View {
             fetcher.currentNasa.mediaType == .image ? controlView.padding(.bottom, 5) : nil,
             alignment: .bottom
         )
+        .accessibilityIdentifier("mainViewRoot")
+        .onDisappear {
+            dateSelectionTask?.cancel()
+            dateSelectionTask = nil
+        }
     }
     
     private var controlView: some View {
