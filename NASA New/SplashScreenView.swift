@@ -14,7 +14,7 @@ struct SplashScreenView: View {
                 Image("LaunchScreen")
                     .resizable()
                     .scaledToFill()
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea()
                 
                 VStack {
                     Image("logo-swift-outlined")
@@ -39,6 +39,7 @@ struct SplashScreenView: View {
                 }
             }
             .accessibilityIdentifier("splashScreenRoot")
+            .accessibilityElement(children: .contain)
             .task {
                 guard !isActive else { return }
                 let environment = ProcessInfo.processInfo.environment

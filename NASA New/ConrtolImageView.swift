@@ -1,30 +1,23 @@
-//
-//  ControlImageView.swift
-//  Pinch (iOS)
-//
-//  Created by Damian Medarov on 5.02.22.
-//
-
 import SwiftUI
 
 struct ControlImageView: View {
-    @AppStorage("isDarkMode") private var isDarkmode: Bool = true
+    @Environment(\.colorScheme) private var colorScheme
+    @ScaledMetric(relativeTo: .title3) private var iconSize = 28
     let icon: String
+    let accessibilityLabel: String
     
     var body: some View {
         Image(systemName: icon)
-            .font(.system(size: 30))
-            .foregroundColor(isDarkmode ? Color(UIColor.white) : Color(UIColor.systemIndigo))
+            .font(.system(size: iconSize))
+            .foregroundColor(colorScheme == .dark ? .white : .indigo)
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 
 struct ControlImageView_Previews: PreviewProvider {
     static var previews: some View {
-        ControlImageView(icon: "minus.magnifyingglass")
-           // .preferredColorScheme(.dark)
+        ControlImageView(icon: "minus.magnifyingglass", accessibilityLabel: "Zoom out")
             .previewLayout(.sizeThatFits)
             .padding()
-            
     }
 }
-

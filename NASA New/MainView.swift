@@ -268,7 +268,8 @@ struct MainView: View {
 }
 
 private struct MainHeaderBar: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .body) private var headerButtonSize = 34
+    @ScaledMetric(relativeTo: .body) private var headerIconSize = 18
     @Binding var isDarkMode: Bool
     @Binding var showSettingsSheet: Bool
     @Binding var showFavoritesSheet: Bool
@@ -287,92 +288,83 @@ private struct MainHeaderBar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .center, spacing: 10) {
-                    Button {
-                        isDarkMode.toggle()
-                    } label: {
-                        Image(systemName: isDarkMode ? "sun.min.fill" : "moon.circle")
-                            .resizable()
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(iconColor)
-                            .accessibilityLabel(isDarkMode ? "Switch to light mode" : "Switch to dark mode")
-                            .accessibilityHint("Toggles the app's appearance mode")
-                    }
-
-                    Button {
-                        showSettingsSheet = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .resizable()
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(iconColor)
-                            .accessibilityLabel("Open settings")
-                            .accessibilityHint("Adjust app preferences")
-                    }
-
-                    Button {
-                        showFavoritesSheet = true
-                    } label: {
-                        Image(systemName: favoritesCount == 0 ? "heart" : "heart.fill")
-                            .resizable()
-                            .frame(width: 22, height: 20)
-                            .foregroundColor(iconColor)
-                            .accessibilityLabel("Open favorites")
-                            .accessibilityHint("Shows your saved APOD favorites")
-                    }
-
-                    DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
-                        .labelsHidden()
-                        .frame(width: 120)
-                        .accessibilityLabel("Select APOD date")
-                        .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
-
-                    Button {
-                        refreshAction()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .resizable()
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(iconColor)
-                            .accessibilityLabel("Refresh APOD data")
-                            .accessibilityHint("Fetches the latest APOD data")
-                    }
-                    .disabled(isFetching)
-
-                    Button {
-                        randomizeAction()
-                    } label: {
-                        Image(systemName: "arrow.clockwise.circle")
-                            .resizable()
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(iconColor)
-                            .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
-                            .accessibilityHint("Loads a random Astronomy Picture of the Day")
-                    }
-                    .disabled(isFetching || !hasApodData)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-            }
-            .overlay(alignment: .trailing) {
-                LinearGradient(
-                    colors: [.clear, Color.black.opacity(0.12)],
-                    startPoint: .leading,
-                    endPoint: .trailing
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                headerIconButton(
+                    icon: isDarkMode ? "sun.min.fill" : "moon.circle",
+                    accessibilityLabel: isDarkMode ? "Switch to light mode" : "Switch to dark mode",
+                    accessibilityHint: "Toggles the app's appearance mode",
+                    action: { isDarkMode.toggle() }
                 )
-                .frame(width: 22)
-                .allowsHitTesting(false)
-            }
 
-            if horizontalSizeClass == .compact {
-                Label("Swipe for more controls", systemImage: "arrow.left.and.right")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
+                headerIconButton(
+                    icon: "gearshape",
+                    accessibilityLabel: "Open settings",
+                    accessibilityHint: "Adjust app preferences",
+                    action: { showSettingsSheet = true }
+                )
+
+                headerIconButton(
+                    icon: favoritesCount == 0 ? "heart" : "heart.fill",
+                    accessibilityLabel: "Open favorites",
+                    accessibilityHint: "Shows your saved APOD favorites",
+                    action: { showFavoritesSheet = true }
+                )
+
+                DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
+                    .labelsHidden()
+                    .frame(width: 120)
+                    .accessibilityLabel("Select APOD date")
+                    .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
             }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack(spacing: 12) {
+                Button {
+                    refreshAction()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .disabled(isFetching)
+                .accessibilityLabel("Refresh APOD data")
+                .accessibilityHint("Fetches the latest APOD data")
+
+                Button {
+                    randomizeAction()
+                } label: {
+                    Label(preferImages ? "Random Image" : "Random APOD", systemImage: "arrow.clockwise.circle")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isFetching || !hasApodData)
+                .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
+                .accessibilityHint("Loads a random Astronomy Picture of the Day")
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func headerIconButton(
+        icon: String,
+        accessibilityLabel: String,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: headerIconSize, weight: .semibold))
+                .frame(width: headerButtonSize, height: headerButtonSize)
+                .foregroundColor(iconColor)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
     }
 }
 
@@ -445,7 +437,7 @@ private struct FavoritesSheetView: View {
     }
 
     var body: some View {
-        NavigationView {
+        AdaptiveNavigationContainer {
             Group {
                 if favorites.isEmpty {
                     VStack(spacing: 10) {
@@ -524,7 +516,7 @@ private struct SettingsSheetView: View {
     let isUsingCachedData: Bool
 
     var body: some View {
-        NavigationView {
+        AdaptiveNavigationContainer {
             Form {
                 Toggle("Prefer Images Only", isOn: $preferImages)
                     .accessibilityLabel("Prefer images only for random selection")
@@ -811,4 +803,21 @@ private struct SafariView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
+
+private struct AdaptiveNavigationContainer<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                content
+            }
+        } else {
+            NavigationView {
+                content
+            }
+            .navigationViewStyle(.stack)
+        }
+    }
 }
