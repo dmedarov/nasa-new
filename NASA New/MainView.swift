@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import YouTubePlayerKit
+import SafariServices
 
 struct MainView: View {
     @EnvironmentObject var fetcher: NasaCollectionFetcher
@@ -684,6 +685,7 @@ private struct MediaView: View {
     let extractYouTubeID: (URL?) -> String?
     let videoThumbnailURL: (String) -> URL?
     @Environment(\.openURL) private var openURL
+    @State private var showWebVideoSheet = false
 
     var body: some View {
         @ViewBuilder var content: some View {
@@ -767,13 +769,21 @@ private struct MediaView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(maxWidth: 300)
-                        Text("This video source is not supported in-app.")
+                        Text("Playing this source with in-app browser.")
                             .font(.title3)
                         if let videoURL = nasa.url {
-                            Button("Open Video in Browser") {
-                                openURL(videoURL)
+                            Button("Play Video") {
+                                showWebVideoSheet = true
                             }
                             .buttonStyle(.borderedProminent)
+                            .sheet(isPresented: $showWebVideoSheet) {
+                                SafariView(url: videoURL)
+                            }
+
+                            Button("Open in External Browser") {
+                                openURL(videoURL)
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
                 }
@@ -791,4 +801,14 @@ private struct MediaView: View {
 
         return content
     }
+}
+
+private struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
