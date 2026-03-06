@@ -13,19 +13,6 @@ struct NASA_NewApp: App {
         _fetcher = StateObject(wrappedValue: configuredFetcher)
     }
     
-    private var isErrorPresented: Binding<Bool> {
-        Binding(
-            get: { fetcher.error != nil },
-            set: { isPresented in
-                if !isPresented {
-                    Task { @MainActor in
-                        fetcher.clearError()
-                    }
-                }
-            }
-        )
-    }
-    
     var body: some Scene {
         WindowGroup {
             Group {
@@ -42,23 +29,6 @@ struct NASA_NewApp: App {
             }
             .environmentObject(fetcher)
             .preferredColorScheme(isDarkMode ? .dark : .light)
-            .alert(isPresented: isErrorPresented) {
-                Alert(
-                    title: Text("Error"),
-                    message: Text(fetcher.error?.localizedDescription ?? "Failed to load Astronomy Picture of the Day data."),
-                    primaryButton: .default(Text("Retry")) {
-                        Task { await fetcher.fetchData() }
-                        Task { @MainActor in
-                            fetcher.clearError()
-                        }
-                    },
-                    secondaryButton: .cancel(Text("OK")) {
-                        Task { @MainActor in
-                            fetcher.clearError()
-                        }
-                    }
-                )
-            }
             .accessibilityElement()
             .accessibilityLabel("NASA APOD App")
             .accessibilityHint("Displays NASA's Astronomy Picture of the Day with dark/light mode support.")

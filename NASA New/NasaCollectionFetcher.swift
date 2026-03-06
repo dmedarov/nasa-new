@@ -7,11 +7,15 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published var error: FetchError?
     @Published private(set) var isFetching = false
     @Published private(set) var isUsingFixtureData = false
+    @Published private(set) var favorites = [NASA]()
+    @Published private(set) var lastStatusCode: Int?
+    @Published private(set) var lastRequestDate: Date?
 
     private let session: URLSession
     private let apiKey: String
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
+    private let favoritesStorage: FavoritesStorage
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -19,22 +23,43 @@ final class NasaCollectionFetcher: ObservableObject {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter
     }()
-    private let minimumAPODDate: Date = Calendar(identifier: .gregorian).date(from: DateComponents(year: 1995, month: 6, day: 16)) ?? .distantPast
+    private let minimumAPODDate: Date = {
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.locale = Locale(identifier: "en_US_POSIX")
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return utcCalendar.date(from: DateComponents(year: 1995, month: 6, day: 16)) ?? .distantPast
+    }()
+
+    var minimumSelectableDate: Date { minimumAPODDate }
+
+    var maximumSelectableDate: Date { normalizedDate(nowProvider()) }
+
+    var isAPIKeyConfigured: Bool {
+        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && apiKey != "DEMO_KEY"
+    }
 
     init(
         session: URLSession = .shared,
-        apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "DEMO_KEY",
+        apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "yoelUPWrkSMocFhCn2PhPaeMtjJUaGrcdQlf2U1l",
         calendar: Calendar = .current,
-        nowProvider: @escaping @Sendable () -> Date = { Date() }
+        nowProvider: @escaping @Sendable () -> Date = { Date() },
+        favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage()
     ) {
         self.session = session
         self.apiKey = apiKey
         self.calendar = calendar
         self.nowProvider = nowProvider
+        self.favoritesStorage = favoritesStorage
+        self.favorites = favoritesStorage.loadFavorites()
+        sortFavorites()
     }
 
     private func normalizedDate(_ date: Date) -> Date {
         calendar.startOfDay(for: max(date, minimumAPODDate))
+    }
+
+    func isSameAPODDay(_ lhs: Date, _ rhs: Date) -> Bool {
+        calendar.isDate(normalizedDate(lhs), inSameDayAs: normalizedDate(rhs))
     }
 
     private func buildURL(for date: Date? = nil) -> URL? {
@@ -67,6 +92,8 @@ final class NasaCollectionFetcher: ObservableObject {
         guard !isFetching else { return }
         isFetching = true
         error = nil
+        lastRequestDate = Date()
+        lastStatusCode = nil
         defer { isFetching = false }
 
         guard let url = buildURL(for: date) else {
@@ -79,6 +106,7 @@ final class NasaCollectionFetcher: ObservableObject {
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw FetchError.invalidResponse
             }
+            lastStatusCode = httpResponse.statusCode
             guard (200...299).contains(httpResponse.statusCode) else {
                 throw FetchError.httpStatus(httpResponse.statusCode)
             }
@@ -94,6 +122,7 @@ final class NasaCollectionFetcher: ObservableObject {
                     apodData.append(item)
                 }
                 apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
+                refreshFavoriteIfNeeded(with: item)
             } else {
                 let decoded = try decoder.decode([NASA].self, from: data)
                     .sorted { ($0.date ?? "") < ($1.date ?? "") }
@@ -102,6 +131,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 }
                 apodData = decoded
                 currentNasa = decoded.last ?? .default
+                refreshFavoritesFromData(decoded)
             }
         } catch is CancellationError {
             return
@@ -133,6 +163,30 @@ final class NasaCollectionFetcher: ObservableObject {
         error = nil
     }
 
+    func isFavorite(_ nasa: NASA) -> Bool {
+        favorites.contains(where: { $0.id == nasa.id })
+    }
+
+    func toggleFavorite(_ nasa: NASA) {
+        if let index = favorites.firstIndex(where: { $0.id == nasa.id }) {
+            favorites.remove(at: index)
+        } else {
+            favorites.append(nasa)
+        }
+        sortFavorites()
+        favoritesStorage.saveFavorites(favorites)
+    }
+
+    func selectFavorite(_ nasa: NASA) {
+        currentNasa = nasa
+        if let index = apodData.firstIndex(where: { $0.id == nasa.id }) {
+            apodData[index] = nasa
+        } else {
+            apodData.append(nasa)
+            apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
+        }
+    }
+
     func configureFixtureModeIfNeeded() {
         guard ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] == "1" else { return }
         isUsingFixtureData = true
@@ -153,6 +207,31 @@ final class NasaCollectionFetcher: ObservableObject {
         currentNasa = fixture
     }
 
+    private func refreshFavoriteIfNeeded(with item: NASA) {
+        guard let index = favorites.firstIndex(where: { $0.id == item.id }) else { return }
+        favorites[index] = item
+        sortFavorites()
+        favoritesStorage.saveFavorites(favorites)
+    }
+
+    private func refreshFavoritesFromData(_ items: [NASA]) {
+        var didChange = false
+        for item in items {
+            if let index = favorites.firstIndex(where: { $0.id == item.id }) {
+                favorites[index] = item
+                didChange = true
+            }
+        }
+        if didChange {
+            sortFavorites()
+            favoritesStorage.saveFavorites(favorites)
+        }
+    }
+
+    private func sortFavorites() {
+        favorites.sort { ($0.date ?? "") > ($1.date ?? "") }
+    }
+
     enum FetchError: LocalizedError {
         case badRequest
         case invalidResponse
@@ -169,6 +248,9 @@ final class NasaCollectionFetcher: ObservableObject {
             case .invalidResponse:
                 return "NASA API returned an invalid response."
             case let .httpStatus(statusCode):
+                if statusCode == 429 {
+                    return "NASA API rate limit reached (429). Configure a personal NASA_API_KEY and retry."
+                }
                 return "NASA API request failed with status code \(statusCode)."
             case .emptyResponse:
                 return "NASA API returned no APOD items."
@@ -180,5 +262,29 @@ final class NasaCollectionFetcher: ObservableObject {
                 return "Unexpected error: \(message)"
             }
         }
+    }
+}
+
+protocol FavoritesStorage {
+    func loadFavorites() -> [NASA]
+    func saveFavorites(_ favorites: [NASA])
+}
+
+struct UserDefaultsFavoritesStorage: FavoritesStorage {
+    private static let key = "nasa.favorite.items.v1"
+
+    func loadFavorites() -> [NASA] {
+        guard
+            let data = UserDefaults.standard.data(forKey: Self.key),
+            let favorites = try? JSONDecoder().decode([NASA].self, from: data)
+        else {
+            return []
+        }
+        return favorites
+    }
+
+    func saveFavorites(_ favorites: [NASA]) {
+        guard let data = try? JSONEncoder().encode(favorites) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key)
     }
 }
