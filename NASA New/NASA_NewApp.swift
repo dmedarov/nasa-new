@@ -40,6 +40,12 @@ private enum AppRuntimeConfiguration {
     static func applyDeterministicOverrides() {
         let environment = ProcessInfo.processInfo.environment
 
+        if environment["UITEST_RESET_USER_DEFAULTS"] == "1",
+           let bundleIdentifier = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleIdentifier)
+            UserDefaults.standard.synchronize()
+        }
+
         if let locale = environment["UITEST_LOCALE"] {
             UserDefaults.standard.set([locale], forKey: "AppleLanguages")
             UserDefaults.standard.set(locale, forKey: "AppleLocale")
@@ -53,5 +59,14 @@ private enum AppRuntimeConfiguration {
         if environment["UITEST_DISABLE_ANIMATIONS"] == "1" {
             UIView.setAnimationsEnabled(false)
         }
+
+        // Apple recommendation: prefer URLCache for repeatable, efficient network loading of media-heavy screens.
+        let memoryCapacity = 50 * 1024 * 1024
+        let diskCapacity = 200 * 1024 * 1024
+        URLCache.shared = URLCache(
+            memoryCapacity: memoryCapacity,
+            diskCapacity: diskCapacity,
+            diskPath: "nasa-apod-urlcache"
+        )
     }
 }

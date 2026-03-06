@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import YouTubePlayerKit
 import SafariServices
+import AVKit
 
 struct MainView: View {
     @EnvironmentObject var fetcher: NasaCollectionFetcher
@@ -113,7 +114,9 @@ struct MainView: View {
                 isFetching: fetcher.isFetching,
                 error: fetcher.error,
                 hasLoadedContent: hasLoadedContent,
-                retryAction: retryLatestRequest
+                retryAction: retryLatestRequest,
+                isOfflineMode: fetcher.isOfflineMode,
+                apiKeyWarning: fetcher.apiKeyWarning
             )
             
             if !hasLoadedContent && fetcher.isFetching {
@@ -189,7 +192,9 @@ struct MainView: View {
                 lastRequestDate: fetcher.lastRequestDate,
                 isAPIKeyConfigured: fetcher.isAPIKeyConfigured,
                 lastTransportError: fetcher.lastTransportError,
-                isUsingCachedData: fetcher.isUsingCachedData
+                isUsingCachedData: fetcher.isUsingCachedData,
+                diagnosticsHistory: fetcher.requestDiagnostics,
+                apiKeyWarning: fetcher.apiKeyWarning
             )
         }
         .sheet(isPresented: $showFavoritesSheet) {
@@ -412,6 +417,7 @@ private struct APODDetailsView: View {
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 2)
                     .padding(.vertical, 8)
+                    .accessibilityTextContentType(.narrative)
                     .accessibilityLabel("Explanation: \(nasa.explanation ?? "No explanation available.")")
             }
             .frame(maxWidth: .infinity)
@@ -514,6 +520,8 @@ private struct SettingsSheetView: View {
     let isAPIKeyConfigured: Bool
     let lastTransportError: String?
     let isUsingCachedData: Bool
+    let diagnosticsHistory: [RequestDiagnostic]
+    let apiKeyWarning: String?
 
     var body: some View {
         AdaptiveNavigationContainer {
@@ -545,6 +553,33 @@ private struct SettingsSheetView: View {
                                 .multilineTextAlignment(.trailing)
                         }
                     }
+                    if let apiKeyWarning {
+                        LabeledContent("API Key Warning") {
+                            Text(apiKeyWarning)
+                                .foregroundColor(.orange)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+
+                if !diagnosticsHistory.isEmpty {
+                    Section("Recent Requests") {
+                        ForEach(diagnosticsHistory.prefix(5)) { item in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.timestamp.formatted(date: .omitted, time: .standard))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("\(item.result.uppercased()) • \(item.statusCode.map(String.init) ?? "N/A")")
+                                    .font(.caption)
+                                if let transportError = item.transportError, !transportError.isEmpty {
+                                    Text(transportError)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("Settings")
@@ -568,34 +603,69 @@ private struct APIRequestStatusBanner: View {
     let error: NasaCollectionFetcher.FetchError?
     let hasLoadedContent: Bool
     let retryAction: () -> Void
+    let isOfflineMode: Bool
+    let apiKeyWarning: String?
 
     var body: some View {
-        if isFetching && hasLoadedContent {
-            HStack(spacing: 10) {
-                ProgressView()
-                Text("Refreshing APOD from NASA API...")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                Spacer()
+        VStack(spacing: 6) {
+            if isOfflineMode {
+                HStack(spacing: 10) {
+                    Image(systemName: "wifi.slash")
+                        .foregroundColor(.orange)
+                    Text("Offline mode: showing cached APOD content.")
+                        .font(.footnote)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.thinMaterial)
+                .cornerRadius(10)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-        } else if let error, hasLoadedContent {
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                Text(error.localizedDescription)
-                    .font(.footnote)
-                    .lineLimit(2)
-                Spacer()
-                Button("Retry", action: retryAction)
-                    .font(.footnote.bold())
+
+            if let apiKeyWarning {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.fill")
+                        .foregroundColor(.orange)
+                    Text(apiKeyWarning)
+                        .font(.footnote)
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.thinMaterial)
+                .cornerRadius(10)
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(.thinMaterial)
-            .cornerRadius(10)
-            .padding(.horizontal)
+
+            if isFetching && hasLoadedContent {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Refreshing APOD from NASA API...")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+            } else if let error, hasLoadedContent {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(error.localizedDescription)
+                        .font(.footnote)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Retry", action: retryAction)
+                        .font(.footnote.bold())
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.thinMaterial)
+                .cornerRadius(10)
+                .padding(.horizontal)
+            }
         }
     }
 }
@@ -678,6 +748,7 @@ private struct MediaView: View {
     let videoThumbnailURL: (String) -> URL?
     @Environment(\.openURL) private var openURL
     @State private var showWebVideoSheet = false
+    @State private var directVideoPlayer: AVPlayer?
 
     var body: some View {
         @ViewBuilder var content: some View {
@@ -735,6 +806,7 @@ private struct MediaView: View {
                             .frame(maxWidth: 300)
                         Text("Video playback is disabled in Settings.")
                             .font(.title3)
+                            .accessibilityIdentifier("videoDisabledMessage")
                     }
                 } else if let videoID = extractYouTubeID(nasa.url) {
                     let player = YouTubePlayer(source: .video(id: videoID))
@@ -755,6 +827,19 @@ private struct MediaView: View {
                         .onDisappear {
                             isVideoLoading = false
                         }
+                } else if let videoURL = nasa.url, supportsInlineDirectVideo(videoURL) {
+                    VideoPlayer(player: directVideoPlayer)
+                        .frame(height: 300)
+                        .cornerRadius(15)
+                        .padding(.horizontal)
+                        .accessibilityIdentifier("directVideoPlayer")
+                        .task(id: videoURL) {
+                            directVideoPlayer = AVPlayer(url: videoURL)
+                            directVideoPlayer?.play()
+                        }
+                        .onDisappear {
+                            directVideoPlayer?.pause()
+                        }
                 } else {
                     VStack(spacing: 10) {
                         Image("pandaplaceholder")
@@ -763,11 +848,13 @@ private struct MediaView: View {
                             .frame(maxWidth: 300)
                         Text("Playing this source with in-app browser.")
                             .font(.title3)
+                            .accessibilityIdentifier("unsupportedVideoMessage")
                         if let videoURL = nasa.url {
                             Button("Play Video") {
                                 showWebVideoSheet = true
                             }
                             .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("playVideoInAppButton")
                             .sheet(isPresented: $showWebVideoSheet) {
                                 SafariView(url: videoURL)
                             }
@@ -776,6 +863,7 @@ private struct MediaView: View {
                                 openURL(videoURL)
                             }
                             .buttonStyle(.bordered)
+                            .accessibilityIdentifier("openVideoExternalButton")
                         }
                     }
                 }
@@ -792,6 +880,16 @@ private struct MediaView: View {
         }
 
         return content
+    }
+
+    private func supportsInlineDirectVideo(_ url: URL) -> Bool {
+        let supportedExtensions: Set<String> = ["mp4", "m4v", "mov", "m3u8"]
+        let fileExtension = url.pathExtension.lowercased()
+        if supportedExtensions.contains(fileExtension) {
+            return true
+        }
+        let urlString = url.absoluteString.lowercased()
+        return supportedExtensions.contains(where: { urlString.contains(".\($0)") })
     }
 }
 
