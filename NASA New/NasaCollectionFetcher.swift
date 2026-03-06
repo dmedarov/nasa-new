@@ -15,6 +15,7 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published private(set) var isOfflineMode = false
     @Published private(set) var requestDiagnostics = [RequestDiagnostic]()
     @Published private(set) var apiKeyWarning: String?
+    @Published private(set) var rateLimitRetryDate: Date?
 
     private let service: APODService
     private let apiKey: String
@@ -92,7 +93,7 @@ final class NasaCollectionFetcher: ObservableObject {
         if let date {
             queryItems.append(URLQueryItem(name: "date", value: dateFormatter.string(from: normalizedDate(date))))
         } else {
-            let now = nowProvider()
+            let now = normalizedDate(nowProvider())
             let endDate = dateFormatter.string(from: now)
             let startDate = normalizedDate(calendar.date(byAdding: .day, value: -90, to: now) ?? now)
             let startDateString = dateFormatter.string(from: startDate)
@@ -132,6 +133,7 @@ final class NasaCollectionFetcher: ObservableObject {
         isOfflineMode = false
         lastRequestDate = Date()
         lastTransportError = nil
+        rateLimitRetryDate = nil
         defer {
             if requestID == activeRequestID {
                 isFetching = false
@@ -154,6 +156,9 @@ final class NasaCollectionFetcher: ObservableObject {
                 lastStatusCode = httpResponse.statusCode
             }
             guard (200...299).contains(httpResponse.statusCode) else {
+                if requestID == activeRequestID, httpResponse.statusCode == 429 {
+                    rateLimitRetryDate = retryAfterDate(from: httpResponse, referenceDate: nowProvider())
+                }
                 throw FetchError.httpStatus(httpResponse.statusCode)
             }
 
@@ -173,7 +178,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 cacheStorage.saveCachedAPODItems(apodData)
                 isUsingCachedData = false
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: httpResponse.statusCode,
                     result: "success",
                     transportError: nil,
@@ -192,7 +197,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 cacheStorage.saveCachedAPODItems(decoded)
                 isUsingCachedData = false
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: httpResponse.statusCode,
                     result: "success",
                     transportError: nil,
@@ -205,7 +210,7 @@ final class NasaCollectionFetcher: ObservableObject {
             if requestID == activeRequestID {
                 error = fetchError
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: lastStatusCode,
                     result: "failure",
                     transportError: fetchError.localizedDescription,
@@ -218,7 +223,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 lastTransportError = urlError.localizedDescription
                 isOfflineMode = !apodData.isEmpty
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: nil,
                     result: "failure",
                     transportError: urlError.localizedDescription,
@@ -230,7 +235,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 error = .decoding(decodeError)
                 lastTransportError = "Failed to decode NASA API payload."
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: lastStatusCode,
                     result: "failure",
                     transportError: "Failed to decode NASA API payload.",
@@ -242,7 +247,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 self.error = .unknown(error.localizedDescription)
                 lastTransportError = error.localizedDescription
                 appendDiagnostic(
-                    endpoint: url.absoluteString,
+                    endpoint: sanitizedEndpoint(from: url),
                     statusCode: lastStatusCode,
                     result: "failure",
                     transportError: error.localizedDescription,
@@ -413,6 +418,36 @@ final class NasaCollectionFetcher: ObservableObject {
         if requestDiagnostics.count > 20 {
             requestDiagnostics.removeLast(requestDiagnostics.count - 20)
         }
+    }
+
+    private func sanitizedEndpoint(from url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+        components.queryItems = components.queryItems?.map { item in
+            if item.name == "api_key" {
+                return URLQueryItem(name: item.name, value: "REDACTED")
+            }
+            return item
+        }
+        return components.url?.absoluteString ?? url.absoluteString
+    }
+
+    private func retryAfterDate(from response: HTTPURLResponse, referenceDate: Date) -> Date? {
+        guard let rawValue = response.value(forHTTPHeaderField: "Retry-After")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty else {
+            return nil
+        }
+
+        if let seconds = TimeInterval(rawValue), seconds >= 0 {
+            return referenceDate.addingTimeInterval(seconds)
+        }
+
+        let rfc1123Formatter = DateFormatter()
+        rfc1123Formatter.locale = Locale(identifier: "en_US_POSIX")
+        rfc1123Formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        rfc1123Formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        return rfc1123Formatter.date(from: rawValue)
     }
 
     private func refreshFavoriteIfNeeded(with item: NASA) {

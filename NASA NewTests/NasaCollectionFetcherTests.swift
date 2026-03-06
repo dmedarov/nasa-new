@@ -36,6 +36,30 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func capturesRetryAfterForRateLimitedResponses() async {
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(
+                url: responseURL,
+                statusCode: 429,
+                httpVersion: nil,
+                headerFields: ["Retry-After": "120"]
+            )!
+            return (response, Data())
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        await fetcher.fetchData()
+
+        #expect(fetcher.rateLimitRetryDate == fixedNow.addingTimeInterval(120))
+    }
+
+    @Test
     func mapsDecodingFailuresToDecodingError() async {
         let session = makeSession { request in
             let responseURL = request.url ?? URL(string: "https://example.com/fallback")!

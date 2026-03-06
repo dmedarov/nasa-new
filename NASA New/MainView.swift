@@ -116,7 +116,8 @@ struct MainView: View {
                 hasLoadedContent: hasLoadedContent,
                 retryAction: retryLatestRequest,
                 isOfflineMode: fetcher.isOfflineMode,
-                apiKeyWarning: fetcher.apiKeyWarning
+                apiKeyWarning: fetcher.apiKeyWarning,
+                rateLimitRetryDate: fetcher.rateLimitRetryDate
             )
             
             if !hasLoadedContent && fetcher.isFetching {
@@ -194,7 +195,8 @@ struct MainView: View {
                 lastTransportError: fetcher.lastTransportError,
                 isUsingCachedData: fetcher.isUsingCachedData,
                 diagnosticsHistory: fetcher.requestDiagnostics,
-                apiKeyWarning: fetcher.apiKeyWarning
+                apiKeyWarning: fetcher.apiKeyWarning,
+                rateLimitRetryDate: fetcher.rateLimitRetryDate
             )
         }
         .sheet(isPresented: $showFavoritesSheet) {
@@ -212,10 +214,12 @@ struct MainView: View {
                 }
             )
         }
-        .overlay(
-            fetcher.currentNasa.mediaType == .image ? controlView.padding(.bottom, 5) : nil,
-            alignment: .bottom
-        )
+        .safeAreaInset(edge: .bottom) {
+            if fetcher.currentNasa.mediaType == .image {
+                controlView
+                    .padding(.top, 8)
+            }
+        }
         .accessibilityIdentifier("mainViewRoot")
         .onDisappear {
             dateSelectionTask?.cancel()
@@ -253,6 +257,9 @@ struct MainView: View {
         .padding(.horizontal, 15)
         .background(.ultraThinMaterial)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 16)
         .opacity(isMediaAnimating ? 1 : 0)
     }
     
@@ -275,6 +282,7 @@ struct MainView: View {
 private struct MainHeaderBar: View {
     @ScaledMetric(relativeTo: .body) private var headerButtonSize = 34
     @ScaledMetric(relativeTo: .body) private var headerIconSize = 18
+    @ScaledMetric(relativeTo: .body) private var datePickerWidth = 124
     @Binding var isDarkMode: Bool
     @Binding var showSettingsSheet: Bool
     @Binding var showFavoritesSheet: Bool
@@ -294,35 +302,21 @@ private struct MainHeaderBar: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                headerIconButton(
-                    icon: isDarkMode ? "sun.min.fill" : "moon.circle",
-                    accessibilityLabel: isDarkMode ? "Switch to light mode" : "Switch to dark mode",
-                    accessibilityHint: "Toggles the app's appearance mode",
-                    action: { isDarkMode.toggle() }
-                )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    headerIconControls
+                    datePickerControl
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
 
-                headerIconButton(
-                    icon: "gearshape",
-                    accessibilityLabel: "Open settings",
-                    accessibilityHint: "Adjust app preferences",
-                    action: { showSettingsSheet = true }
-                )
-
-                headerIconButton(
-                    icon: favoritesCount == 0 ? "heart" : "heart.fill",
-                    accessibilityLabel: "Open favorites",
-                    accessibilityHint: "Shows your saved APOD favorites",
-                    action: { showFavoritesSheet = true }
-                )
-
-                DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
-                    .labelsHidden()
-                    .frame(width: 120)
-                    .accessibilityLabel("Select APOD date")
-                    .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
+                VStack(spacing: 8) {
+                    HStack(spacing: 10) {
+                        headerIconControls
+                    }
+                    datePickerControl
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
 
             HStack(spacing: 12) {
                 Button {
@@ -351,6 +345,38 @@ private struct MainHeaderBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var headerIconControls: some View {
+        headerIconButton(
+            icon: isDarkMode ? "sun.min.fill" : "moon.circle",
+            accessibilityLabel: isDarkMode ? "Switch to light mode" : "Switch to dark mode",
+            accessibilityHint: "Toggles the app's appearance mode",
+            action: { isDarkMode.toggle() }
+        )
+
+        headerIconButton(
+            icon: "gearshape",
+            accessibilityLabel: "Open settings",
+            accessibilityHint: "Adjust app preferences",
+            action: { showSettingsSheet = true }
+        )
+
+        headerIconButton(
+            icon: favoritesCount == 0 ? "heart" : "heart.fill",
+            accessibilityLabel: "Open favorites",
+            accessibilityHint: "Shows your saved APOD favorites",
+            action: { showFavoritesSheet = true }
+        )
+    }
+
+    private var datePickerControl: some View {
+        DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
+            .labelsHidden()
+            .frame(width: max(datePickerWidth, 120))
+            .accessibilityLabel("Select APOD date")
+            .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
     }
 
     @ViewBuilder
@@ -415,7 +441,8 @@ private struct APODDetailsView: View {
                 Text(nasa.explanation ?? "No explanation available.")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 2)
+                    .lineSpacing(3)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 8)
                     .accessibilityTextContentType(.narrative)
                     .accessibilityLabel("Explanation: \(nasa.explanation ?? "No explanation available.")")
@@ -522,6 +549,7 @@ private struct SettingsSheetView: View {
     let isUsingCachedData: Bool
     let diagnosticsHistory: [RequestDiagnostic]
     let apiKeyWarning: String?
+    let rateLimitRetryDate: Date?
 
     var body: some View {
         AdaptiveNavigationContainer {
@@ -546,6 +574,12 @@ private struct SettingsSheetView: View {
                     }
                     LabeledContent("Using Cached Data") {
                         Text(isUsingCachedData ? "Yes" : "No")
+                    }
+                    if let rateLimitRetryDate {
+                        LabeledContent("Rate Limit Retry Time") {
+                            Text(formattedRequestDate(rateLimitRetryDate))
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                     if let lastTransportError {
                         LabeledContent("Last Transport Error") {
@@ -605,6 +639,7 @@ private struct APIRequestStatusBanner: View {
     let retryAction: () -> Void
     let isOfflineMode: Bool
     let apiKeyWarning: String?
+    let rateLimitRetryDate: Date?
 
     var body: some View {
         VStack(spacing: 6) {
@@ -614,6 +649,22 @@ private struct APIRequestStatusBanner: View {
                         .foregroundColor(.orange)
                     Text("Offline mode: showing cached APOD content.")
                         .font(.footnote)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.thinMaterial)
+                .cornerRadius(10)
+                .padding(.horizontal)
+            }
+
+            if let rateLimitRetryDate {
+                HStack(spacing: 10) {
+                    Image(systemName: "timer")
+                        .foregroundColor(.orange)
+                    Text("Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).")
+                        .font(.footnote)
+                        .lineLimit(2)
                     Spacer()
                 }
                 .padding(.horizontal)
@@ -834,11 +885,11 @@ private struct MediaView: View {
                         .padding(.horizontal)
                         .accessibilityIdentifier("directVideoPlayer")
                         .task(id: videoURL) {
-                            directVideoPlayer = AVPlayer(url: videoURL)
-                            directVideoPlayer?.play()
+                            configureDirectVideoPlayer(for: videoURL)
                         }
                         .onDisappear {
                             directVideoPlayer?.pause()
+                            directVideoPlayer = nil
                         }
                 } else {
                     VStack(spacing: 10) {
@@ -890,6 +941,15 @@ private struct MediaView: View {
         }
         let urlString = url.absoluteString.lowercased()
         return supportedExtensions.contains(where: { urlString.contains(".\($0)") })
+    }
+
+    private func configureDirectVideoPlayer(for url: URL) {
+        if directVideoPlayer == nil {
+            directVideoPlayer = AVPlayer(url: url)
+        } else {
+            directVideoPlayer?.replaceCurrentItem(with: AVPlayerItem(url: url))
+        }
+        directVideoPlayer?.play()
     }
 }
 
