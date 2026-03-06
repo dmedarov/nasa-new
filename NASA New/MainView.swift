@@ -358,7 +358,7 @@ private struct MainHeaderBar: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: headerIconSize, weight: .semibold))
-                .frame(width: headerButtonSize, height: headerButtonSize)
+                .frame(width: max(headerButtonSize, 44), height: max(headerButtonSize, 44))
                 .foregroundColor(iconColor)
                 .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

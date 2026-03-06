@@ -9,6 +9,7 @@ struct ControlImageView: View {
     var body: some View {
         Image(systemName: icon)
             .font(.system(size: iconSize))
+            .frame(width: 44, height: 44)
             .foregroundColor(colorScheme == .dark ? .white : .indigo)
             .accessibilityLabel(accessibilityLabel)
     }
