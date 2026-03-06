@@ -16,6 +16,7 @@ final class NasaCollectionFetcher: ObservableObject {
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private let favoritesStorage: FavoritesStorage
+    private var activeRequestID = UUID()
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -40,7 +41,7 @@ final class NasaCollectionFetcher: ObservableObject {
 
     init(
         session: URLSession = .shared,
-        apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "yoelUPWrkSMocFhCn2PhPaeMtjJUaGrcdQlf2U1l",
+        apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "DEMO_KEY",
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage()
@@ -89,15 +90,22 @@ final class NasaCollectionFetcher: ObservableObject {
     @available(iOS 15.0, *)
     func fetchData(for date: Date?) async {
         guard !isUsingFixtureData else { return }
-        guard !isFetching else { return }
+        let requestID = UUID()
+        activeRequestID = requestID
         isFetching = true
         error = nil
         lastRequestDate = Date()
         lastStatusCode = nil
-        defer { isFetching = false }
+        defer {
+            if requestID == activeRequestID {
+                isFetching = false
+            }
+        }
 
         guard let url = buildURL(for: date) else {
-            error = .badRequest
+            if requestID == activeRequestID {
+                error = .badRequest
+            }
             return
         }
 
@@ -106,7 +114,9 @@ final class NasaCollectionFetcher: ObservableObject {
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw FetchError.invalidResponse
             }
-            lastStatusCode = httpResponse.statusCode
+            if requestID == activeRequestID {
+                lastStatusCode = httpResponse.statusCode
+            }
             guard (200...299).contains(httpResponse.statusCode) else {
                 throw FetchError.httpStatus(httpResponse.statusCode)
             }
@@ -115,6 +125,7 @@ final class NasaCollectionFetcher: ObservableObject {
 
             if date != nil {
                 let item = try decoder.decode(NASA.self, from: data)
+                guard requestID == activeRequestID else { return }
                 currentNasa = item
                 if let index = apodData.firstIndex(where: { $0.id == item.id }) {
                     apodData[index] = item
@@ -129,6 +140,7 @@ final class NasaCollectionFetcher: ObservableObject {
                 guard !decoded.isEmpty else {
                     throw FetchError.emptyResponse
                 }
+                guard requestID == activeRequestID else { return }
                 apodData = decoded
                 currentNasa = decoded.last ?? .default
                 refreshFavoritesFromData(decoded)
@@ -136,15 +148,21 @@ final class NasaCollectionFetcher: ObservableObject {
         } catch is CancellationError {
             return
         } catch let fetchError as FetchError {
-            error = fetchError
+            if requestID == activeRequestID {
+                error = fetchError
+            }
         } catch let urlError as URLError {
-            if urlError.code != .cancelled {
+            if requestID == activeRequestID, urlError.code != .cancelled {
                 error = .network(urlError)
             }
         } catch let decodeError as DecodingError {
-            error = .decoding(decodeError)
+            if requestID == activeRequestID {
+                error = .decoding(decodeError)
+            }
         } catch {
-            self.error = .unknown(error.localizedDescription)
+            if requestID == activeRequestID {
+                self.error = .unknown(error.localizedDescription)
+            }
         }
     }
 
