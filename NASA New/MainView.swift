@@ -186,7 +186,9 @@ struct MainView: View {
                 isPresented: $showSettingsSheet,
                 lastStatusCode: fetcher.lastStatusCode,
                 lastRequestDate: fetcher.lastRequestDate,
-                isAPIKeyConfigured: fetcher.isAPIKeyConfigured
+                isAPIKeyConfigured: fetcher.isAPIKeyConfigured,
+                lastTransportError: fetcher.lastTransportError,
+                isUsingCachedData: fetcher.isUsingCachedData
             )
         }
         .sheet(isPresented: $showFavoritesSheet) {
@@ -261,6 +263,7 @@ struct MainView: View {
 }
 
 private struct MainHeaderBar: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Binding var isDarkMode: Bool
     @Binding var showSettingsSheet: Bool
     @Binding var showFavoritesSheet: Bool
@@ -279,73 +282,91 @@ private struct MainHeaderBar: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .center, spacing: 10) {
-                Button {
-                    isDarkMode.toggle()
-                } label: {
-                    Image(systemName: isDarkMode ? "sun.min.fill" : "moon.circle")
-                        .resizable()
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(iconColor)
-                        .accessibilityLabel(isDarkMode ? "Switch to light mode" : "Switch to dark mode")
-                        .accessibilityHint("Toggles the app's appearance mode")
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .center, spacing: 10) {
+                    Button {
+                        isDarkMode.toggle()
+                    } label: {
+                        Image(systemName: isDarkMode ? "sun.min.fill" : "moon.circle")
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(iconColor)
+                            .accessibilityLabel(isDarkMode ? "Switch to light mode" : "Switch to dark mode")
+                            .accessibilityHint("Toggles the app's appearance mode")
+                    }
 
-                Button {
-                    showSettingsSheet = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .resizable()
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(iconColor)
-                        .accessibilityLabel("Open settings")
-                        .accessibilityHint("Adjust app preferences")
-                }
+                    Button {
+                        showSettingsSheet = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(iconColor)
+                            .accessibilityLabel("Open settings")
+                            .accessibilityHint("Adjust app preferences")
+                    }
 
-                Button {
-                    showFavoritesSheet = true
-                } label: {
-                    Image(systemName: favoritesCount == 0 ? "heart" : "heart.fill")
-                        .resizable()
-                        .frame(width: 22, height: 20)
-                        .foregroundColor(iconColor)
-                        .accessibilityLabel("Open favorites")
-                        .accessibilityHint("Shows your saved APOD favorites")
-                }
+                    Button {
+                        showFavoritesSheet = true
+                    } label: {
+                        Image(systemName: favoritesCount == 0 ? "heart" : "heart.fill")
+                            .resizable()
+                            .frame(width: 22, height: 20)
+                            .foregroundColor(iconColor)
+                            .accessibilityLabel("Open favorites")
+                            .accessibilityHint("Shows your saved APOD favorites")
+                    }
 
-                DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
-                    .labelsHidden()
-                    .frame(width: 120)
-                    .accessibilityLabel("Select APOD date")
-                    .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
+                    DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
+                        .labelsHidden()
+                        .frame(width: 120)
+                        .accessibilityLabel("Select APOD date")
+                        .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
 
-                Button {
-                    refreshAction()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .resizable()
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(iconColor)
-                        .accessibilityLabel("Refresh APOD data")
-                        .accessibilityHint("Fetches the latest APOD data")
-                }
-                .disabled(isFetching)
+                    Button {
+                        refreshAction()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(iconColor)
+                            .accessibilityLabel("Refresh APOD data")
+                            .accessibilityHint("Fetches the latest APOD data")
+                    }
+                    .disabled(isFetching)
 
-                Button {
-                    randomizeAction()
-                } label: {
-                    Image(systemName: "arrow.clockwise.circle")
-                        .resizable()
-                        .frame(width: 22, height: 22)
-                        .foregroundColor(iconColor)
-                        .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
-                        .accessibilityHint("Loads a random Astronomy Picture of the Day")
+                    Button {
+                        randomizeAction()
+                    } label: {
+                        Image(systemName: "arrow.clockwise.circle")
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(iconColor)
+                            .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
+                            .accessibilityHint("Loads a random Astronomy Picture of the Day")
+                    }
+                    .disabled(isFetching || !hasApodData)
                 }
-                .disabled(isFetching || !hasApodData)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
+            .overlay(alignment: .trailing) {
+                LinearGradient(
+                    colors: [.clear, Color.black.opacity(0.12)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 22)
+                .allowsHitTesting(false)
+            }
+
+            if horizontalSizeClass == .compact {
+                Label("Swipe for more controls", systemImage: "arrow.left.and.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+            }
         }
     }
 }
@@ -466,6 +487,8 @@ private struct SettingsSheetView: View {
     let lastStatusCode: Int?
     let lastRequestDate: Date?
     let isAPIKeyConfigured: Bool
+    let lastTransportError: String?
+    let isUsingCachedData: Bool
 
     var body: some View {
         NavigationView {
@@ -487,6 +510,15 @@ private struct SettingsSheetView: View {
                     }
                     LabeledContent("Last Request Time") {
                         Text(formattedRequestDate(lastRequestDate))
+                    }
+                    LabeledContent("Using Cached Data") {
+                        Text(isUsingCachedData ? "Yes" : "No")
+                    }
+                    if let lastTransportError {
+                        LabeledContent("Last Transport Error") {
+                            Text(lastTransportError)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                 }
             }

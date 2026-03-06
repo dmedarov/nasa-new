@@ -24,7 +24,7 @@ struct NasaModelTests {
         #expect(model.url?.absoluteString == "https://example.com/image.jpg")
         #expect(model.hdurl?.absoluteString == "https://example.com/image_hd.jpg")
         #expect(model.title == "Galaxy")
-        #expect(model.id == "2025-01-15")
+        #expect(model.id == "date:2025-01-15|url:https://example.com/image.jpg")
     }
 
     @Test
@@ -63,5 +63,19 @@ struct NasaModelTests {
         #expect(model.url == nil)
         #expect(model.hdurl == nil)
         #expect(model.mediaType == .image)
+    }
+
+    @Test
+    func usesStableFallbackIdentityWhenDateAndURLMissing() throws {
+        let json = """
+        {
+            "explanation": "Fallback identity entry.",
+            "media_type": "image",
+            "title": "Fallback Title"
+        }
+        """.data(using: .utf8)!
+
+        let model = try JSONDecoder().decode(NASA.self, from: json)
+        #expect(model.id == "explanation:Fallback identity entry.")
     }
 }

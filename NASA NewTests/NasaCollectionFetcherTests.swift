@@ -330,6 +330,76 @@ struct NasaCollectionFetcherTests {
         #expect(fetcher.currentNasa.title == "Second")
     }
 
+    @Test
+    func loadsCachedDataOnInitWhenAvailable() {
+        let cached = [
+            NASA(
+                date: "2025-01-01",
+                explanation: "Cached item",
+                mediaType: .image,
+                title: "Cached",
+                url: URL(string: "https://example.com/cached.jpg")
+            )
+        ]
+        let cacheStorage = InMemoryAPODCacheStorage(initialItems: cached)
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: cacheStorage
+        )
+
+        #expect(fetcher.isUsingCachedData)
+        #expect(fetcher.currentNasa.title == "Cached")
+        #expect(fetcher.apodData.count == 1)
+    }
+
+    @Test
+    func savesFetchedRangeDataToCache() async {
+        let cacheStorage = InMemoryAPODCacheStorage()
+        let payload = """
+        [
+            {
+                "date": "2025-01-03",
+                "explanation": "Network item",
+                "media_type": "image",
+                "title": "Network",
+                "url": "https://example.com/network.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, payload)
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: cacheStorage
+        )
+
+        await fetcher.fetchData()
+
+        #expect(!fetcher.isUsingCachedData)
+        #expect(cacheStorage.cachedItems.count == 1)
+        #expect(cacheStorage.cachedItems.first?.title == "Network")
+    }
+
     private func makeSession(handler: @escaping @Sendable (URLRequest) throws -> (URLResponse, Data)) -> URLSession {
         MockURLProtocol.setRequestHandler(handler)
         let configuration = URLSessionConfiguration.ephemeral
@@ -417,5 +487,21 @@ private final class InMemoryFavoritesStorage: FavoritesStorage {
 
     func saveFavorites(_ favorites: [NASA]) {
         savedFavorites = favorites
+    }
+}
+
+private final class InMemoryAPODCacheStorage: APODCacheStorage {
+    private(set) var cachedItems: [NASA]
+
+    init(initialItems: [NASA] = []) {
+        self.cachedItems = initialItems
+    }
+
+    func loadCachedAPODItems() -> [NASA] {
+        cachedItems
+    }
+
+    func saveCachedAPODItems(_ items: [NASA]) {
+        cachedItems = items
     }
 }

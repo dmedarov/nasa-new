@@ -10,12 +10,15 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published private(set) var favorites = [NASA]()
     @Published private(set) var lastStatusCode: Int?
     @Published private(set) var lastRequestDate: Date?
+    @Published private(set) var lastTransportError: String?
+    @Published private(set) var isUsingCachedData = false
 
     private let session: URLSession
     private let apiKey: String
     private let calendar: Calendar
     private let nowProvider: @Sendable () -> Date
     private let favoritesStorage: FavoritesStorage
+    private let cacheStorage: APODCacheStorage
     private var activeRequestID = UUID()
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -44,15 +47,24 @@ final class NasaCollectionFetcher: ObservableObject {
         apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "DEMO_KEY",
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
-        favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage()
+        favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage(),
+        cacheStorage: APODCacheStorage = UserDefaultsAPODCacheStorage()
     ) {
         self.session = session
         self.apiKey = apiKey
         self.calendar = calendar
         self.nowProvider = nowProvider
         self.favoritesStorage = favoritesStorage
+        self.cacheStorage = cacheStorage
         self.favorites = favoritesStorage.loadFavorites()
         sortFavorites()
+
+        let cachedItems = cacheStorage.loadCachedAPODItems()
+        if !cachedItems.isEmpty {
+            self.apodData = cachedItems.sorted { ($0.date ?? "") < ($1.date ?? "") }
+            self.currentNasa = self.apodData.last ?? .default
+            self.isUsingCachedData = true
+        }
     }
 
     private func normalizedDate(_ date: Date) -> Date {
@@ -95,7 +107,7 @@ final class NasaCollectionFetcher: ObservableObject {
         isFetching = true
         error = nil
         lastRequestDate = Date()
-        lastStatusCode = nil
+        lastTransportError = nil
         defer {
             if requestID == activeRequestID {
                 isFetching = false
@@ -134,6 +146,8 @@ final class NasaCollectionFetcher: ObservableObject {
                 }
                 apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
                 refreshFavoriteIfNeeded(with: item)
+                cacheStorage.saveCachedAPODItems(apodData)
+                isUsingCachedData = false
             } else {
                 let decoded = try decoder.decode([NASA].self, from: data)
                     .sorted { ($0.date ?? "") < ($1.date ?? "") }
@@ -144,6 +158,8 @@ final class NasaCollectionFetcher: ObservableObject {
                 apodData = decoded
                 currentNasa = decoded.last ?? .default
                 refreshFavoritesFromData(decoded)
+                cacheStorage.saveCachedAPODItems(decoded)
+                isUsingCachedData = false
             }
         } catch is CancellationError {
             return
@@ -154,14 +170,17 @@ final class NasaCollectionFetcher: ObservableObject {
         } catch let urlError as URLError {
             if requestID == activeRequestID, urlError.code != .cancelled {
                 error = .network(urlError)
+                lastTransportError = urlError.localizedDescription
             }
         } catch let decodeError as DecodingError {
             if requestID == activeRequestID {
                 error = .decoding(decodeError)
+                lastTransportError = "Failed to decode NASA API payload."
             }
         } catch {
             if requestID == activeRequestID {
                 self.error = .unknown(error.localizedDescription)
+                lastTransportError = error.localizedDescription
             }
         }
     }
@@ -208,6 +227,7 @@ final class NasaCollectionFetcher: ObservableObject {
     func configureFixtureModeIfNeeded() {
         guard ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] == "1" else { return }
         isUsingFixtureData = true
+        isUsingCachedData = false
         error = nil
 
         let fixture = NASA(
@@ -288,6 +308,11 @@ protocol FavoritesStorage {
     func saveFavorites(_ favorites: [NASA])
 }
 
+protocol APODCacheStorage {
+    func loadCachedAPODItems() -> [NASA]
+    func saveCachedAPODItems(_ items: [NASA])
+}
+
 struct UserDefaultsFavoritesStorage: FavoritesStorage {
     private static let key = "nasa.favorite.items.v1"
 
@@ -303,6 +328,25 @@ struct UserDefaultsFavoritesStorage: FavoritesStorage {
 
     func saveFavorites(_ favorites: [NASA]) {
         guard let data = try? JSONEncoder().encode(favorites) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key)
+    }
+}
+
+struct UserDefaultsAPODCacheStorage: APODCacheStorage {
+    private static let key = "nasa.apod.cache.items.v1"
+
+    func loadCachedAPODItems() -> [NASA] {
+        guard
+            let data = UserDefaults.standard.data(forKey: Self.key),
+            let items = try? JSONDecoder().decode([NASA].self, from: data)
+        else {
+            return []
+        }
+        return items
+    }
+
+    func saveCachedAPODItems(_ items: [NASA]) {
+        guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: Self.key)
     }
 }
