@@ -400,6 +400,92 @@ struct NasaCollectionFetcherTests {
         #expect(cacheStorage.cachedItems.first?.title == "Network")
     }
 
+    @Test
+    func startLatestFetchCancelsPreviousInFlightRequest() async {
+        let firstPayload = """
+        [
+            {
+                "date": "2025-01-04",
+                "explanation": "First range response",
+                "media_type": "image",
+                "title": "First Range",
+                "url": "https://example.com/first-range.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+
+        let secondPayload = """
+        [
+            {
+                "date": "2025-01-05",
+                "explanation": "Second range response",
+                "media_type": "image",
+                "title": "Second Range",
+                "url": "https://example.com/second-range.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+
+        let callCounter = ThreadSafeBox<Int>(0)
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let currentCount = callCounter.get()
+            callCounter.set(currentCount + 1)
+            if currentCount == 0 {
+                Thread.sleep(forTimeInterval: 0.2)
+                return (response, firstPayload)
+            }
+            return (response, secondPayload)
+        }
+
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        fetcher.startLatestFetch()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        fetcher.startLatestFetch()
+        try? await Task.sleep(nanoseconds: 350_000_000)
+
+        #expect(fetcher.currentNasa.title == "Second Range")
+    }
+
+    @Test
+    func removesFavoriteFromCollection() {
+        let item = NASA(
+            date: "2025-01-10",
+            explanation: "Item to remove",
+            mediaType: .image,
+            title: "Removable",
+            url: URL(string: "https://example.com/removable.jpg")
+        )
+        let storage = InMemoryFavoritesStorage(initialFavorites: [item])
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: storage
+        )
+
+        #expect(fetcher.favorites.count == 1)
+        fetcher.removeFavorite(item)
+        #expect(fetcher.favorites.isEmpty)
+        #expect(storage.savedFavorites.isEmpty)
+    }
+
     private func makeSession(handler: @escaping @Sendable (URLRequest) throws -> (URLResponse, Data)) -> URLSession {
         MockURLProtocol.setRequestHandler(handler)
         let configuration = URLSessionConfiguration.ephemeral

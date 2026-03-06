@@ -20,6 +20,7 @@ final class NasaCollectionFetcher: ObservableObject {
     private let favoritesStorage: FavoritesStorage
     private let cacheStorage: APODCacheStorage
     private var activeRequestID = UUID()
+    private var latestFetchTask: Task<Void, Never>?
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -97,6 +98,19 @@ final class NasaCollectionFetcher: ObservableObject {
     @available(iOS 15.0, *)
     func fetchData() async {
         await fetchData(for: nil)
+    }
+
+    @available(iOS 15.0, *)
+    func startLatestFetch(for date: Date? = nil) {
+        latestFetchTask?.cancel()
+        latestFetchTask = Task { [weak self] in
+            await self?.fetchData(for: date)
+        }
+    }
+
+    func cancelLatestFetch() {
+        latestFetchTask?.cancel()
+        latestFetchTask = nil
     }
 
     @available(iOS 15.0, *)
@@ -211,6 +225,12 @@ final class NasaCollectionFetcher: ObservableObject {
             favorites.append(nasa)
         }
         sortFavorites()
+        favoritesStorage.saveFavorites(favorites)
+    }
+
+    func removeFavorite(_ nasa: NASA) {
+        guard let index = favorites.firstIndex(where: { $0.id == nasa.id }) else { return }
+        favorites.remove(at: index)
         favoritesStorage.saveFavorites(favorites)
     }
 

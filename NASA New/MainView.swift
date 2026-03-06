@@ -75,7 +75,7 @@ struct MainView: View {
         dateSelectionTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
-            await fetcher.fetchData(for: date)
+            fetcher.startLatestFetch(for: date)
         }
     }
 
@@ -84,7 +84,7 @@ struct MainView: View {
     }
 
     private func retryLatestRequest() {
-        Task { await fetcher.fetchData() }
+        fetcher.startLatestFetch()
     }
     
     var body: some View {
@@ -100,7 +100,7 @@ struct MainView: View {
                 hasApodData: !fetcher.apodData.isEmpty,
                 favoritesCount: fetcher.favorites.count,
                 preferImages: preferImages,
-                refreshAction: { Task { await fetcher.fetchData() } },
+                refreshAction: { fetcher.startLatestFetch() },
                 randomizeAction: {
                     fetcher.selectRandom(preferImagesOnly: preferImages)
                     resetImageState()
@@ -139,7 +139,7 @@ struct MainView: View {
                 .onAppear {
                     withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
                     if fetcher.apodData.isEmpty && !fetcher.isFetching {
-                        Task { await fetcher.fetchData() }
+                        fetcher.startLatestFetch()
                     } else {
                         syncSelectedDateWithCurrentItem()
                     }
@@ -200,6 +200,9 @@ struct MainView: View {
                     resetImageState()
                     isVideoLoading = fetcher.currentNasa.mediaType == .video
                     syncSelectedDateWithCurrentItem()
+                },
+                removeAction: { favorite in
+                    fetcher.removeFavorite(favorite)
                 }
             )
         }
@@ -211,6 +214,7 @@ struct MainView: View {
         .onDisappear {
             dateSelectionTask?.cancel()
             dateSelectionTask = nil
+            fetcher.cancelLatestFetch()
         }
     }
     
@@ -427,6 +431,17 @@ private struct FavoritesSheetView: View {
     let favorites: [NASA]
     @Binding var isPresented: Bool
     let selectAction: (NASA) -> Void
+    let removeAction: (NASA) -> Void
+    @State private var searchQuery = ""
+
+    private var filteredFavorites: [NASA] {
+        let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return favorites }
+        return favorites.filter { item in
+            (item.title ?? "").localizedCaseInsensitiveContains(trimmed) ||
+            (item.date ?? "").localizedCaseInsensitiveContains(trimmed)
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -447,26 +462,43 @@ private struct FavoritesSheetView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding()
                 } else {
-                    List(favorites) { item in
-                        Button {
-                            selectAction(item)
-                            isPresented = false
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.title ?? "Untitled")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    Text(item.date ?? "Unknown date")
-                                        .font(.caption)
+                    List {
+                        ForEach(filteredFavorites) { item in
+                            Button {
+                                selectAction(item)
+                                isPresented = false
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.title ?? "Untitled")
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        Text(item.date ?? "Unknown date")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: item.mediaType == .video ? "play.rectangle" : "photo")
                                         .foregroundColor(.secondary)
                                 }
-                                Spacer()
-                                Image(systemName: item.mediaType == .video ? "play.rectangle" : "photo")
-                                    .foregroundColor(.secondary)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    removeAction(item)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }
+                    .overlay {
+                        if filteredFavorites.isEmpty {
+                            Text("No favorites match your search.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .searchable(text: $searchQuery, prompt: "Search favorites")
                     .listStyle(.insetGrouped)
                 }
             }
