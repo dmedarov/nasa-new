@@ -3,6 +3,7 @@ import UIKit
 import YouTubePlayerKit
 import SafariServices
 import AVKit
+import UserNotifications
 
 struct MainView: View {
     private enum ViewConstants {
@@ -29,10 +30,17 @@ struct MainView: View {
     @State private var dateSelectionTask: Task<Void, Never>?
     @State private var randomizeFeedbackToken = 0
     @State private var favoriteFeedbackToken = 0
+    @State private var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
+    @State private var nextScheduledNotificationDate: Date?
     
     @AppStorage("isDarkMode") private var isDarkMode: Bool = true
     @AppStorage("preferImages") private var preferImages: Bool = false
     @AppStorage("allowVideoPlayback") private var allowVideoPlayback: Bool = true
+    @AppStorage("dailyNotificationsEnabled") private var dailyNotificationsEnabled: Bool = false
+    @AppStorage("dailyNotificationHour") private var dailyNotificationHour: Int = 9
+    @AppStorage("dailyNotificationMinute") private var dailyNotificationMinute: Int = 0
+    @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
+    @AppStorage("preferHDImages") private var preferHDImages: Bool = true
     private func resetImageState() {
         let updates = {
             imageScale = ViewConstants.minImageScale
@@ -160,15 +168,17 @@ struct MainView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 12) {
-                        MediaView(
-                            nasa: fetcher.currentNasa,
-                            imageScale: $imageScale,
-                            imageOffset: $imageOffset,
-                            isVideoLoading: $isVideoLoading,
-                            allowVideoPlayback: allowVideoPlayback,
-                            reduceMotion: accessibilityReduceMotion,
-                            resetImageState: resetImageState,
-                            extractYouTubeID: extractYouTubeID,
+                MediaView(
+                    nasa: fetcher.currentNasa,
+                    imageScale: $imageScale,
+                    imageOffset: $imageOffset,
+                    isVideoLoading: $isVideoLoading,
+                    allowVideoPlayback: allowVideoPlayback,
+                    dataSaverMode: dataSaverMode,
+                    preferHDImages: preferHDImages,
+                    reduceMotion: accessibilityReduceMotion,
+                    resetImageState: resetImageState,
+                    extractYouTubeID: extractYouTubeID,
                             videoThumbnailURL: videoThumbnailURL
                         )
                         .opacity(isMediaAnimating ? 1 : 0)
@@ -228,6 +238,11 @@ struct MainView: View {
             SettingsSheetView(
                 preferImages: $preferImages,
                 allowVideoPlayback: $allowVideoPlayback,
+                dailyNotificationsEnabled: $dailyNotificationsEnabled,
+                dailyNotificationHour: $dailyNotificationHour,
+                dailyNotificationMinute: $dailyNotificationMinute,
+                dataSaverMode: $dataSaverMode,
+                preferHDImages: $preferHDImages,
                 isPresented: $showSettingsSheet,
                 lastStatusCode: fetcher.lastStatusCode,
                 lastRequestDate: fetcher.lastRequestDate,
@@ -236,7 +251,9 @@ struct MainView: View {
                 isUsingCachedData: fetcher.isUsingCachedData,
                 diagnosticsHistory: fetcher.requestDiagnostics,
                 apiKeyWarning: fetcher.apiKeyWarning,
-                rateLimitRetryDate: fetcher.rateLimitRetryDate
+                rateLimitRetryDate: fetcher.rateLimitRetryDate,
+                notificationPermissionStatus: notificationPermissionStatus,
+                nextScheduledNotificationDate: nextScheduledNotificationDate
             )
         }
         .sheet(isPresented: $showFavoritesSheet) {
@@ -268,6 +285,26 @@ struct MainView: View {
             guard newPhase == .active else { return }
             if fetcher.shouldRefreshOnForeground() {
                 retryLatestRequest()
+            }
+            Task {
+                await refreshNotificationStatus()
+            }
+        }
+        .task {
+            await synchronizeNotificationSchedule()
+        }
+        .onChange(of: dailyNotificationsEnabled) { _ in
+            Task { await synchronizeNotificationSchedule() }
+        }
+        .onChange(of: dailyNotificationHour) { _ in
+            Task { await synchronizeNotificationSchedule() }
+        }
+        .onChange(of: dailyNotificationMinute) { _ in
+            Task { await synchronizeNotificationSchedule() }
+        }
+        .onChange(of: dataSaverMode) { enabled in
+            if enabled {
+                preferHDImages = false
             }
         }
         .modifier(SensoryFeedbackModifier(
@@ -305,6 +342,24 @@ struct MainView: View {
             return AnyShapeStyle(solidColor)
         }
         return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    private var currentNotificationSettings: NotificationSettings {
+        NotificationSettings(
+            isEnabled: dailyNotificationsEnabled,
+            hour: max(0, min(23, dailyNotificationHour)),
+            minute: max(0, min(59, dailyNotificationMinute))
+        )
+    }
+
+    private func refreshNotificationStatus() async {
+        notificationPermissionStatus = await NotificationScheduler.shared.authorizationStatus()
+        nextScheduledNotificationDate = await NotificationScheduler.shared.nextPendingNotificationDate()
+    }
+
+    private func synchronizeNotificationSchedule() async {
+        await NotificationScheduler.shared.scheduleDailyAPODNotification(settings: currentNotificationSettings)
+        await refreshNotificationStatus()
     }
     
     private var controlView: some View {
@@ -712,6 +767,11 @@ private struct FavoritesSheetView: View {
 private struct SettingsSheetView: View {
     @Binding var preferImages: Bool
     @Binding var allowVideoPlayback: Bool
+    @Binding var dailyNotificationsEnabled: Bool
+    @Binding var dailyNotificationHour: Int
+    @Binding var dailyNotificationMinute: Int
+    @Binding var dataSaverMode: Bool
+    @Binding var preferHDImages: Bool
     @Binding var isPresented: Bool
     let lastStatusCode: Int?
     let lastRequestDate: Date?
@@ -721,16 +781,47 @@ private struct SettingsSheetView: View {
     let diagnosticsHistory: [RequestDiagnostic]
     let apiKeyWarning: String?
     let rateLimitRetryDate: Date?
+    let notificationPermissionStatus: UNAuthorizationStatus
+    let nextScheduledNotificationDate: Date?
+
+    private var notificationTimeBinding: Binding<Date> {
+        Binding<Date>(
+            get: {
+                var components = DateComponents()
+                components.hour = dailyNotificationHour
+                components.minute = dailyNotificationMinute
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                dailyNotificationHour = components.hour ?? 9
+                dailyNotificationMinute = components.minute ?? 0
+            }
+        )
+    }
+
+    private var notificationPermissionLabel: String {
+        switch notificationPermissionStatus {
+        case .authorized: return "Authorized"
+        case .provisional: return "Provisional"
+        case .ephemeral: return "Ephemeral"
+        case .denied: return "Denied"
+        case .notDetermined: return "Not Determined"
+        @unknown default: return "Unknown"
+        }
+    }
 
     var body: some View {
         AdaptiveNavigationContainer {
             Form {
-                Toggle("Prefer Images Only", isOn: $preferImages)
-                    .accessibilityLabel("Prefer images only for random selection")
-                    .accessibilityHint("Limits random selection to images only")
-                Toggle("Allow Video Playback", isOn: $allowVideoPlayback)
-                    .accessibilityLabel("Allow video playback")
-                    .accessibilityHint("Controls whether APOD videos play inside the app")
+                Section("Content Preferences") {
+                    Toggle("Prefer Images Only", isOn: $preferImages)
+                        .accessibilityLabel("Prefer images only for random selection")
+                        .accessibilityHint("Limits random selection to images only")
+                    Toggle("Allow Video Playback", isOn: $allowVideoPlayback)
+                        .accessibilityLabel("Allow video playback")
+                        .accessibilityHint("Controls whether APOD videos play inside the app")
+                }
 
                 Section("API Diagnostics") {
                     LabeledContent("NASA_API_KEY Configured") {
@@ -785,6 +876,32 @@ private struct SettingsSheetView: View {
                             }
                         }
                     }
+                }
+
+                Section("Daily Notifications") {
+                    Toggle("Enable Daily APOD Alerts", isOn: $dailyNotificationsEnabled)
+                    DatePicker(
+                        "Alert Time",
+                        selection: notificationTimeBinding,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .disabled(!dailyNotificationsEnabled)
+                    LabeledContent("Notification Permission") {
+                        Text(notificationPermissionLabel)
+                    }
+                    LabeledContent("Next Scheduled Alert") {
+                        Text(formattedRequestDate(nextScheduledNotificationDate))
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Section("Data Saver") {
+                    Toggle("Enable Data Saver Mode", isOn: $dataSaverMode)
+                    Toggle("Prefer HD Images", isOn: $preferHDImages)
+                        .disabled(dataSaverMode)
+                    Text("Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("Settings")
@@ -995,6 +1112,8 @@ private struct MediaView: View {
     @Binding var imageOffset: CGSize
     @Binding var isVideoLoading: Bool
     let allowVideoPlayback: Bool
+    let dataSaverMode: Bool
+    let preferHDImages: Bool
     let reduceMotion: Bool
     let resetImageState: () -> Void
     let extractYouTubeID: (URL?) -> String?
@@ -1004,10 +1123,20 @@ private struct MediaView: View {
     @State private var directVideoPlayer: AVPlayer?
     @State private var magnificationStartScale: CGFloat?
 
+    private var preferredImageURL: URL? {
+        if dataSaverMode {
+            return nasa.url ?? nasa.hdurl
+        }
+        if preferHDImages {
+            return nasa.hdurl ?? nasa.url
+        }
+        return nasa.url ?? nasa.hdurl
+    }
+
     var body: some View {
         @ViewBuilder var content: some View {
             if nasa.mediaType == .image {
-                AsyncImage(url: nasa.hdurl ?? nasa.url) { phase in
+                AsyncImage(url: preferredImageURL) { phase in
                     if let image = phase.image {
                         image
                             .resizable()
@@ -1215,5 +1344,75 @@ private struct AdaptiveNavigationContainer<Content: View>: View {
             }
             .navigationViewStyle(.stack)
         }
+    }
+}
+
+private struct NotificationSettings: Equatable {
+    var isEnabled: Bool
+    var hour: Int
+    var minute: Int
+
+    var dateComponents: DateComponents {
+        DateComponents(hour: hour, minute: minute)
+    }
+}
+
+@MainActor
+private final class NotificationScheduler {
+    static let shared = NotificationScheduler()
+
+    private let center: UNUserNotificationCenter
+    private let requestIdentifier = "daily_apod_notification"
+
+    init(center: UNUserNotificationCenter = .current()) {
+        self.center = center
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        let settings = await center.notificationSettings()
+        return settings.authorizationStatus
+    }
+
+    @discardableResult
+    func requestAuthorizationIfNeeded() async -> Bool {
+        let status = await authorizationStatus()
+        if status == .authorized || status == .provisional || status == .ephemeral {
+            return true
+        }
+        guard status == .notDetermined else { return false }
+        return (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+    }
+
+    func cancelDailyNotification() {
+        center.removePendingNotificationRequests(withIdentifiers: [requestIdentifier])
+    }
+
+    func nextPendingNotificationDate() async -> Date? {
+        let requests = await center.pendingNotificationRequests()
+        guard
+            let request = requests.first(where: { $0.identifier == requestIdentifier }),
+            let trigger = request.trigger as? UNCalendarNotificationTrigger,
+            let nextDate = trigger.nextTriggerDate()
+        else {
+            return nil
+        }
+        return nextDate
+    }
+
+    func scheduleDailyAPODNotification(settings: NotificationSettings) async {
+        cancelDailyNotification()
+        guard settings.isEnabled else { return }
+
+        let granted = await requestAuthorizationIfNeeded()
+        guard granted else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "New NASA APOD"
+        content.body = "A new Astronomy Picture of the Day is available."
+        content.sound = .default
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: settings.dateComponents, repeats: true)
+        let request = UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
+        try? await center.add(request)
     }
 }
