@@ -60,6 +60,37 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func capturesRetryAfterHTTPDateValueForRateLimitedResponses() async {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        let expectedDate = Date(timeIntervalSince1970: 1_735_776_000) // 2025-01-07T00:00:00Z
+        let retryAfterValue = formatter.string(from: expectedDate)
+
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(
+                url: responseURL,
+                statusCode: 429,
+                httpVersion: nil,
+                headerFields: ["Retry-After": retryAfterValue]
+            )!
+            return (response, Data())
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        await fetcher.fetchData()
+
+        #expect(fetcher.rateLimitRetryDate == expectedDate)
+    }
+
+    @Test
     func mapsDecodingFailuresToDecodingError() async {
         let session = makeSession { request in
             let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
@@ -295,6 +326,52 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func selectRandomAvoidsSelectingCurrentItemWhenAlternativesExist() async {
+        let payload = """
+        [
+            {
+                "date": "2025-01-10",
+                "explanation": "First item",
+                "media_type": "image",
+                "title": "First",
+                "url": "https://example.com/first.jpg"
+            },
+            {
+                "date": "2025-01-11",
+                "explanation": "Second item",
+                "media_type": "image",
+                "title": "Second",
+                "url": "https://example.com/second.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, payload)
+        }
+
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        await fetcher.fetchData()
+        guard let firstItem = fetcher.apodData.first(where: { $0.title == "First" }) else {
+            Issue.record("Expected to load test item 'First'.")
+            return
+        }
+        fetcher.currentNasa = firstItem
+
+        fetcher.selectRandom(preferImagesOnly: false)
+
+        #expect(fetcher.currentNasa.title == "Second")
+    }
+
+    @Test
     func latestRequestWinsWhenResponsesReturnOutOfOrder() async {
         let firstPayload = """
         {
@@ -508,6 +585,89 @@ struct NasaCollectionFetcherTests {
         fetcher.removeFavorite(item)
         #expect(fetcher.favorites.isEmpty)
         #expect(storage.savedFavorites.isEmpty)
+    }
+
+    @Test
+    func dateParsingRejectsImpossibleAPODDateStrings() {
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        #expect(fetcher.date(from: "2025-02-30") == nil)
+        #expect(fetcher.date(from: "2025-01-15") != nil)
+    }
+
+    @Test
+    func shouldRefreshOnForegroundWhenNoDataLoaded() {
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: InMemoryAPODCacheStorage()
+        )
+
+        #expect(fetcher.apodData.isEmpty)
+        #expect(fetcher.shouldRefreshOnForeground())
+    }
+
+    @Test
+    func shouldRefreshOnForegroundAfterStalenessThreshold() async {
+        let payload = """
+        [
+            {
+                "date": "2025-01-15",
+                "explanation": "Current APOD",
+                "media_type": "image",
+                "title": "Today",
+                "url": "https://example.com/today.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+        let now = ThreadSafeBox<Date>(fixedNow)
+
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, payload)
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { now.get() },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: InMemoryAPODCacheStorage()
+        )
+
+        await fetcher.fetchData()
+        #expect(!fetcher.shouldRefreshOnForeground())
+
+        now.set(fixedNow.addingTimeInterval(30 * 60))
+        #expect(!fetcher.shouldRefreshOnForeground())
+
+        now.set(fixedNow.addingTimeInterval(61 * 60))
+        #expect(fetcher.shouldRefreshOnForeground())
     }
 
     private func makeSession(handler: @escaping @Sendable (URLRequest) throws -> (URLResponse, Data)) -> URLSession {

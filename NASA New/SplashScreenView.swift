@@ -1,6 +1,15 @@
 import SwiftUI
 
 struct SplashScreenView: View {
+    private enum SplashTiming {
+        static let holdForUITest: UInt64 = 4_000_000_000
+        static let fixtureModeDelay: UInt64 = 250_000_000
+        static let successDelay: UInt64 = 1_800_000_000
+        static let errorDelay: UInt64 = 900_000_000
+        static let fetchCompletionPollDelay: UInt64 = 50_000_000
+        static let maxAdditionalFetchWait: UInt64 = 1_500_000_000
+    }
+
     @EnvironmentObject var fetcher: NasaCollectionFetcher
     @State private var isActive = false
     @State private var size = 0.8
@@ -46,8 +55,9 @@ struct SplashScreenView: View {
                 let holdSplashForUITest = environment["UITEST_HOLD_SPLASH"] == "1"
                 let stayOnSplashForUITest = environment["UITEST_STAY_ON_SPLASH"] == "1"
 
-                if !fetcher.isUsingFixtureData {
-                    await fetcher.fetchData()
+                if !fetcher.isUsingFixtureData && fetcher.apodData.isEmpty {
+                    // Begin loading immediately without blocking splash timing.
+                    fetcher.startLatestFetch()
                 }
 
                 if stayOnSplashForUITest {
@@ -56,14 +66,29 @@ struct SplashScreenView: View {
 
                 let delay: UInt64
                 if holdSplashForUITest {
-                    delay = 4_000_000_000
+                    delay = SplashTiming.holdForUITest
                 } else {
-                    delay = fetcher.isUsingFixtureData ? 250_000_000 : (fetcher.error == nil ? 1_800_000_000 : 900_000_000)
+                    delay = fetcher.isUsingFixtureData
+                        ? SplashTiming.fixtureModeDelay
+                        : (fetcher.error == nil ? SplashTiming.successDelay : SplashTiming.errorDelay)
                 }
 
                 try? await Task.sleep(nanoseconds: delay)
+                if !fetcher.isUsingFixtureData {
+                    await waitForFetchCompletion()
+                }
+                guard !Task.isCancelled else { return }
                 withAnimation { isActive = true }
             }
+        }
+    }
+
+    private func waitForFetchCompletion() async {
+        var waited: UInt64 = 0
+        while fetcher.isFetching && waited < SplashTiming.maxAdditionalFetchWait {
+            try? await Task.sleep(nanoseconds: SplashTiming.fetchCompletionPollDelay)
+            waited += SplashTiming.fetchCompletionPollDelay
+            if Task.isCancelled { return }
         }
     }
 }

@@ -5,8 +5,19 @@ import SafariServices
 import AVKit
 
 struct MainView: View {
+    private enum ViewConstants {
+        static let minImageScale: CGFloat = 1
+        static let maxImageScale: CGFloat = 5
+        static let dateSelectionDebounceNanoseconds: UInt64 = 250_000_000
+        static let shareExplanationMaxLength: Int = 100
+        static let cardCornerRadius: CGFloat = 18
+    }
+
     @EnvironmentObject var fetcher: NasaCollectionFetcher
-    @State private var imageScale: CGFloat = 1
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @State private var imageScale: CGFloat = ViewConstants.minImageScale
     @State private var imageOffset: CGSize = .zero
     @State private var showShareSheet = false
     @State private var showSettingsSheet = false
@@ -16,14 +27,23 @@ struct MainView: View {
     @State private var selectedDate = Date()
     @State private var isSyncingSelectedDateFromModel = false
     @State private var dateSelectionTask: Task<Void, Never>?
+    @State private var randomizeFeedbackToken = 0
+    @State private var favoriteFeedbackToken = 0
     
     @AppStorage("isDarkMode") private var isDarkMode: Bool = true
     @AppStorage("preferImages") private var preferImages: Bool = false
     @AppStorage("allowVideoPlayback") private var allowVideoPlayback: Bool = true
     private func resetImageState() {
-        withAnimation(.spring()) {
-            imageScale = 1
+        let updates = {
+            imageScale = ViewConstants.minImageScale
             imageOffset = .zero
+        }
+        if accessibilityReduceMotion {
+            updates()
+        } else {
+            withAnimation(.spring()) {
+                updates()
+            }
         }
     }
     
@@ -75,7 +95,7 @@ struct MainView: View {
     private func requestAPOD(for date: Date) {
         dateSelectionTask?.cancel()
         dateSelectionTask = Task {
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: ViewConstants.dateSelectionDebounceNanoseconds)
             guard !Task.isCancelled else { return }
             fetcher.startLatestFetch(for: date)
         }
@@ -88,9 +108,17 @@ struct MainView: View {
     private func retryLatestRequest() {
         fetcher.startLatestFetch()
     }
+
+    private func applyCurrentSelectionState(syncSelectedDate: Bool) {
+        isVideoLoading = fetcher.currentNasa.mediaType == .video
+        resetImageState()
+        if syncSelectedDate {
+            syncSelectedDateWithCurrentItem()
+        }
+    }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 10) {
             MainHeaderBar(
                 isDarkMode: $isDarkMode,
                 showSettingsSheet: $showSettingsSheet,
@@ -102,11 +130,11 @@ struct MainView: View {
                 hasApodData: !fetcher.apodData.isEmpty,
                 favoritesCount: fetcher.favorites.count,
                 preferImages: preferImages,
-                refreshAction: { fetcher.startLatestFetch() },
+                refreshAction: retryLatestRequest,
                 randomizeAction: {
                     fetcher.selectRandom(preferImagesOnly: preferImages)
-                    resetImageState()
-                    isVideoLoading = fetcher.currentNasa.mediaType == .video
+                    randomizeFeedbackToken += 1
+                    applyCurrentSelectionState(syncSelectedDate: true)
                 }
             )
 
@@ -130,56 +158,68 @@ struct MainView: View {
                 APIRequestFailureView(error: error, retryAction: retryLatestRequest)
                 Spacer()
             } else {
-                MediaView(
-                    nasa: fetcher.currentNasa,
-                    imageScale: $imageScale,
-                    imageOffset: $imageOffset,
-                    isVideoLoading: $isVideoLoading,
-                    allowVideoPlayback: allowVideoPlayback,
-                    resetImageState: resetImageState,
-                    extractYouTubeID: extractYouTubeID,
-                    videoThumbnailURL: videoThumbnailURL
-                )
-                .opacity(isMediaAnimating ? 1 : 0)
-                .onAppear {
-                    withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
-                    if fetcher.apodData.isEmpty && !fetcher.isFetching {
-                        fetcher.startLatestFetch()
-                    } else {
-                        syncSelectedDateWithCurrentItem()
-                    }
-                }
-                .onChange(of: selectedDate) { date in
-                    if isSyncingSelectedDateFromModel {
-                        isSyncingSelectedDateFromModel = false
-                        return
-                    }
-                    requestAPOD(for: date)
-                }
-                .onChange(of: fetcher.currentNasa.date) { _ in
-                    isVideoLoading = fetcher.currentNasa.mediaType == .video
-                    resetImageState()
-                    syncSelectedDateWithCurrentItem()
-                }
-                
+                ScrollView {
+                    VStack(spacing: 12) {
+                        MediaView(
+                            nasa: fetcher.currentNasa,
+                            imageScale: $imageScale,
+                            imageOffset: $imageOffset,
+                            isVideoLoading: $isVideoLoading,
+                            allowVideoPlayback: allowVideoPlayback,
+                            reduceMotion: accessibilityReduceMotion,
+                            resetImageState: resetImageState,
+                            extractYouTubeID: extractYouTubeID,
+                            videoThumbnailURL: videoThumbnailURL
+                        )
+                        .opacity(isMediaAnimating ? 1 : 0)
+                        .onAppear {
+                            withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
+                            if fetcher.apodData.isEmpty && !fetcher.isFetching {
+                                fetcher.startLatestFetch()
+                            } else {
+                                syncSelectedDateWithCurrentItem()
+                            }
+                        }
+                        .onChange(of: selectedDate) { date in
+                            if isSyncingSelectedDateFromModel {
+                                isSyncingSelectedDateFromModel = false
+                                return
+                            }
+                            requestAPOD(for: date)
+                        }
+                        .onChange(of: fetcher.currentNasa.date) { _ in
+                            applyCurrentSelectionState(syncSelectedDate: true)
+                        }
+                        
                 APODDetailsView(
                     nasa: fetcher.currentNasa,
                     isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-                    favoriteAction: { fetcher.toggleFavorite(fetcher.currentNasa) }
+                    favoriteAction: {
+                        fetcher.toggleFavorite(fetcher.currentNasa)
+                        favoriteFeedbackToken += 1
+                    }
                 )
-                
-                Spacer()
-                
-                Button("Share") {
-                    showShareSheet = true
+                        
+                        shareControl
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 4)
+                            .accessibilityLabel("Share APOD")
+                            .accessibilityHint("Shares the current Astronomy Picture of the Day")
+                    }
                 }
-                .padding()
-                .accessibilityLabel("Share APOD")
-                .accessibilityHint("Shares the current Astronomy Picture of the Day")
+                .refreshable {
+                    retryLatestRequest()
+                }
             }
         }
+        .padding(.top, 8)
+        .background(backgroundLayer)
         .navigationTitle("NASA")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(.thinMaterial, for: .navigationBar)
         .preferredColorScheme(isDarkMode ? .dark : .light)
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
@@ -205,9 +245,7 @@ struct MainView: View {
                 isPresented: $showFavoritesSheet,
                 selectAction: { favorite in
                     fetcher.selectFavorite(favorite)
-                    resetImageState()
-                    isVideoLoading = fetcher.currentNasa.mediaType == .video
-                    syncSelectedDateWithCurrentItem()
+                    applyCurrentSelectionState(syncSelectedDate: true)
                 },
                 removeAction: { favorite in
                     fetcher.removeFavorite(favorite)
@@ -226,14 +264,55 @@ struct MainView: View {
             dateSelectionTask = nil
             fetcher.cancelLatestFetch()
         }
+        .onChange(of: scenePhase) { newPhase in
+            guard newPhase == .active else { return }
+            if fetcher.shouldRefreshOnForeground() {
+                retryLatestRequest()
+            }
+        }
+        .modifier(SensoryFeedbackModifier(
+            randomizeFeedbackToken: randomizeFeedbackToken,
+            favoriteFeedbackToken: favoriteFeedbackToken
+        ))
+    }
+
+    private var backgroundLayer: some View {
+        ZStack {
+            LinearGradient(
+                colors: isDarkMode
+                    ? [Color(red: 0.04, green: 0.05, blue: 0.12), Color(red: 0.09, green: 0.12, blue: 0.24)]
+                    : [Color(red: 0.93, green: 0.97, blue: 1.0), Color(red: 0.86, green: 0.92, blue: 0.99)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Circle()
+                .fill((isDarkMode ? Color.cyan : Color.blue).opacity(0.16))
+                .frame(width: 320, height: 320)
+                .offset(x: 140, y: -260)
+            Circle()
+                .fill((isDarkMode ? Color.indigo : Color.teal).opacity(0.14))
+                .frame(width: 360, height: 360)
+                .offset(x: -180, y: 260)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var adaptiveMaterialBackground: AnyShapeStyle {
+        if accessibilityReduceTransparency {
+            let solidColor = isDarkMode
+                ? Color(red: 0.12, green: 0.14, blue: 0.2).opacity(0.96)
+                : Color.white.opacity(0.94)
+            return AnyShapeStyle(solidColor)
+        }
+        return AnyShapeStyle(.ultraThinMaterial)
     }
     
     private var controlView: some View {
         HStack {
             Button {
                 withAnimation(.spring()) {
-                    if imageScale > 1 { imageScale -= 1 }
-                    if imageScale <= 1 { resetImageState() }
+                    if imageScale > ViewConstants.minImageScale { imageScale -= 1 }
+                    if imageScale <= ViewConstants.minImageScale { resetImageState() }
                 }
             } label: {
                 ControlImageView(icon: "minus.magnifyingglass", accessibilityLabel: "Zoom out")
@@ -247,7 +326,7 @@ struct MainView: View {
             
             Button {
                 withAnimation(.spring()) {
-                    if imageScale < 5 { imageScale += 1 }
+                    if imageScale < ViewConstants.maxImageScale { imageScale += 1 }
                 }
             } label: {
                 ControlImageView(icon: "plus.magnifyingglass", accessibilityLabel: "Zoom in")
@@ -255,8 +334,8 @@ struct MainView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 15)
-        .background(.ultraThinMaterial)
-        .cornerRadius(12)
+        .background(adaptiveMaterialBackground)
+        .clipShape(RoundedRectangle(cornerRadius: ViewConstants.cardCornerRadius, style: .continuous))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 16)
@@ -264,9 +343,9 @@ struct MainView: View {
     }
     
     private var shareItems: [Any] {
-        let title = fetcher.currentNasa.title ?? "Astronomy Picture"
-        let explanation = truncateToWords(fetcher.currentNasa.explanation ?? "", maxLength: 100)
-        let url = apodURL(for: fetcher.currentNasa.date)
+        let title = shareTitle
+        let explanation = shareExplanation
+        let url = shareURL
         let media: Any? = {
             if fetcher.currentNasa.mediaType == .video,
                let id = extractYouTubeID(from: fetcher.currentNasa.url),
@@ -277,12 +356,74 @@ struct MainView: View {
         }()
         return [title, explanation, url, media].compactMap { $0 }
     }
+
+    private var shareTitle: String {
+        fetcher.currentNasa.title ?? "Astronomy Picture"
+    }
+
+    private var shareExplanation: String {
+        truncateToWords(
+            fetcher.currentNasa.explanation ?? "",
+            maxLength: ViewConstants.shareExplanationMaxLength
+        )
+    }
+
+    private var shareURL: URL? {
+        apodURL(for: fetcher.currentNasa.date)
+    }
+
+    private var shareMessage: String {
+        "\(shareTitle)\n\n\(shareExplanation)"
+    }
+
+    @ViewBuilder
+    private var shareControl: some View {
+            if #available(iOS 16.0, *) {
+                if let shareURL {
+                ShareLink(
+                    item: shareURL,
+                    subject: Text(shareTitle),
+                    message: Text(shareMessage)
+                ) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            } else {
+                ShareLink(
+                    item: shareMessage,
+                    subject: Text(shareTitle)
+                ) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+        } else {
+            Button("Share") {
+                showShareSheet = true
+            }
+        }
+    }
+}
+
+private struct SensoryFeedbackModifier: ViewModifier {
+    let randomizeFeedbackToken: Int
+    let favoriteFeedbackToken: Int
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content
+                .sensoryFeedback(.selection, trigger: randomizeFeedbackToken)
+                .sensoryFeedback(.selection, trigger: favoriteFeedbackToken)
+        } else {
+            content
+        }
+    }
 }
 
 private struct MainHeaderBar: View {
     @ScaledMetric(relativeTo: .body) private var headerButtonSize = 34
     @ScaledMetric(relativeTo: .body) private var headerIconSize = 18
     @ScaledMetric(relativeTo: .body) private var datePickerWidth = 124
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
     @Binding var isDarkMode: Bool
     @Binding var showSettingsSheet: Bool
     @Binding var showFavoritesSheet: Bool
@@ -298,6 +439,13 @@ private struct MainHeaderBar: View {
 
     private var iconColor: Color {
         isDarkMode ? .white : .indigo
+    }
+
+    private var headerBackground: AnyShapeStyle {
+        if accessibilityReduceTransparency {
+            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
+        }
+        return AnyShapeStyle(.ultraThinMaterial)
     }
 
     var body: some View {
@@ -344,7 +492,10 @@ private struct MainHeaderBar: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
+        .background(headerBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 12)
     }
 
     @ViewBuilder
@@ -400,12 +551,20 @@ private struct MainHeaderBar: View {
 }
 
 private struct APODDetailsView: View {
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
     let nasa: NASA
     let isFavorite: Bool
     let favoriteAction: () -> Void
 
+    private var detailsBackground: AnyShapeStyle {
+        if accessibilityReduceTransparency {
+            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
+        }
+        return AnyShapeStyle(.ultraThinMaterial)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 Text(nasa.title ?? "Astronomy Picture")
                     .font(.title2)
@@ -437,18 +596,18 @@ private struct APODDetailsView: View {
                     .accessibilityLabel("Date: \(nasa.date ?? "Unknown")")
             }
 
-            ScrollView {
-                Text(nasa.explanation ?? "No explanation available.")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
-                    .lineSpacing(3)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 8)
-                    .accessibilityTextContentType(.narrative)
-                    .accessibilityLabel("Explanation: \(nasa.explanation ?? "No explanation available.")")
-            }
-            .frame(maxWidth: .infinity)
+            Text(nasa.explanation ?? "No explanation available.")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
+                .lineSpacing(3)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 8)
+                .accessibilityTextContentType(.narrative)
+                .accessibilityLabel("Explanation: \(nasa.explanation ?? "No explanation available.")")
         }
+        .padding(14)
+        .background(detailsBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding(.horizontal, 16)
     }
 }
@@ -473,20 +632,28 @@ private struct FavoritesSheetView: View {
         AdaptiveNavigationContainer {
             Group {
                 if favorites.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "heart.slash")
-                            .font(.system(size: 36))
-                            .foregroundColor(.secondary)
-                        Text("No Favorites Yet")
-                            .font(.headline)
-                        Text("Save APOD entries with the heart button to quickly revisit them.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                    if #available(iOS 17.0, *) {
+                        ContentUnavailableView(
+                            "No Favorites Yet",
+                            systemImage: "heart.slash",
+                            description: Text("Save APOD entries with the heart button to quickly revisit them.")
+                        )
+                    } else {
+                        VStack(spacing: 10) {
+                            Image(systemName: "heart.slash")
+                                .font(.system(size: 36))
+                                .foregroundColor(.secondary)
+                            Text("No Favorites Yet")
+                                .font(.headline)
+                            Text("Save APOD entries with the heart button to quickly revisit them.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
                 } else {
                     List {
                         ForEach(filteredFavorites) { item in
@@ -519,9 +686,13 @@ private struct FavoritesSheetView: View {
                     }
                     .overlay {
                         if filteredFavorites.isEmpty {
-                            Text("No favorites match your search.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            if #available(iOS 17.0, *) {
+                                ContentUnavailableView.search(text: searchQuery)
+                            } else {
+                                Text("No favorites match your search.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                     .searchable(text: $searchQuery, prompt: "Search favorites")
@@ -633,6 +804,7 @@ private struct SettingsSheetView: View {
 }
 
 private struct APIRequestStatusBanner: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var accessibilityDifferentiateWithoutColor
     let isFetching: Bool
     let error: NasaCollectionFetcher.FetchError?
     let hasLoadedContent: Bool
@@ -647,7 +819,9 @@ private struct APIRequestStatusBanner: View {
                 HStack(spacing: 10) {
                     Image(systemName: "wifi.slash")
                         .foregroundColor(.orange)
-                    Text("Offline mode: showing cached APOD content.")
+                    Text(accessibilityDifferentiateWithoutColor
+                         ? "Offline mode. Showing cached APOD content."
+                         : "Offline mode: showing cached APOD content.")
                         .font(.footnote)
                     Spacer()
                 }
@@ -662,7 +836,9 @@ private struct APIRequestStatusBanner: View {
                 HStack(spacing: 10) {
                     Image(systemName: "timer")
                         .foregroundColor(.orange)
-                    Text("Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).")
+                    Text(accessibilityDifferentiateWithoutColor
+                         ? "Rate limit warning. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened))."
+                         : "Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).")
                         .font(.footnote)
                         .lineLimit(2)
                     Spacer()
@@ -678,7 +854,7 @@ private struct APIRequestStatusBanner: View {
                 HStack(spacing: 10) {
                     Image(systemName: "key.fill")
                         .foregroundColor(.orange)
-                    Text(apiKeyWarning)
+                    Text(accessibilityDifferentiateWithoutColor ? "API key warning. \(apiKeyWarning)" : apiKeyWarning)
                         .font(.footnote)
                         .lineLimit(2)
                     Spacer()
@@ -704,7 +880,9 @@ private struct APIRequestStatusBanner: View {
                 HStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text(error.localizedDescription)
+                    Text(accessibilityDifferentiateWithoutColor
+                         ? "Error. \(error.localizedDescription)"
+                         : error.localizedDescription)
                         .font(.footnote)
                         .lineLimit(2)
                     Spacer()
@@ -726,17 +904,27 @@ private struct APIRequestEmptyStateView: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text(title)
-                .font(.headline)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        Group {
+            if #available(iOS 17.0, *) {
+                ContentUnavailableView(
+                    title,
+                    systemImage: "hourglass",
+                    description: Text(subtitle)
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text(title)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -745,22 +933,35 @@ private struct APIRequestFailureView: View {
     let retryAction: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 36))
-                .foregroundColor(.orange)
-            Text("API Request Failed")
-                .font(.title3.bold())
-            Text(error.localizedDescription)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Retry", action: retryAction)
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 4)
+        Group {
+            if #available(iOS 17.0, *) {
+                ContentUnavailableView {
+                    Label("API Request Failed", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(error.localizedDescription)
+                } actions: {
+                    Button("Retry", action: retryAction)
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.system(size: 36))
+                        .foregroundColor(.orange)
+                    Text("API Request Failed")
+                        .font(.title3.bold())
+                    Text(error.localizedDescription)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Retry", action: retryAction)
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -794,12 +995,14 @@ private struct MediaView: View {
     @Binding var imageOffset: CGSize
     @Binding var isVideoLoading: Bool
     let allowVideoPlayback: Bool
+    let reduceMotion: Bool
     let resetImageState: () -> Void
     let extractYouTubeID: (URL?) -> String?
     let videoThumbnailURL: (String) -> URL?
     @Environment(\.openURL) private var openURL
     @State private var showWebVideoSheet = false
     @State private var directVideoPlayer: AVPlayer?
+    @State private var magnificationStartScale: CGFloat?
 
     var body: some View {
         @ViewBuilder var content: some View {
@@ -809,7 +1012,7 @@ private struct MediaView: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .cornerRadius(15)
+                            .cornerRadius(16)
                             .shadow(radius: 5)
                             .padding(.horizontal)
                             .offset(x: imageOffset.width, y: imageOffset.height)
@@ -817,10 +1020,23 @@ private struct MediaView: View {
                             .accessibilityLabel(nasa.title ?? "Astronomy Picture")
                             .accessibilityAddTraits(.isImage)
                             .onTapGesture(count: 2) {
-                                withAnimation(.spring()) { imageScale = imageScale == 1 ? 2 : 1 }
+                                if reduceMotion {
+                                    imageScale = imageScale == 1 ? 2 : 1
+                                    if imageScale == 1 {
+                                        imageOffset = .zero
+                                    }
+                                } else {
+                                    withAnimation(.spring()) {
+                                        imageScale = imageScale == 1 ? 2 : 1
+                                        if imageScale == 1 {
+                                            imageOffset = .zero
+                                        }
+                                    }
+                                }
                             }
                             .simultaneousGesture(DragGesture()
                                 .onChanged { value in
+                                    guard imageScale > 1 else { return }
                                     imageOffset = value.translation
                                 }
                                 .onEnded { _ in
@@ -829,14 +1045,19 @@ private struct MediaView: View {
                             )
                             .simultaneousGesture(MagnificationGesture()
                                 .onChanged { value in
-                                    imageScale = min(max(value, 1), 5)
+                                    let startScale = magnificationStartScale ?? imageScale
+                                    if magnificationStartScale == nil {
+                                        magnificationStartScale = startScale
+                                    }
+                                    imageScale = min(max(startScale * value, 1), 5)
                                 }
                                 .onEnded { _ in
+                                    magnificationStartScale = nil
                                     if imageScale <= 1 { resetImageState() }
                                 }
                             )
                     } else if phase.error != nil {
-                        VStack {
+                        VStack(spacing: 12) {
                             Image("pandaplaceholder")
                                 .resizable()
                                 .scaledToFit()
@@ -844,13 +1065,18 @@ private struct MediaView: View {
                             Text("Failed to load image.")
                                 .font(.title3)
                         }
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .padding(.horizontal)
                     } else {
                         ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 220)
                     }
                 }
             } else if nasa.mediaType == .video {
                 if !allowVideoPlayback {
-                    VStack {
+                    VStack(spacing: 12) {
                         Image("pandaplaceholder")
                             .resizable()
                             .scaledToFit()
@@ -859,6 +1085,10 @@ private struct MediaView: View {
                             .font(.title3)
                             .accessibilityIdentifier("videoDisabledMessage")
                     }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal)
                 } else if let videoID = extractYouTubeID(nasa.url) {
                     let player = YouTubePlayer(source: .video(id: videoID))
                     YouTubePlayerView(player)
@@ -881,7 +1111,7 @@ private struct MediaView: View {
                 } else if let videoURL = nasa.url, supportsInlineDirectVideo(videoURL) {
                     VideoPlayer(player: directVideoPlayer)
                         .frame(height: 300)
-                        .cornerRadius(15)
+                        .cornerRadius(16)
                         .padding(.horizontal)
                         .accessibilityIdentifier("directVideoPlayer")
                         .task(id: videoURL) {
@@ -917,9 +1147,13 @@ private struct MediaView: View {
                             .accessibilityIdentifier("openVideoExternalButton")
                         }
                     }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal)
                 }
             } else {
-                VStack {
+                VStack(spacing: 12) {
                     Image("pandaplaceholder")
                         .resizable()
                         .scaledToFit()
@@ -927,6 +1161,10 @@ private struct MediaView: View {
                     Text("Unable to load video or unsupported media type.")
                         .font(.title3)
                 }
+                .padding()
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal)
             }
         }
 

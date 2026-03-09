@@ -9,6 +9,8 @@ enum MediaType: String, Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
         self = MediaType(rawValue: value) ?? .other
     }
 }
@@ -73,6 +75,7 @@ struct NASA: Codable, Identifiable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.isLenient = false
         return formatter
     }()
 

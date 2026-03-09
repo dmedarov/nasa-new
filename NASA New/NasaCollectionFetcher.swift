@@ -2,6 +2,10 @@ import SwiftUI
 
 @MainActor
 final class NasaCollectionFetcher: ObservableObject {
+    private enum Constants {
+        static let foregroundRefreshInterval: TimeInterval = 60 * 60
+    }
+
     @Published private(set) var apodData = [NASA]()
     @Published var currentNasa = NASA.default
     @Published var error: FetchError?
@@ -32,6 +36,14 @@ final class NasaCollectionFetcher: ObservableObject {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.isLenient = false
+        return formatter
+    }()
+    private let retryAfterDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
         return formatter
     }()
     private let minimumAPODDate: Date = {
@@ -131,7 +143,7 @@ final class NasaCollectionFetcher: ObservableObject {
         isFetching = true
         error = nil
         isOfflineMode = false
-        lastRequestDate = Date()
+        lastRequestDate = nowProvider()
         lastTransportError = nil
         rateLimitRetryDate = nil
         defer {
@@ -264,12 +276,22 @@ final class NasaCollectionFetcher: ObservableObject {
 
     func selectRandom(preferImagesOnly: Bool) {
         let candidates = preferImagesOnly ? apodData.filter { $0.mediaType == .image } : apodData
-        guard let random = candidates.randomElement() else { return }
+        let nonCurrentCandidates = candidates.filter { $0.id != currentNasa.id }
+        let pool = nonCurrentCandidates.isEmpty ? candidates : nonCurrentCandidates
+        guard let random = pool.randomElement() else { return }
         currentNasa = random
     }
 
     func clearError() {
         error = nil
+    }
+
+    func shouldRefreshOnForeground() -> Bool {
+        guard !isUsingFixtureData else { return false }
+        guard !isFetching else { return false }
+        guard !apodData.isEmpty else { return true }
+        guard let lastRequestDate else { return true }
+        return nowProvider().timeIntervalSince(lastRequestDate) >= Constants.foregroundRefreshInterval
     }
 
     func isFavorite(_ nasa: NASA) -> Bool {
@@ -372,7 +394,7 @@ final class NasaCollectionFetcher: ObservableObject {
         guard fixtureScenario == .diagnosticsCycle else { return true }
 
         fixtureFetchCycle += 1
-        lastRequestDate = Date()
+        lastRequestDate = nowProvider()
         if fixtureFetchCycle % 2 == 1 {
             lastStatusCode = 429
             lastTransportError = nil
@@ -443,11 +465,7 @@ final class NasaCollectionFetcher: ObservableObject {
             return referenceDate.addingTimeInterval(seconds)
         }
 
-        let rfc1123Formatter = DateFormatter()
-        rfc1123Formatter.locale = Locale(identifier: "en_US_POSIX")
-        rfc1123Formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        rfc1123Formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
-        return rfc1123Formatter.date(from: rawValue)
+        return retryAfterDateFormatter.date(from: rawValue)
     }
 
     private func refreshFavoriteIfNeeded(with item: NASA) {

@@ -45,6 +45,23 @@ struct NasaModelTests {
     }
 
     @Test
+    func decodesMediaTypeCaseInsensitivelyAndTrimsWhitespace() throws {
+        let json = """
+        {
+            "date": "2025-01-15",
+            "explanation": "Case and whitespace should still decode.",
+            "media_type": "  VIDEO  ",
+            "title": "Case Variant",
+            "url": "https://example.com/video"
+        }
+        """.data(using: .utf8)!
+
+        let model = try JSONDecoder().decode(NASA.self, from: json)
+
+        #expect(model.mediaType == .video)
+    }
+
+    @Test
     func sanitizesInvalidDateAndURLsInsteadOfFailingDecode() throws {
         let json = """
         {
@@ -63,6 +80,23 @@ struct NasaModelTests {
         #expect(model.url == nil)
         #expect(model.hdurl == nil)
         #expect(model.mediaType == .image)
+    }
+
+    @Test
+    func sanitizesImpossibleCalendarDate() throws {
+        let json = """
+        {
+            "date": "2025-02-30",
+            "explanation": "Impossible date should be rejected.",
+            "media_type": "image",
+            "title": "Impossible Date",
+            "url": "https://example.com/image.jpg"
+        }
+        """.data(using: .utf8)!
+
+        let model = try JSONDecoder().decode(NASA.self, from: json)
+
+        #expect(model.date == nil)
     }
 
     @Test
