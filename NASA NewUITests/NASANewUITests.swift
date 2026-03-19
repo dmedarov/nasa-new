@@ -159,6 +159,26 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
     }
 
+    func testTodayNavigationReturnsToLatestFixture() {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+
+        let previousDateButton = app.buttons["Previous APOD date"]
+        let todayButton = app.buttons["Jump to latest APOD date"]
+        XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(todayButton.waitForExistence(timeout: 5.0))
+
+        previousDateButton.tap()
+        previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-13"].waitForExistence(timeout: 5.0))
+
+        todayButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+    }
+
     func testDirectVideoAutoplayPolicyRequiresManualPlaybackOffWiFi() {
         configureLaunchEnvironment(
             fixtureMode: "direct_video",
