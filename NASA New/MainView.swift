@@ -24,6 +24,23 @@ struct DataSaverPreferencePolicy {
     }
 }
 
+struct APODDateNavigationPolicy {
+    static func shiftedDate(
+        from selectedDate: Date,
+        dayOffset: Int,
+        calendar: Calendar,
+        minimumDate: Date,
+        maximumDate: Date
+    ) -> Date {
+        let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: selectedDate) ?? selectedDate
+        return min(max(candidateDate, minimumDate), maximumDate)
+    }
+
+    static func latestDate(maximumDate: Date) -> Date {
+        maximumDate
+    }
+}
+
 struct UITestPolicy {
     static var isSceneRestorationDisabled: Bool {
         ProcessInfo.processInfo.environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1"
@@ -177,7 +194,7 @@ struct MainView: View {
     }
 
     private func jumpToLatestDate() {
-        let latestDate = fetcher.maximumSelectableDate
+        let latestDate = APODDateNavigationPolicy.latestDate(maximumDate: fetcher.maximumSelectableDate)
         if fetcher.isSameAPODDay(selectedDate, latestDate) {
             retryLatestRequest()
             return
@@ -186,9 +203,13 @@ struct MainView: View {
     }
 
     private func shiftSelectedDate(byDays dayOffset: Int) {
-        let calendar = Calendar.current
-        let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: selectedDate) ?? selectedDate
-        let clampedDate = min(max(candidateDate, fetcher.minimumSelectableDate), fetcher.maximumSelectableDate)
+        let clampedDate = APODDateNavigationPolicy.shiftedDate(
+            from: selectedDate,
+            dayOffset: dayOffset,
+            calendar: Calendar.current,
+            minimumDate: fetcher.minimumSelectableDate,
+            maximumDate: fetcher.maximumSelectableDate
+        )
         guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
         selectedDate = clampedDate
     }
