@@ -130,6 +130,14 @@ struct MainView: View {
         selectedDate = latestDate
     }
 
+    private func shiftSelectedDate(byDays dayOffset: Int) {
+        let calendar = Calendar.current
+        let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: selectedDate) ?? selectedDate
+        let clampedDate = min(max(candidateDate, fetcher.minimumSelectableDate), fetcher.maximumSelectableDate)
+        guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
+        selectedDate = clampedDate
+    }
+
     private func applyCurrentSelectionState(syncSelectedDate: Bool) {
         isVideoLoading = fetcher.currentNasa.mediaType == .video
         resetImageState()
@@ -152,7 +160,10 @@ struct MainView: View {
                 favoritesCount: fetcher.favorites.count,
                 preferImages: preferImages,
                 isShowingLatestDate: fetcher.isSameAPODDay(selectedDate, fetcher.maximumSelectableDate),
+                isShowingMinimumDate: fetcher.isSameAPODDay(selectedDate, fetcher.minimumSelectableDate),
                 refreshAction: retryLatestRequest,
+                previousDateAction: { shiftSelectedDate(byDays: -1) },
+                nextDateAction: { shiftSelectedDate(byDays: 1) },
                 jumpToLatestAction: jumpToLatestDate,
                 randomizeAction: {
                     fetcher.selectRandom(preferImagesOnly: preferImages)
@@ -521,6 +532,9 @@ private struct MainHeaderBar: View {
     let preferImages: Bool
     let isShowingLatestDate: Bool
     let refreshAction: () -> Void
+    let isShowingMinimumDate: Bool
+    let previousDateAction: () -> Void
+    let nextDateAction: () -> Void
     let jumpToLatestAction: () -> Void
     let randomizeAction: () -> Void
 
@@ -621,11 +635,33 @@ private struct MainHeaderBar: View {
     }
 
     private var datePickerControl: some View {
-        DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
-            .labelsHidden()
-            .frame(width: max(datePickerWidth, 120))
-            .accessibilityLabel("Select APOD date")
-            .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
+        HStack(spacing: 8) {
+            Button(action: previousDateAction) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isShowingMinimumDate)
+            .accessibilityLabel("Previous APOD date")
+            .accessibilityHint("Moves to the previous available Astronomy Picture of the Day")
+
+            DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
+                .labelsHidden()
+                .frame(width: max(datePickerWidth, 120))
+                .accessibilityLabel("Select APOD date")
+                .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
+
+            Button(action: nextDateAction) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isShowingLatestDate)
+            .accessibilityLabel("Next APOD date")
+            .accessibilityHint("Moves to the next available Astronomy Picture of the Day")
+        }
     }
 
     @ViewBuilder
