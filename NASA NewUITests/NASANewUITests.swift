@@ -124,6 +124,40 @@ final class NASANewUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Play Video"].exists)
     }
 
+    func testPreviousDateNavigationLoadsEarlierFixture() {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+
+        let previousDateButton = app.buttons["Previous APOD date"]
+        XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
+        previousDateButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-14"].waitForExistence(timeout: 5.0))
+        previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-13"].waitForExistence(timeout: 5.0))
+    }
+
+    func testNextDateNavigationReturnsToLatestFixture() {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+
+        let previousDateButton = app.buttons["Previous APOD date"]
+        let nextDateButton = app.buttons["Next APOD date"]
+        XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(nextDateButton.waitForExistence(timeout: 5.0))
+
+        previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-14"].waitForExistence(timeout: 5.0))
+        nextDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+    }
+
     func testDirectVideoAutoplayPolicyRequiresManualPlaybackOffWiFi() {
         configureLaunchEnvironment(
             fixtureMode: "direct_video",

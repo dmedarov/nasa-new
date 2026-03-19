@@ -141,7 +141,7 @@ final class NasaCollectionFetcher: ObservableObject {
 
     @available(iOS 15.0, *)
     func fetchData(for date: Date?) async {
-        if handleFixtureFetchIfNeeded() { return }
+        if handleFixtureFetchIfNeeded(for: date) { return }
         let requestID = UUID()
         activeRequestID = requestID
         isFetching = true
@@ -350,8 +350,50 @@ final class NasaCollectionFetcher: ObservableObject {
         let mode = ProcessInfo.processInfo.environment["UITEST_FIXTURE_MODE"] ?? "default"
         fixtureScenario = FixtureScenario(rawValue: mode) ?? .default
 
+        if fixtureScenario == .dateNavigation {
+            let fixtures = [
+                NASA(
+                    copyright: "NASA",
+                    date: "2025-01-13",
+                    explanation: "Date navigation fixture for January 13.",
+                    hdurl: URL(string: "https://example.com/apod-2025-01-13-hd.jpg"),
+                    mediaType: .image,
+                    serviceVersion: "v1",
+                    title: "Fixture APOD 2025-01-13",
+                    url: URL(string: "https://example.com/apod-2025-01-13.jpg")
+                ),
+                NASA(
+                    copyright: "NASA",
+                    date: "2025-01-14",
+                    explanation: "Date navigation fixture for January 14.",
+                    hdurl: URL(string: "https://example.com/apod-2025-01-14-hd.jpg"),
+                    mediaType: .image,
+                    serviceVersion: "v1",
+                    title: "Fixture APOD 2025-01-14",
+                    url: URL(string: "https://example.com/apod-2025-01-14.jpg")
+                ),
+                NASA(
+                    copyright: "NASA",
+                    date: "2025-01-15",
+                    explanation: "Date navigation fixture for January 15.",
+                    hdurl: URL(string: "https://example.com/apod-2025-01-15-hd.jpg"),
+                    mediaType: .image,
+                    serviceVersion: "v1",
+                    title: "Fixture APOD 2025-01-15",
+                    url: URL(string: "https://example.com/apod-2025-01-15.jpg")
+                )
+            ]
+
+            apodData = fixtures
+            currentNasa = fixtures.last ?? .default
+            cachedItemCount = apodData.count
+            return
+        }
+
         let fixture: NASA
         switch fixtureScenario ?? .default {
+        case .dateNavigation:
+            fixture = NASA.default
         case .unsupportedVideo:
             fixture = NASA(
                 copyright: "NASA",
@@ -402,10 +444,22 @@ final class NasaCollectionFetcher: ObservableObject {
 
         apodData = [fixture]
         currentNasa = fixture
+        cachedItemCount = apodData.count
     }
 
-    private func handleFixtureFetchIfNeeded() -> Bool {
+    private func handleFixtureFetchIfNeeded(for date: Date?) -> Bool {
         guard isUsingFixtureData else { return false }
+        if fixtureScenario == .dateNavigation {
+            if let date,
+               let requestedDate = self.dateFormatter.date(from: self.dateFormatter.string(from: normalizedDate(date))),
+               let matchingItem = apodData.first(where: {
+                   guard let itemDate = self.date(from: $0.date) else { return false }
+                   return calendar.isDate(itemDate, inSameDayAs: requestedDate)
+               }) {
+                currentNasa = matchingItem
+            }
+            return true
+        }
         guard fixtureScenario == .diagnosticsCycle else { return true }
 
         fixtureFetchCycle += 1
@@ -564,6 +618,7 @@ private enum FixtureScenario: String {
     case unsupportedVideo = "unsupported_video"
     case directVideo = "direct_video"
     case diagnosticsCycle = "diagnostics_cycle"
+    case dateNavigation = "date_navigation"
 }
 
 protocol FavoritesStorage {
