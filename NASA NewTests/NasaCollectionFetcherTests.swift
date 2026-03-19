@@ -13,6 +13,43 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func restorationClampsStoredDateIntoValidAPODWindow() {
+        let minimumDate = deterministicCalendar.date(from: DateComponents(year: 1995, month: 6, day: 16))!
+        let maximumDate = fixedNow
+
+        let restoredBeforeMinimum = APODDateRestoration.restoredDate(
+            storedValue: "1990-01-01",
+            parseDate: { value in
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.isLenient = false
+                return value.flatMap { formatter.date(from: $0) }
+            },
+            minimumDate: minimumDate,
+            maximumDate: maximumDate
+        )
+
+        let restoredAfterMaximum = APODDateRestoration.restoredDate(
+            storedValue: "2025-12-31",
+            parseDate: { value in
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.isLenient = false
+                return value.flatMap { formatter.date(from: $0) }
+            },
+            minimumDate: minimumDate,
+            maximumDate: maximumDate
+        )
+
+        #expect(restoredBeforeMinimum == minimumDate)
+        #expect(restoredAfterMaximum == maximumDate)
+    }
+
+    @Test
     func mapsHTTPStatusToFetchError() async {
         let session = makeSession { request in
             let responseURL = request.url ?? URL(string: "https://example.com/fallback")!

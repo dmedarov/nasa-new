@@ -6,6 +6,24 @@ import AVKit
 import UserNotifications
 import Network
 
+struct APODDateRestoration {
+    static func restoredDate(
+        storedValue: String?,
+        parseDate: (String?) -> Date?,
+        minimumDate: Date,
+        maximumDate: Date
+    ) -> Date? {
+        guard let restoredDate = parseDate(storedValue) else { return nil }
+        return min(max(restoredDate, minimumDate), maximumDate)
+    }
+}
+
+struct DataSaverPreferencePolicy {
+    static func resolvedPreferHDImages(dataSaverMode: Bool, preferHDImages: Bool) -> Bool {
+        dataSaverMode ? false : preferHDImages
+    }
+}
+
 struct MainView: View {
     private enum ViewConstants {
         static let minImageScale: CGFloat = 1
@@ -128,8 +146,12 @@ struct MainView: View {
     }
 
     private var restoredSelectedDate: Date? {
-        guard let storedSelectedDateValue else { return nil }
-        return fetcher.date(from: storedSelectedDateValue)
+        APODDateRestoration.restoredDate(
+            storedValue: storedSelectedDateValue,
+            parseDate: fetcher.date(from:),
+            minimumDate: fetcher.minimumSelectableDate,
+            maximumDate: fetcher.maximumSelectableDate
+        )
     }
 
     private var hasLoadedContent: Bool {
@@ -175,10 +197,9 @@ struct MainView: View {
 
     private func restoreSceneSelectionIfNeeded() {
         guard let restoredSelectedDate else { return }
-        let clampedDate = min(max(restoredSelectedDate, fetcher.minimumSelectableDate), fetcher.maximumSelectableDate)
-        guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
+        guard !fetcher.isSameAPODDay(selectedDate, restoredSelectedDate) else { return }
         isSyncingSelectedDateFromModel = false
-        selectedDate = clampedDate
+        selectedDate = restoredSelectedDate
     }
     
     var body: some View {
@@ -283,9 +304,10 @@ struct MainView: View {
             persistSelectedDate(newDate)
         }
         .onChange(of: dataSaverMode) { enabled in
-            if enabled {
-                preferHDImages = false
-            }
+            preferHDImages = DataSaverPreferencePolicy.resolvedPreferHDImages(
+                dataSaverMode: enabled,
+                preferHDImages: preferHDImages
+            )
         }
         .modifier(SensoryFeedbackModifier(
             randomizeFeedbackToken: randomizeFeedbackToken,
