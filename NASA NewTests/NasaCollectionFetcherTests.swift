@@ -91,6 +91,25 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func diagnosticsTimestampUsesInjectedClock() async {
+        let session = makeSession { request in
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 500, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        await fetcher.fetchData()
+
+        #expect(fetcher.requestDiagnostics.first?.timestamp == fixedNow)
+    }
+
+    @Test
     func mapsDecodingFailuresToDecodingError() async {
         let session = makeSession { request in
             let responseURL = request.url ?? URL(string: "https://example.com/fallback")!

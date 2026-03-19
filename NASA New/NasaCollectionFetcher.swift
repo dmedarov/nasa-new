@@ -444,7 +444,7 @@ final class NasaCollectionFetcher: ObservableObject {
         usedCache: Bool
     ) {
         let item = RequestDiagnostic(
-            timestamp: Date(),
+            timestamp: nowProvider(),
             endpoint: endpoint,
             statusCode: statusCode,
             result: result,
