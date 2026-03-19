@@ -4,6 +4,7 @@ import YouTubePlayerKit
 import SafariServices
 import AVKit
 import UserNotifications
+import Network
 
 struct MainView: View {
     private enum ViewConstants {
@@ -32,6 +33,7 @@ struct MainView: View {
     @State private var favoriteFeedbackToken = 0
     @State private var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
     @State private var nextScheduledNotificationDate: Date?
+    @StateObject private var networkStatus = NetworkStatusMonitor()
     
     @AppStorage("isDarkMode") private var isDarkMode: Bool = true
     @AppStorage("preferImages") private var preferImages: Bool = false
@@ -41,6 +43,8 @@ struct MainView: View {
     @AppStorage("dailyNotificationMinute") private var dailyNotificationMinute: Int = 0
     @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
     @AppStorage("preferHDImages") private var preferHDImages: Bool = true
+    @AppStorage("cacheItemLimit") private var cacheItemLimit: Int = 90
+    @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
     private func resetImageState() {
         let updates = {
             imageScale = ViewConstants.minImageScale
@@ -174,6 +178,8 @@ struct MainView: View {
                     imageOffset: $imageOffset,
                     isVideoLoading: $isVideoLoading,
                     allowVideoPlayback: allowVideoPlayback,
+                    wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
+                    isOnWiFiConnection: networkStatus.connectionKind == .wifi,
                     dataSaverMode: dataSaverMode,
                     preferHDImages: preferHDImages,
                     reduceMotion: accessibilityReduceMotion,
@@ -243,6 +249,8 @@ struct MainView: View {
                 dailyNotificationMinute: $dailyNotificationMinute,
                 dataSaverMode: $dataSaverMode,
                 preferHDImages: $preferHDImages,
+                cacheItemLimit: $cacheItemLimit,
+                wifiOnlyVideoAutoplay: $wifiOnlyVideoAutoplay,
                 isPresented: $showSettingsSheet,
                 lastStatusCode: fetcher.lastStatusCode,
                 lastRequestDate: fetcher.lastRequestDate,
@@ -253,7 +261,14 @@ struct MainView: View {
                 apiKeyWarning: fetcher.apiKeyWarning,
                 rateLimitRetryDate: fetcher.rateLimitRetryDate,
                 notificationPermissionStatus: notificationPermissionStatus,
-                nextScheduledNotificationDate: nextScheduledNotificationDate
+                nextScheduledNotificationDate: nextScheduledNotificationDate,
+                cachedItemCount: fetcher.cachedItemCount,
+                appliedCacheItemLimit: fetcher.cacheItemLimit,
+                networkConnectionLabel: networkStatus.connectionKind.displayName,
+                networkReachable: networkStatus.isSatisfied,
+                networkIsExpensive: networkStatus.isExpensive,
+                networkIsConstrained: networkStatus.isConstrained,
+                videoAutoplayEligible: !wifiOnlyVideoAutoplay || networkStatus.connectionKind == .wifi
             )
         }
         .sheet(isPresented: $showFavoritesSheet) {
@@ -291,6 +306,7 @@ struct MainView: View {
             }
         }
         .task {
+            fetcher.applyCacheItemLimit(cacheItemLimit)
             await synchronizeNotificationSchedule()
         }
         .onChange(of: dailyNotificationsEnabled) { _ in
@@ -301,6 +317,9 @@ struct MainView: View {
         }
         .onChange(of: dailyNotificationMinute) { _ in
             Task { await synchronizeNotificationSchedule() }
+        }
+        .onChange(of: cacheItemLimit) { newLimit in
+            fetcher.applyCacheItemLimit(newLimit)
         }
         .onChange(of: dataSaverMode) { enabled in
             if enabled {
@@ -772,6 +791,8 @@ private struct SettingsSheetView: View {
     @Binding var dailyNotificationMinute: Int
     @Binding var dataSaverMode: Bool
     @Binding var preferHDImages: Bool
+    @Binding var cacheItemLimit: Int
+    @Binding var wifiOnlyVideoAutoplay: Bool
     @Binding var isPresented: Bool
     let lastStatusCode: Int?
     let lastRequestDate: Date?
@@ -783,6 +804,13 @@ private struct SettingsSheetView: View {
     let rateLimitRetryDate: Date?
     let notificationPermissionStatus: UNAuthorizationStatus
     let nextScheduledNotificationDate: Date?
+    let cachedItemCount: Int
+    let appliedCacheItemLimit: Int
+    let networkConnectionLabel: String
+    let networkReachable: Bool
+    let networkIsExpensive: Bool
+    let networkIsConstrained: Bool
+    let videoAutoplayEligible: Bool
 
     private var notificationTimeBinding: Binding<Date> {
         Binding<Date>(
@@ -899,9 +927,49 @@ private struct SettingsSheetView: View {
                     Toggle("Enable Data Saver Mode", isOn: $dataSaverMode)
                     Toggle("Prefer HD Images", isOn: $preferHDImages)
                         .disabled(dataSaverMode)
+                    Toggle("Autoplay Videos on Wi-Fi Only", isOn: $wifiOnlyVideoAutoplay)
+                        .disabled(!allowVideoPlayback)
+                    Stepper(value: $cacheItemLimit, in: 30...365, step: 15) {
+                        LabeledContent("Cache Item Limit") {
+                            Text(String(cacheItemLimit))
+                        }
+                    }
                     Text("Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
+                }
+
+                Section("Storage Diagnostics") {
+                    LabeledContent("Cached APOD Items") {
+                        Text(String(cachedItemCount))
+                    }
+                    LabeledContent("Applied Cache Limit") {
+                        Text(String(appliedCacheItemLimit))
+                    }
+                    LabeledContent("Data Saver Active") {
+                        Text(dataSaverMode ? "Yes" : "No")
+                    }
+                    LabeledContent("HD Images Preferred") {
+                        Text(preferHDImages ? "Yes" : "No")
+                    }
+                }
+
+                Section("Network Diagnostics") {
+                    LabeledContent("Connection") {
+                        Text(networkConnectionLabel)
+                    }
+                    LabeledContent("Network Reachable") {
+                        Text(networkReachable ? "Yes" : "No")
+                    }
+                    LabeledContent("Metered Network") {
+                        Text(networkIsExpensive ? "Yes" : "No")
+                    }
+                    LabeledContent("Low Data Mode") {
+                        Text(networkIsConstrained ? "Yes" : "No")
+                    }
+                    LabeledContent("Video Autoplay Eligible") {
+                        Text(videoAutoplayEligible ? "Yes" : "No")
+                    }
                 }
             }
             .navigationTitle("Settings")
@@ -1112,6 +1180,8 @@ private struct MediaView: View {
     @Binding var imageOffset: CGSize
     @Binding var isVideoLoading: Bool
     let allowVideoPlayback: Bool
+    let wifiOnlyVideoAutoplay: Bool
+    let isOnWiFiConnection: Bool
     let dataSaverMode: Bool
     let preferHDImages: Bool
     let reduceMotion: Bool
@@ -1131,6 +1201,13 @@ private struct MediaView: View {
             return nasa.hdurl ?? nasa.url
         }
         return nasa.url ?? nasa.hdurl
+    }
+
+    private var shouldAutoplayVideo: Bool {
+        if !wifiOnlyVideoAutoplay {
+            return true
+        }
+        return isOnWiFiConnection
     }
 
     var body: some View {
@@ -1244,11 +1321,22 @@ private struct MediaView: View {
                         .padding(.horizontal)
                         .accessibilityIdentifier("directVideoPlayer")
                         .task(id: videoURL) {
-                            configureDirectVideoPlayer(for: videoURL)
+                            configureDirectVideoPlayer(for: videoURL, autoplay: shouldAutoplayVideo)
                         }
                         .onDisappear {
                             directVideoPlayer?.pause()
                             directVideoPlayer = nil
+                        }
+                        .overlay(alignment: .bottomLeading) {
+                            if wifiOnlyVideoAutoplay && !isOnWiFiConnection {
+                                Text("Autoplay paused on non-Wi-Fi network.")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Capsule())
+                                    .padding(10)
+                            }
                         }
                 } else {
                     VStack(spacing: 10) {
@@ -1310,13 +1398,17 @@ private struct MediaView: View {
         return supportedExtensions.contains(where: { urlString.contains(".\($0)") })
     }
 
-    private func configureDirectVideoPlayer(for url: URL) {
+    private func configureDirectVideoPlayer(for url: URL, autoplay: Bool) {
         if directVideoPlayer == nil {
             directVideoPlayer = AVPlayer(url: url)
         } else {
             directVideoPlayer?.replaceCurrentItem(with: AVPlayerItem(url: url))
         }
-        directVideoPlayer?.play()
+        if autoplay {
+            directVideoPlayer?.play()
+        } else {
+            directVideoPlayer?.pause()
+        }
     }
 }
 
@@ -1414,5 +1506,79 @@ private final class NotificationScheduler {
         let trigger = UNCalendarNotificationTrigger(dateMatching: settings.dateComponents, repeats: true)
         let request = UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
         try? await center.add(request)
+    }
+}
+
+private enum NetworkConnectionKind: Equatable {
+    case wifi
+    case cellular
+    case wiredEthernet
+    case loopback
+    case other
+    case unavailable
+
+    var displayName: String {
+        switch self {
+        case .wifi:
+            return "Wi-Fi"
+        case .cellular:
+            return "Cellular"
+        case .wiredEthernet:
+            return "Ethernet"
+        case .loopback:
+            return "Loopback"
+        case .other:
+            return "Other"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
+}
+
+@MainActor
+private final class NetworkStatusMonitor: ObservableObject {
+    @Published private(set) var connectionKind: NetworkConnectionKind = .unavailable
+    @Published private(set) var isSatisfied = false
+    @Published private(set) var isExpensive = false
+    @Published private(set) var isConstrained = false
+
+    private let monitor: NWPathMonitor
+    private let monitorQueue = DispatchQueue(label: "NASA.NetworkStatusMonitor")
+
+    init(monitor: NWPathMonitor = NWPathMonitor()) {
+        self.monitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.apply(path: path)
+            }
+        }
+        monitor.start(queue: monitorQueue)
+    }
+
+    deinit {
+        monitor.cancel()
+    }
+
+    private func apply(path: NWPath) {
+        isSatisfied = path.status == .satisfied
+        isExpensive = path.isExpensive
+        isConstrained = path.isConstrained
+
+        guard isSatisfied else {
+            connectionKind = .unavailable
+            return
+        }
+
+        if path.usesInterfaceType(.wifi) {
+            connectionKind = .wifi
+        } else if path.usesInterfaceType(.cellular) {
+            connectionKind = .cellular
+        } else if path.usesInterfaceType(.wiredEthernet) {
+            connectionKind = .wiredEthernet
+        } else if path.usesInterfaceType(.loopback) {
+            connectionKind = .loopback
+        } else {
+            connectionKind = .other
+        }
     }
 }

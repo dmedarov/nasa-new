@@ -4,6 +4,7 @@ import SwiftUI
 final class NasaCollectionFetcher: ObservableObject {
     private enum Constants {
         static let foregroundRefreshInterval: TimeInterval = 60 * 60
+        static let defaultCacheItemLimit = 90
     }
 
     @Published private(set) var apodData = [NASA]()
@@ -20,6 +21,8 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published private(set) var requestDiagnostics = [RequestDiagnostic]()
     @Published private(set) var apiKeyWarning: String?
     @Published private(set) var rateLimitRetryDate: Date?
+    @Published private(set) var cachedItemCount = 0
+    @Published private(set) var cacheItemLimit = Constants.defaultCacheItemLimit
 
     private let service: APODService
     private let apiKey: String
@@ -84,6 +87,7 @@ final class NasaCollectionFetcher: ObservableObject {
             self.currentNasa = self.apodData.last ?? .default
             self.isUsingCachedData = true
         }
+        self.cachedItemCount = self.apodData.count
 
         if !isAPIKeyConfigured, ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] != "1" {
             apiKeyWarning = "NASA_API_KEY is not configured. DEMO_KEY may be rate-limited."
@@ -187,7 +191,9 @@ final class NasaCollectionFetcher: ObservableObject {
                 }
                 apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
                 refreshFavoriteIfNeeded(with: item)
+                trimCacheIfNeeded()
                 cacheStorage.saveCachedAPODItems(apodData)
+                cachedItemCount = apodData.count
                 isUsingCachedData = false
                 appendDiagnostic(
                     endpoint: sanitizedEndpoint(from: url),
@@ -206,7 +212,9 @@ final class NasaCollectionFetcher: ObservableObject {
                 apodData = decoded
                 currentNasa = decoded.last ?? .default
                 refreshFavoritesFromData(decoded)
-                cacheStorage.saveCachedAPODItems(decoded)
+                trimCacheIfNeeded()
+                cacheStorage.saveCachedAPODItems(apodData)
+                cachedItemCount = apodData.count
                 isUsingCachedData = false
                 appendDiagnostic(
                     endpoint: sanitizedEndpoint(from: url),
@@ -284,6 +292,13 @@ final class NasaCollectionFetcher: ObservableObject {
 
     func clearError() {
         error = nil
+    }
+
+    func applyCacheItemLimit(_ limit: Int) {
+        cacheItemLimit = max(1, limit)
+        trimCacheIfNeeded()
+        cacheStorage.saveCachedAPODItems(apodData)
+        cachedItemCount = apodData.count
     }
 
     func shouldRefreshOnForeground() -> Bool {
@@ -491,6 +506,14 @@ final class NasaCollectionFetcher: ObservableObject {
 
     private func sortFavorites() {
         favorites.sort { ($0.date ?? "") > ($1.date ?? "") }
+    }
+
+    private func trimCacheIfNeeded() {
+        guard apodData.count > cacheItemLimit else { return }
+        apodData = Array(apodData.suffix(cacheItemLimit))
+        if !apodData.contains(where: { $0.id == currentNasa.id }) {
+            currentNasa = apodData.last ?? .default
+        }
     }
 
     enum FetchError: LocalizedError {
