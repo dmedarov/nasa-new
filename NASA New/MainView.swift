@@ -121,6 +121,15 @@ struct MainView: View {
         fetcher.startLatestFetch()
     }
 
+    private func jumpToLatestDate() {
+        let latestDate = fetcher.maximumSelectableDate
+        if fetcher.isSameAPODDay(selectedDate, latestDate) {
+            retryLatestRequest()
+            return
+        }
+        selectedDate = latestDate
+    }
+
     private func applyCurrentSelectionState(syncSelectedDate: Bool) {
         isVideoLoading = fetcher.currentNasa.mediaType == .video
         resetImageState()
@@ -142,7 +151,9 @@ struct MainView: View {
                 hasApodData: !fetcher.apodData.isEmpty,
                 favoritesCount: fetcher.favorites.count,
                 preferImages: preferImages,
+                isShowingLatestDate: fetcher.isSameAPODDay(selectedDate, fetcher.maximumSelectableDate),
                 refreshAction: retryLatestRequest,
+                jumpToLatestAction: jumpToLatestDate,
                 randomizeAction: {
                     fetcher.selectRandom(preferImagesOnly: preferImages)
                     randomizeFeedbackToken += 1
@@ -508,7 +519,9 @@ private struct MainHeaderBar: View {
     let hasApodData: Bool
     let favoritesCount: Int
     let preferImages: Bool
+    let isShowingLatestDate: Bool
     let refreshAction: () -> Void
+    let jumpToLatestAction: () -> Void
     let randomizeAction: () -> Void
 
     private var iconColor: Color {
@@ -551,6 +564,17 @@ private struct MainHeaderBar: View {
                 .disabled(isFetching)
                 .accessibilityLabel("Refresh APOD data")
                 .accessibilityHint("Fetches the latest APOD data")
+
+                Button {
+                    jumpToLatestAction()
+                } label: {
+                    Label("Today", systemImage: "calendar")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .disabled(isFetching && isShowingLatestDate)
+                .accessibilityLabel("Jump to latest APOD date")
+                .accessibilityHint("Returns the calendar selection to today")
 
                 Button {
                     randomizeAction()
@@ -839,6 +863,13 @@ private struct SettingsSheetView: View {
         }
     }
 
+    private var videoAutoplayPolicyLabel: String {
+        guard allowVideoPlayback else { return "Playback disabled" }
+        guard wifiOnlyVideoAutoplay else { return "Autoplay allowed on any network" }
+        if !networkReachable { return "Waiting for network connection" }
+        return videoAutoplayEligible ? "Autoplay allowed on Wi-Fi" : "Manual play required off Wi-Fi"
+    }
+
     var body: some View {
         AdaptiveNavigationContainer {
             Form {
@@ -969,6 +1000,15 @@ private struct SettingsSheetView: View {
                     }
                     LabeledContent("Video Autoplay Eligible") {
                         Text(videoAutoplayEligible ? "Yes" : "No")
+                    }
+                    LabeledContent("Autoplay Policy") {
+                        Text(videoAutoplayPolicyLabel)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    if wifiOnlyVideoAutoplay {
+                        Text("Videos will wait for manual playback unless the device is on Wi-Fi.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
