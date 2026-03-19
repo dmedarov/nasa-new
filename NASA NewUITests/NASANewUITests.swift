@@ -94,6 +94,50 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForAnyLabel(containing: statusCode, timeout: 5.0))
     }
 
+    private func attachDebugMarker(_ name: String, details: String) {
+        let attachment = XCTAttachment(string: details)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func launchAndWaitForMainView(fixtureMode: String = "default", dataSaverMode: Bool? = nil, preferHDImages: Bool? = nil) {
+        configureLaunchEnvironment(
+            fixtureMode: fixtureMode,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        attachDebugMarker("LaunchConfig", details: app.launchEnvironment.description)
+        app.launch()
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        attachDebugMarker("MainViewReady", details: "mainViewRoot visible")
+    }
+
+    private func navigateBackToEarlierAPODDay() {
+        let previousDateButton = app.buttons["Previous APOD date"]
+        XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
+        attachDebugMarker("DateNavBeforeFirstTap", details: previousDateButton.debugDescription)
+        previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-14"].waitForExistence(timeout: 5.0))
+        attachDebugMarker("DateNavAfterFirstTap", details: "Reached 2025-01-14")
+        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
+        previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-13"].waitForExistence(timeout: 5.0))
+        attachDebugMarker("DateNavAfterSecondTap", details: "Reached 2025-01-13")
+    }
+
+    private func openSettingsAndRevealDataSaverControls() -> (dataSaverSwitch: XCUIElement, preferHDSwitch: XCUIElement) {
+        app.buttons["Open settings"].tap()
+        revealSettingsText("Enable Data Saver Mode")
+        let dataSaverSwitch = app.switches["Enable Data Saver Mode"]
+        let preferHDSwitch = app.switches["Prefer HD Images"]
+        XCTAssertTrue(dataSaverSwitch.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(preferHDSwitch.waitForExistence(timeout: 5.0))
+        attachDebugMarker("DataSaverControlsVisible", details: "\(dataSaverSwitch.debugDescription)\n\(preferHDSwitch.debugDescription)")
+        return (dataSaverSwitch, preferHDSwitch)
+    }
+
     func testSplashScreenSnapshot() {
         configureLaunchEnvironment(stayOnSplash: true, holdSplash: true)
         app.launch()
@@ -179,27 +223,16 @@ final class NASANewUITests: XCTestCase {
     }
 
     func testTodayNavigationReturnsToLatestFixture() {
-        configureLaunchEnvironment(fixtureMode: "date_navigation")
-        app.launch()
-
-        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        launchAndWaitForMainView(fixtureMode: "date_navigation")
         XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
-
-        let previousDateButton = app.buttons["Previous APOD date"]
         let todayButton = app.buttons["Jump to latest APOD date"]
-        XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
         XCTAssertTrue(todayButton.waitForExistence(timeout: 5.0))
-        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
-
-        previousDateButton.tap()
-        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-14"].waitForExistence(timeout: 5.0))
-        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
-        previousDateButton.tap()
-        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-13"].waitForExistence(timeout: 5.0))
-
+        navigateBackToEarlierAPODDay()
         XCTAssertTrue(waitForElementToBecomeHittable(todayButton, timeout: 5.0))
+        attachDebugMarker("TodayButtonReady", details: todayButton.debugDescription)
         todayButton.tap()
         XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
+        attachDebugMarker("TodayNavigationComplete", details: "Returned to 2025-01-15")
     }
 
     func testDirectVideoAutoplayPolicyRequiresManualPlaybackOffWiFi() {
@@ -261,30 +294,19 @@ final class NASANewUITests: XCTestCase {
     }
 
     func testDataSaverDisablesAndClearsHDImagePreference() {
-        configureLaunchEnvironment(
-            dataSaverMode: false,
-            preferHDImages: true
-        )
-        app.launch()
-
-        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
-        app.buttons["Open settings"].tap()
-        revealSettingsText("Enable Data Saver Mode")
-
-        let dataSaverSwitch = app.switches["Enable Data Saver Mode"]
-        let preferHDSwitch = app.switches["Prefer HD Images"]
-
-        XCTAssertTrue(dataSaverSwitch.waitForExistence(timeout: 5.0))
-        XCTAssertTrue(preferHDSwitch.waitForExistence(timeout: 5.0))
+        launchAndWaitForMainView(dataSaverMode: false, preferHDImages: true)
+        let controls = openSettingsAndRevealDataSaverControls()
+        let dataSaverSwitch = controls.dataSaverSwitch
+        let preferHDSwitch = controls.preferHDSwitch
         XCTAssertTrue(waitForElementToBecomeHittable(dataSaverSwitch, timeout: 5.0))
         XCTAssertTrue(waitForSwitchValue(preferHDSwitch, equals: "1", timeout: 5.0))
         XCTAssertTrue(preferHDSwitch.isEnabled)
-
+        attachDebugMarker("DataSaverInitialState", details: "dataSaver=\(String(describing: dataSaverSwitch.value)) preferHD=\(String(describing: preferHDSwitch.value))")
         dataSaverSwitch.tap()
-
         XCTAssertTrue(waitForSwitchValue(dataSaverSwitch, equals: "1", timeout: 5.0))
         XCTAssertTrue(waitForSwitchValue(preferHDSwitch, equals: "0", timeout: 5.0))
         XCTAssertFalse(preferHDSwitch.isEnabled)
+        attachDebugMarker("DataSaverFinalState", details: "dataSaver=\(String(describing: dataSaverSwitch.value)) preferHD=\(String(describing: preferHDSwitch.value)) enabled=\(preferHDSwitch.isEnabled)")
     }
 
     func testFavoritesSearchAndSwipeDeleteFlow() {
