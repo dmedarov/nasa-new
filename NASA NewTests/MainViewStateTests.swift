@@ -1,17 +1,14 @@
-import Foundation
-import Testing
+import XCTest
+@testable import NASA_New
 
-@Suite(.serialized)
-struct MainViewStateTests {
-    @Test
-    func dataSaverPolicyDisablesHDPreferenceWhenEnabled() {
-        #expect(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: true, preferHDImages: true) == false)
-        #expect(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: true, preferHDImages: false) == false)
+final class MainViewStateTests: XCTestCase {
+    func testDataSaverPolicyDisablesHDPreferenceWhenEnabled() {
+        XCTAssertFalse(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: true, preferHDImages: true))
+        XCTAssertFalse(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: true, preferHDImages: false))
     }
 
-    @Test
-    func dataSaverPolicyPreservesHDPreferenceWhenDisabled() {
-        #expect(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: true) == true)
-        #expect(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: false) == false)
+    func testDataSaverPolicyPreservesHDPreferenceWhenDisabled() {
+        XCTAssertTrue(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: true))
+        XCTAssertFalse(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: false))
     }
 }

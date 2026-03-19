@@ -72,6 +72,10 @@ private enum AppRuntimeConfiguration {
             UserDefaults.standard.set(wifiOnlyAutoplay == "1", forKey: "wifiOnlyVideoAutoplay")
         }
 
+        if environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1" {
+            UserDefaults.standard.removeObject(forKey: "MainView.selectedAPODDate")
+        }
+
         // Apple recommendation: prefer URLCache for repeatable, efficient network loading of media-heavy screens.
         let memoryCapacity = 50 * 1024 * 1024
         let diskCapacity = 200 * 1024 * 1024

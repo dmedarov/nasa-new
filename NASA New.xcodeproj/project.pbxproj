@@ -12,6 +12,7 @@
 		2D97030028D6070D00800A71 /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9702FF28D6070D00800A71 /* SplashScreenView.swift */; };
 		2D97030228D61FBF00800A71 /* ConrtolImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D97030128D61FBF00800A71 /* ConrtolImageView.swift */; };
 		2DB40D8F28D89B43000ECE13 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2DB40D8E28D89B43000ECE13 /* YouTubePlayerKit */; };
+		2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB51D602F6C976C00625967 /* MainViewStateTests.swift */; };
 		2DE45BE528D5157500B5C13B /* NASA_NewApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */; };
 		2DE45BE928D5157500B5C13B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DE45BE828D5157500B5C13B /* Assets.xcassets */; };
 		2DE45BEC28D5157500B5C13B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DE45BEB28D5157500B5C13B /* Preview Assets.xcassets */; };
@@ -47,6 +48,7 @@
 		2D9702FD28D5F64600800A71 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		2D9702FF28D6070D00800A71 /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		2D97030128D61FBF00800A71 /* ConrtolImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConrtolImageView.swift; sourceTree = "<group>"; };
+		2DB51D602F6C976C00625967 /* MainViewStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewStateTests.swift; sourceTree = "<group>"; };
 		2DE45BE128D5157500B5C13B /* NASA New.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NASA New.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_NewApp.swift; sourceTree = "<group>"; };
 		2DE45BE828D5157500B5C13B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 			children = (
 				AA2000022F00000100000001 /* NasaModelTests.swift */,
 				AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */,
+				2DB51D602F6C976C00625967 /* MainViewStateTests.swift */,
 			);
 			path = "NASA NewTests";
 			sourceTree = "<group>";
@@ -306,6 +309,7 @@
 			files = (
 				AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */,
 				AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
+				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
 				AA1000032F00000100000001 /* NasaModel.swift in Sources */,
 				AA1000042F00000100000001 /* NasaCollectionFetcher.swift in Sources */,
 			);

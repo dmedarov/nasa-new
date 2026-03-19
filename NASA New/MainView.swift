@@ -24,6 +24,12 @@ struct DataSaverPreferencePolicy {
     }
 }
 
+struct UITestPolicy {
+    static var isSceneRestorationDisabled: Bool {
+        ProcessInfo.processInfo.environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1"
+    }
+}
+
 struct MainView: View {
     private enum ViewConstants {
         static let minImageScale: CGFloat = 1
@@ -196,6 +202,7 @@ struct MainView: View {
     }
 
     private func restoreSceneSelectionIfNeeded() {
+        guard !UITestPolicy.isSceneRestorationDisabled else { return }
         guard let restoredSelectedDate else { return }
         guard !fetcher.isSameAPODDay(selectedDate, restoredSelectedDate) else { return }
         isSyncingSelectedDateFromModel = false

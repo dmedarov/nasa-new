@@ -34,6 +34,7 @@ final class NASANewUITests: XCTestCase {
         app.launchEnvironment["UITEST_TIMEZONE"] = "UTC"
         app.launchEnvironment["UITEST_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITEST_RESET_USER_DEFAULTS"] = resetUserDefaults ? "1" : "0"
+        app.launchEnvironment["UITEST_DISABLE_SCENE_RESTORATION"] = "1"
 
         if stayOnSplash {
             app.launchEnvironment["UITEST_STAY_ON_SPLASH"] = "1"
