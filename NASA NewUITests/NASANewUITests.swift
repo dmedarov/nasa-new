@@ -76,6 +76,18 @@ final class NASANewUITests: XCTestCase {
         return app.descendants(matching: .any).matching(predicate).firstMatch.waitForExistence(timeout: timeout)
     }
 
+    private func waitForElementToBecomeHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "hittable == true")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func waitForSwitchValue(_ element: XCUIElement, equals expectedValue: String, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "value == %@", expectedValue)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     private func openSettingsAndWaitForDiagnosticsStatus(containing statusCode: String) {
         app.buttons["Open settings"].tap()
         XCTAssertTrue(app.staticTexts["Last Status Code"].waitForExistence(timeout: 5.0))
@@ -177,11 +189,15 @@ final class NASANewUITests: XCTestCase {
         let todayButton = app.buttons["Jump to latest APOD date"]
         XCTAssertTrue(previousDateButton.waitForExistence(timeout: 5.0))
         XCTAssertTrue(todayButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
 
         previousDateButton.tap()
+        XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-14"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(previousDateButton, timeout: 5.0))
         previousDateButton.tap()
         XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-13"].waitForExistence(timeout: 5.0))
 
+        XCTAssertTrue(waitForElementToBecomeHittable(todayButton, timeout: 5.0))
         todayButton.tap()
         XCTAssertTrue(app.staticTexts["Fixture APOD 2025-01-15"].waitForExistence(timeout: 5.0))
     }
@@ -260,13 +276,14 @@ final class NASANewUITests: XCTestCase {
 
         XCTAssertTrue(dataSaverSwitch.waitForExistence(timeout: 5.0))
         XCTAssertTrue(preferHDSwitch.waitForExistence(timeout: 5.0))
-        XCTAssertEqual(preferHDSwitch.value as? String, "1")
+        XCTAssertTrue(waitForElementToBecomeHittable(dataSaverSwitch, timeout: 5.0))
+        XCTAssertTrue(waitForSwitchValue(preferHDSwitch, equals: "1", timeout: 5.0))
         XCTAssertTrue(preferHDSwitch.isEnabled)
 
         dataSaverSwitch.tap()
 
-        XCTAssertEqual(dataSaverSwitch.value as? String, "1")
-        XCTAssertEqual(preferHDSwitch.value as? String, "0")
+        XCTAssertTrue(waitForSwitchValue(dataSaverSwitch, equals: "1", timeout: 5.0))
+        XCTAssertTrue(waitForSwitchValue(preferHDSwitch, equals: "0", timeout: 5.0))
         XCTAssertFalse(preferHDSwitch.isEnabled)
     }
 
