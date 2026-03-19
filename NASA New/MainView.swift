@@ -13,6 +13,7 @@ struct MainView: View {
         static let dateSelectionDebounceNanoseconds: UInt64 = 250_000_000
         static let shareExplanationMaxLength: Int = 100
         static let cardCornerRadius: CGFloat = 18
+        static let selectedDateSceneStorageKey = "MainView.selectedAPODDate"
     }
 
     @EnvironmentObject var fetcher: NasaCollectionFetcher
@@ -33,6 +34,7 @@ struct MainView: View {
     @State private var favoriteFeedbackToken = 0
     @State private var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
     @State private var nextScheduledNotificationDate: Date?
+    @SceneStorage(ViewConstants.selectedDateSceneStorageKey) private var storedSelectedDateValue: String?
     @StateObject private var networkStatus = NetworkStatusMonitor()
     
     @AppStorage("isDarkMode") private var isDarkMode: Bool = true
@@ -45,6 +47,14 @@ struct MainView: View {
     @AppStorage("preferHDImages") private var preferHDImages: Bool = true
     @AppStorage("cacheItemLimit") private var cacheItemLimit: Int = 90
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
+    private let sceneStorageDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }()
     private func resetImageState() {
         let updates = {
             imageScale = ViewConstants.minImageScale
@@ -113,6 +123,15 @@ struct MainView: View {
         }
     }
 
+    private func persistSelectedDate(_ date: Date) {
+        storedSelectedDateValue = sceneStorageDateFormatter.string(from: date)
+    }
+
+    private var restoredSelectedDate: Date? {
+        guard let storedSelectedDateValue else { return nil }
+        return fetcher.date(from: storedSelectedDateValue)
+    }
+
     private var hasLoadedContent: Bool {
         !fetcher.apodData.isEmpty
     }
@@ -152,6 +171,14 @@ struct MainView: View {
         if syncSelectedDate {
             syncSelectedDateWithCurrentItem()
         }
+    }
+
+    private func restoreSceneSelectionIfNeeded() {
+        guard let restoredSelectedDate else { return }
+        let clampedDate = min(max(restoredSelectedDate, fetcher.minimumSelectableDate), fetcher.maximumSelectableDate)
+        guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
+        isSyncingSelectedDateFromModel = false
+        selectedDate = clampedDate
     }
     
     var body: some View {
@@ -237,6 +264,7 @@ struct MainView: View {
         }
         .task {
             fetcher.applyCacheItemLimit(cacheItemLimit)
+            restoreSceneSelectionIfNeeded()
             await synchronizeNotificationSchedule()
         }
         .onChange(of: dailyNotificationsEnabled) { _ in
@@ -250,6 +278,9 @@ struct MainView: View {
         }
         .onChange(of: cacheItemLimit) { newLimit in
             fetcher.applyCacheItemLimit(newLimit)
+        }
+        .onChange(of: selectedDate) { newDate in
+            persistSelectedDate(newDate)
         }
         .onChange(of: dataSaverMode) { enabled in
             if enabled {
