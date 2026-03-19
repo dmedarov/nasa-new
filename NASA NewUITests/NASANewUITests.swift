@@ -76,6 +76,12 @@ final class NASANewUITests: XCTestCase {
         return app.descendants(matching: .any).matching(predicate).firstMatch.waitForExistence(timeout: timeout)
     }
 
+    private func openSettingsAndWaitForDiagnosticsStatus(containing statusCode: String) {
+        app.buttons["Open settings"].tap()
+        XCTAssertTrue(app.staticTexts["Last Status Code"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: statusCode, timeout: 5.0))
+    }
+
     func testSplashScreenSnapshot() {
         configureLaunchEnvironment(stayOnSplash: true, holdSplash: true)
         app.launch()
@@ -297,14 +303,10 @@ final class NASANewUITests: XCTestCase {
         app.buttons["Close settings"].tap()
 
         app.buttons["Refresh APOD data"].tap()
-        sleep(1)
-        app.buttons["Open settings"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '429'")).firstMatch.waitForExistence(timeout: 5.0))
+        openSettingsAndWaitForDiagnosticsStatus(containing: "429")
         app.buttons["Close settings"].tap()
 
         app.buttons["Refresh APOD data"].tap()
-        sleep(1)
-        app.buttons["Open settings"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '200'")).firstMatch.waitForExistence(timeout: 5.0))
+        openSettingsAndWaitForDiagnosticsStatus(containing: "200")
     }
 }
