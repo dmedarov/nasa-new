@@ -117,6 +117,14 @@ struct MainView: View {
         !fetcher.apodData.isEmpty
     }
 
+    private var isShowingLatestDate: Bool {
+        fetcher.isSameAPODDay(selectedDate, fetcher.maximumSelectableDate)
+    }
+
+    private var isShowingMinimumDate: Bool {
+        fetcher.isSameAPODDay(selectedDate, fetcher.minimumSelectableDate)
+    }
+
     private func retryLatestRequest() {
         fetcher.startLatestFetch()
     }
@@ -148,109 +156,9 @@ struct MainView: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            MainHeaderBar(
-                isDarkMode: $isDarkMode,
-                showSettingsSheet: $showSettingsSheet,
-                showFavoritesSheet: $showFavoritesSheet,
-                selectedDate: $selectedDate,
-                minimumDate: fetcher.minimumSelectableDate,
-                maximumDate: fetcher.maximumSelectableDate,
-                isFetching: fetcher.isFetching,
-                hasApodData: !fetcher.apodData.isEmpty,
-                favoritesCount: fetcher.favorites.count,
-                preferImages: preferImages,
-                isShowingLatestDate: fetcher.isSameAPODDay(selectedDate, fetcher.maximumSelectableDate),
-                isShowingMinimumDate: fetcher.isSameAPODDay(selectedDate, fetcher.minimumSelectableDate),
-                refreshAction: retryLatestRequest,
-                previousDateAction: { shiftSelectedDate(byDays: -1) },
-                nextDateAction: { shiftSelectedDate(byDays: 1) },
-                jumpToLatestAction: jumpToLatestDate,
-                randomizeAction: {
-                    fetcher.selectRandom(preferImagesOnly: preferImages)
-                    randomizeFeedbackToken += 1
-                    applyCurrentSelectionState(syncSelectedDate: true)
-                }
-            )
-
-            APIRequestStatusBanner(
-                isFetching: fetcher.isFetching,
-                error: fetcher.error,
-                hasLoadedContent: hasLoadedContent,
-                retryAction: retryLatestRequest,
-                isOfflineMode: fetcher.isOfflineMode,
-                apiKeyWarning: fetcher.apiKeyWarning,
-                rateLimitRetryDate: fetcher.rateLimitRetryDate
-            )
-            
-            if !hasLoadedContent && fetcher.isFetching {
-                APIRequestEmptyStateView(
-                    title: "Loading APOD",
-                    subtitle: "Fetching the latest Astronomy Picture of the Day from NASA API."
-                )
-                Spacer()
-            } else if !hasLoadedContent, let error = fetcher.error {
-                APIRequestFailureView(error: error, retryAction: retryLatestRequest)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(spacing: 12) {
-                MediaView(
-                    nasa: fetcher.currentNasa,
-                    imageScale: $imageScale,
-                    imageOffset: $imageOffset,
-                    isVideoLoading: $isVideoLoading,
-                    allowVideoPlayback: allowVideoPlayback,
-                    wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
-                    isOnWiFiConnection: networkStatus.connectionKind == .wifi,
-                    dataSaverMode: dataSaverMode,
-                    preferHDImages: preferHDImages,
-                    reduceMotion: accessibilityReduceMotion,
-                    resetImageState: resetImageState,
-                    extractYouTubeID: extractYouTubeID,
-                            videoThumbnailURL: videoThumbnailURL
-                        )
-                        .opacity(isMediaAnimating ? 1 : 0)
-                        .onAppear {
-                            withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
-                            if fetcher.apodData.isEmpty && !fetcher.isFetching {
-                                fetcher.startLatestFetch()
-                            } else {
-                                syncSelectedDateWithCurrentItem()
-                            }
-                        }
-                        .onChange(of: selectedDate) { date in
-                            if isSyncingSelectedDateFromModel {
-                                isSyncingSelectedDateFromModel = false
-                                return
-                            }
-                            requestAPOD(for: date)
-                        }
-                        .onChange(of: fetcher.currentNasa.date) { _ in
-                            applyCurrentSelectionState(syncSelectedDate: true)
-                        }
-                        
-                APODDetailsView(
-                    nasa: fetcher.currentNasa,
-                    isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-                    favoriteAction: {
-                        fetcher.toggleFavorite(fetcher.currentNasa)
-                        favoriteFeedbackToken += 1
-                    }
-                )
-                        
-                        shareControl
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 4)
-                            .accessibilityLabel("Share APOD")
-                            .accessibilityHint("Shares the current Astronomy Picture of the Day")
-                    }
-                }
-                .refreshable {
-                    retryLatestRequest()
-                }
-            }
+            headerSection
+            statusBannerSection
+            mainContentSection
         }
         .padding(.top, 8)
         .background(backgroundLayer)
@@ -352,6 +260,131 @@ struct MainView: View {
             randomizeFeedbackToken: randomizeFeedbackToken,
             favoriteFeedbackToken: favoriteFeedbackToken
         ))
+    }
+
+    private var headerSection: some View {
+        MainHeaderBar(
+            isDarkMode: $isDarkMode,
+            showSettingsSheet: $showSettingsSheet,
+            showFavoritesSheet: $showFavoritesSheet,
+            selectedDate: $selectedDate,
+            minimumDate: fetcher.minimumSelectableDate,
+            maximumDate: fetcher.maximumSelectableDate,
+            isFetching: fetcher.isFetching,
+            hasApodData: hasLoadedContent,
+            favoritesCount: fetcher.favorites.count,
+            preferImages: preferImages,
+            isShowingLatestDate: isShowingLatestDate,
+            refreshAction: retryLatestRequest,
+            isShowingMinimumDate: isShowingMinimumDate,
+            previousDateAction: { shiftSelectedDate(byDays: -1) },
+            nextDateAction: { shiftSelectedDate(byDays: 1) },
+            jumpToLatestAction: jumpToLatestDate,
+            randomizeAction: randomizeSelection
+        )
+    }
+
+    private var statusBannerSection: some View {
+        APIRequestStatusBanner(
+            isFetching: fetcher.isFetching,
+            error: fetcher.error,
+            hasLoadedContent: hasLoadedContent,
+            retryAction: retryLatestRequest,
+            isOfflineMode: fetcher.isOfflineMode,
+            apiKeyWarning: fetcher.apiKeyWarning,
+            rateLimitRetryDate: fetcher.rateLimitRetryDate
+        )
+    }
+
+    @ViewBuilder
+    private var mainContentSection: some View {
+        if !hasLoadedContent && fetcher.isFetching {
+            APIRequestEmptyStateView(
+                title: "Loading APOD",
+                subtitle: "Fetching the latest Astronomy Picture of the Day from NASA API."
+            )
+            Spacer()
+        } else if !hasLoadedContent, let error = fetcher.error {
+            APIRequestFailureView(error: error, retryAction: retryLatestRequest)
+            Spacer()
+        } else {
+            ScrollView {
+                VStack(spacing: 12) {
+                    mediaSection
+                    detailsSection
+                    shareSection
+                }
+            }
+            .refreshable {
+                retryLatestRequest()
+            }
+        }
+    }
+
+    private var mediaSection: some View {
+        MediaView(
+            nasa: fetcher.currentNasa,
+            imageScale: $imageScale,
+            imageOffset: $imageOffset,
+            isVideoLoading: $isVideoLoading,
+            allowVideoPlayback: allowVideoPlayback,
+            wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
+            isOnWiFiConnection: networkStatus.connectionKind == .wifi,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages,
+            reduceMotion: accessibilityReduceMotion,
+            resetImageState: resetImageState,
+            extractYouTubeID: extractYouTubeID,
+            videoThumbnailURL: videoThumbnailURL
+        )
+        .opacity(isMediaAnimating ? 1 : 0)
+        .onAppear {
+            withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
+            if fetcher.apodData.isEmpty && !fetcher.isFetching {
+                fetcher.startLatestFetch()
+            } else {
+                syncSelectedDateWithCurrentItem()
+            }
+        }
+        .onChange(of: selectedDate) { date in
+            if isSyncingSelectedDateFromModel {
+                isSyncingSelectedDateFromModel = false
+                return
+            }
+            requestAPOD(for: date)
+        }
+        .onChange(of: fetcher.currentNasa.date) { _ in
+            applyCurrentSelectionState(syncSelectedDate: true)
+        }
+    }
+
+    private var detailsSection: some View {
+        APODDetailsView(
+            nasa: fetcher.currentNasa,
+            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
+            favoriteAction: toggleFavorite
+        )
+    }
+
+    private var shareSection: some View {
+        shareControl
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+            .accessibilityLabel("Share APOD")
+            .accessibilityHint("Shares the current Astronomy Picture of the Day")
+    }
+
+    private func randomizeSelection() {
+        fetcher.selectRandom(preferImagesOnly: preferImages)
+        randomizeFeedbackToken += 1
+        applyCurrentSelectionState(syncSelectedDate: true)
+    }
+
+    private func toggleFavorite() {
+        fetcher.toggleFavorite(fetcher.currentNasa)
+        favoriteFeedbackToken += 1
     }
 
     private var backgroundLayer: some View {
