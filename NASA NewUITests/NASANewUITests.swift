@@ -24,7 +24,8 @@ final class NASANewUITests: XCTestCase {
         isConstrainedNetwork: Bool = false,
         dataSaverMode: Bool? = nil,
         preferHDImages: Bool? = nil,
-        wifiOnlyAutoplay: Bool? = nil
+        wifiOnlyAutoplay: Bool? = nil,
+        resetUserDefaults: Bool = true
     ) {
         app.launchArguments += ["-ui-testing"]
         app.launchEnvironment["UITEST_USE_FIXTURE"] = "1"
@@ -32,7 +33,7 @@ final class NASANewUITests: XCTestCase {
         app.launchEnvironment["UITEST_LOCALE"] = "en_US_POSIX"
         app.launchEnvironment["UITEST_TIMEZONE"] = "UTC"
         app.launchEnvironment["UITEST_DISABLE_ANIMATIONS"] = "1"
-        app.launchEnvironment["UITEST_RESET_USER_DEFAULTS"] = "1"
+        app.launchEnvironment["UITEST_RESET_USER_DEFAULTS"] = resetUserDefaults ? "1" : "0"
 
         if stayOnSplash {
             app.launchEnvironment["UITEST_STAY_ON_SPLASH"] = "1"
@@ -214,6 +215,32 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Network Efficiency"].waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForAnyLabel(containing: "Maximum savings. App data saver and Low Data Mode are both active.", timeout: 5.0))
         XCTAssertTrue(waitForAnyLabel(containing: "Low Data Mode", timeout: 5.0))
+    }
+
+    func testDataSaverDisablesAndClearsHDImagePreference() {
+        configureLaunchEnvironment(
+            dataSaverMode: false,
+            preferHDImages: true
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        app.buttons["Open settings"].tap()
+        revealSettingsText("Enable Data Saver Mode")
+
+        let dataSaverSwitch = app.switches["Enable Data Saver Mode"]
+        let preferHDSwitch = app.switches["Prefer HD Images"]
+
+        XCTAssertTrue(dataSaverSwitch.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(preferHDSwitch.waitForExistence(timeout: 5.0))
+        XCTAssertEqual(preferHDSwitch.value as? String, "1")
+        XCTAssertTrue(preferHDSwitch.isEnabled)
+
+        dataSaverSwitch.tap()
+
+        XCTAssertEqual(dataSaverSwitch.value as? String, "1")
+        XCTAssertEqual(preferHDSwitch.value as? String, "0")
+        XCTAssertFalse(preferHDSwitch.isEnabled)
     }
 
     func testFavoritesSearchAndSwipeDeleteFlow() {
