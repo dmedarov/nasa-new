@@ -21,7 +21,10 @@ final class NASANewUITests: XCTestCase {
         fixtureMode: String = "default",
         networkKind: String? = nil,
         isExpensiveNetwork: Bool = false,
-        isConstrainedNetwork: Bool = false
+        isConstrainedNetwork: Bool = false,
+        dataSaverMode: Bool? = nil,
+        preferHDImages: Bool? = nil,
+        wifiOnlyAutoplay: Bool? = nil
     ) {
         app.launchArguments += ["-ui-testing"]
         app.launchEnvironment["UITEST_USE_FIXTURE"] = "1"
@@ -41,6 +44,15 @@ final class NASANewUITests: XCTestCase {
             app.launchEnvironment["UITEST_NETWORK_KIND"] = networkKind
             app.launchEnvironment["UITEST_NETWORK_EXPENSIVE"] = isExpensiveNetwork ? "1" : "0"
             app.launchEnvironment["UITEST_NETWORK_CONSTRAINED"] = isConstrainedNetwork ? "1" : "0"
+        }
+        if let dataSaverMode {
+            app.launchEnvironment["UITEST_DEFAULT_DATA_SAVER"] = dataSaverMode ? "1" : "0"
+        }
+        if let preferHDImages {
+            app.launchEnvironment["UITEST_DEFAULT_PREFER_HD_IMAGES"] = preferHDImages ? "1" : "0"
+        }
+        if let wifiOnlyAutoplay {
+            app.launchEnvironment["UITEST_DEFAULT_WIFI_ONLY_AUTOPLAY"] = wifiOnlyAutoplay ? "1" : "0"
         }
     }
 
@@ -148,6 +160,26 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Autoplay Policy"].waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForAnyLabel(containing: "Autoplay allowed on Wi-Fi", timeout: 5.0))
         XCTAssertTrue(waitForAnyLabel(containing: "Wi-Fi", timeout: 5.0))
+    }
+
+    func testConstrainedNetworkShowsMaximumSavingsDiagnostics() {
+        configureLaunchEnvironment(
+            fixtureMode: "direct_video",
+            networkKind: "cellular",
+            isExpensiveNetwork: true,
+            isConstrainedNetwork: true,
+            dataSaverMode: true,
+            preferHDImages: false,
+            wifiOnlyAutoplay: true
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        app.buttons["Open settings"].tap()
+        revealSettingsText("Network Efficiency")
+        XCTAssertTrue(app.staticTexts["Network Efficiency"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Maximum savings. App data saver and Low Data Mode are both active.", timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Low Data Mode", timeout: 5.0))
     }
 
     func testFavoritesSearchAndSwipeDeleteFlow() {

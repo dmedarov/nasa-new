@@ -870,6 +870,25 @@ private struct SettingsSheetView: View {
         return videoAutoplayEligible ? "Autoplay allowed on Wi-Fi" : "Manual play required off Wi-Fi"
     }
 
+    private var networkEfficiencyLabel: String {
+        if !networkReachable {
+            return "Offline. Cached APOD content is preferred."
+        }
+        if dataSaverMode && networkIsConstrained {
+            return "Maximum savings. App data saver and Low Data Mode are both active."
+        }
+        if dataSaverMode {
+            return "App data saver active. Lower-bandwidth images are preferred."
+        }
+        if networkIsConstrained {
+            return "System Low Data Mode active. Prefer lighter media usage."
+        }
+        if networkIsExpensive {
+            return "Metered connection detected. HD media may increase data usage."
+        }
+        return "Standard media delivery."
+    }
+
     var body: some View {
         AdaptiveNavigationContainer {
             Form {
@@ -1003,6 +1022,10 @@ private struct SettingsSheetView: View {
                     }
                     LabeledContent("Autoplay Policy") {
                         Text(videoAutoplayPolicyLabel)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Network Efficiency") {
+                        Text(networkEfficiencyLabel)
                             .multilineTextAlignment(.trailing)
                     }
                     if wifiOnlyVideoAutoplay {

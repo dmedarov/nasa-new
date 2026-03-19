@@ -60,6 +60,18 @@ private enum AppRuntimeConfiguration {
             UIView.setAnimationsEnabled(false)
         }
 
+        if let dataSaver = environment["UITEST_DEFAULT_DATA_SAVER"] {
+            UserDefaults.standard.set(dataSaver == "1", forKey: "dataSaverMode")
+        }
+
+        if let preferHDImages = environment["UITEST_DEFAULT_PREFER_HD_IMAGES"] {
+            UserDefaults.standard.set(preferHDImages == "1", forKey: "preferHDImages")
+        }
+
+        if let wifiOnlyAutoplay = environment["UITEST_DEFAULT_WIFI_ONLY_AUTOPLAY"] {
+            UserDefaults.standard.set(wifiOnlyAutoplay == "1", forKey: "wifiOnlyVideoAutoplay")
+        }
+
         // Apple recommendation: prefer URLCache for repeatable, efficient network loading of media-heavy screens.
         let memoryCapacity = 50 * 1024 * 1024
         let diskCapacity = 200 * 1024 * 1024
