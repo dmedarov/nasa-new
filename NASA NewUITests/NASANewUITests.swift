@@ -18,7 +18,10 @@ final class NASANewUITests: XCTestCase {
     private func configureLaunchEnvironment(
         stayOnSplash: Bool = false,
         holdSplash: Bool = false,
-        fixtureMode: String = "default"
+        fixtureMode: String = "default",
+        networkKind: String? = nil,
+        isExpensiveNetwork: Bool = false,
+        isConstrainedNetwork: Bool = false
     ) {
         app.launchArguments += ["-ui-testing"]
         app.launchEnvironment["UITEST_USE_FIXTURE"] = "1"
@@ -34,10 +37,29 @@ final class NASANewUITests: XCTestCase {
         if holdSplash {
             app.launchEnvironment["UITEST_HOLD_SPLASH"] = "1"
         }
+        if let networkKind {
+            app.launchEnvironment["UITEST_NETWORK_KIND"] = networkKind
+            app.launchEnvironment["UITEST_NETWORK_EXPENSIVE"] = isExpensiveNetwork ? "1" : "0"
+            app.launchEnvironment["UITEST_NETWORK_CONSTRAINED"] = isConstrainedNetwork ? "1" : "0"
+        }
     }
 
     private func waitForElement(identifier: String, timeout: TimeInterval) -> Bool {
         app.descendants(matching: .any)[identifier].waitForExistence(timeout: timeout)
+    }
+
+    private func revealSettingsText(_ text: String, maxSwipes: Int = 5) {
+        let target = app.staticTexts[text]
+        var swipeCount = 0
+        while !target.exists && swipeCount < maxSwipes {
+            app.swipeUp()
+            swipeCount += 1
+        }
+    }
+
+    private func waitForAnyLabel(containing text: String, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return app.descendants(matching: .any).matching(predicate).firstMatch.waitForExistence(timeout: timeout)
     }
 
     func testSplashScreenSnapshot() {
@@ -88,6 +110,44 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
         XCTAssertTrue(app.staticTexts["Fixture Direct Video"].waitForExistence(timeout: 5.0))
         XCTAssertFalse(app.buttons["Play Video"].exists)
+    }
+
+    func testDirectVideoAutoplayPolicyRequiresManualPlaybackOffWiFi() {
+        configureLaunchEnvironment(
+            fixtureMode: "direct_video",
+            networkKind: "cellular",
+            isExpensiveNetwork: true
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Fixture Direct Video"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Autoplay paused on non-Wi-Fi network."].waitForExistence(timeout: 5.0))
+
+        app.buttons["Open settings"].tap()
+        revealSettingsText("Autoplay Policy")
+        XCTAssertTrue(app.staticTexts["Autoplay Policy"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Manual play required off Wi-Fi", timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Cellular", timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Metered Network", timeout: 5.0))
+    }
+
+    func testDirectVideoAutoplayPolicyAllowsPlaybackOnWiFi() {
+        configureLaunchEnvironment(
+            fixtureMode: "direct_video",
+            networkKind: "wifi"
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: "mainViewRoot", timeout: 5.0))
+        XCTAssertTrue(app.staticTexts["Fixture Direct Video"].waitForExistence(timeout: 5.0))
+        XCTAssertFalse(app.staticTexts["Autoplay paused on non-Wi-Fi network."].exists)
+
+        app.buttons["Open settings"].tap()
+        revealSettingsText("Autoplay Policy")
+        XCTAssertTrue(app.staticTexts["Autoplay Policy"].waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Autoplay allowed on Wi-Fi", timeout: 5.0))
+        XCTAssertTrue(waitForAnyLabel(containing: "Wi-Fi", timeout: 5.0))
     }
 
     func testFavoritesSearchAndSwipeDeleteFlow() {
