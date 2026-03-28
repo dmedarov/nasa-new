@@ -4,6 +4,7 @@ import UIKit
 @main
 struct NASA_NewApp: App {
     @StateObject private var fetcher: NasaCollectionFetcher
+    @StateObject private var router = AppRouter()
     @AppStorage(AppAppearancePolicy.storageKey) private var appearancePreferenceRawValue: String = AppAppearancePreference.system.rawValue
 
     init() {
@@ -26,18 +27,25 @@ struct NASA_NewApp: App {
                 preferredColorScheme: appearancePreference.preferredColorScheme
             ) {
                 Group {
-                    if #available(iOS 16.0, *) {
-                        NavigationStack {
-                            SplashScreenView()
-                        }
-                    } else {
-                        NavigationView {
-                            SplashScreenView()
-                        }
-                        .navigationViewStyle(.stack)
-                    }
+                    SplashScreenView()
                 }
                 .environmentObject(fetcher)
+                .environmentObject(router)
+                .onOpenURL { url in
+                    router.handle(url: url, fetcher: fetcher)
+                }
+                .onContinueUserActivity(AppUserActivityType.today) { activity in
+                    router.handle(userActivity: activity, fetcher: fetcher)
+                }
+                .onContinueUserActivity(AppUserActivityType.archive) { activity in
+                    router.handle(userActivity: activity, fetcher: fetcher)
+                }
+                .onContinueUserActivity(AppUserActivityType.saved) { activity in
+                    router.handle(userActivity: activity, fetcher: fetcher)
+                }
+                .onContinueUserActivity(AppUserActivityType.apod) { activity in
+                    router.handle(userActivity: activity, fetcher: fetcher)
+                }
             }
         }
     }

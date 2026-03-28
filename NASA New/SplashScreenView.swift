@@ -23,7 +23,7 @@ struct SplashScreenView: View {
     
     var body: some View {
         if isActive {
-            MainView()
+            AppShellView()
         } else {
             ZStack {
                 SpaceBackdropView()
@@ -45,6 +45,16 @@ struct SplashScreenView: View {
                             .font(AppTheme.Typography.splashCaption)
                             .foregroundColor(AppTheme.Palette.splashText)
                             .multilineTextAlignment(.center)
+
+                        Text(
+                            L10n.text(
+                                "brand.independent_notice",
+                                default: "Independent app using NASA's public APOD service. Not affiliated with or endorsed by NASA."
+                            )
+                        )
+                        .font(AppTheme.Typography.metadata)
+                        .foregroundColor(AppTheme.Palette.splashText.opacity(0.78))
+                        .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: 420)
                 }

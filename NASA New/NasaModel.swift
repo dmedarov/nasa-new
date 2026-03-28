@@ -1,7 +1,7 @@
 import Foundation
 
 /// Enum representing the media types supported by NASA's APOD API.
-enum MediaType: String, Codable {
+enum MediaType: String, Codable, Hashable {
     case image
     case video
     case other
@@ -29,7 +29,7 @@ extension MediaType {
 }
 
 /// Struct representing a NASA Astronomy Picture of the Day (APOD) entry.
-struct NASA: Codable, Identifiable {
+struct NASA: Codable, Identifiable, Hashable {
     var id: String {
         if
             let date, !date.isEmpty,

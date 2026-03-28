@@ -8,8 +8,6 @@ struct MainHeaderBar: View {
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @Binding var showSettingsSheet: Bool
-    @Binding var showArchiveSheet: Bool
-    @Binding var showFavoritesSheet: Bool
     @Binding var selectedDate: Date
     let minimumDate: Date
     let maximumDate: Date
@@ -27,6 +25,8 @@ struct MainHeaderBar: View {
     let nextDateAction: () -> Void
     let jumpToLatestAction: () -> Void
     let randomizeAction: () -> Void
+    let openArchiveAction: () -> Void
+    let openSavedAction: () -> Void
 
     private var effectiveIsDarkMode: Bool {
         colorScheme == .dark
@@ -52,46 +52,84 @@ struct MainHeaderBar: View {
     var body: some View {
         MissionPanel(tone: .accent, padding: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-                        SectionEyebrow(L10n.text("NASA APOD", default: "NASA APOD"), tone: .accent)
-
-                        Text(editorialTitle)
-                            .font(AppTheme.Typography.cardTitle)
-                            .foregroundStyle(AppTheme.inkPrimary(isDarkMode: effectiveIsDarkMode))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .lineLimit(1)
-                            .accessibilityAddTraits(.isHeader)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: AppTheme.Spacing.xs) {
-                            headerIconControls
-                        }
-
-                        VStack(spacing: AppTheme.Spacing.xs) {
-                            headerIconControls
-                        }
-                    }
-                }
+                editorialHeaderSection
 
                 datePickerControl
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AppTheme.Spacing.sm) {
-                        actionButtons
-                    }
-                    .padding(.vertical, 2)
-                }
+                adaptiveActionButtons
             }
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
     }
 
-    @ViewBuilder
-    private var actionButtons: some View {
+    private var adaptiveActionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                refreshButton
+                todayButton
+                archiveButton
+                randomButton
+            }
+            .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    refreshButton
+                    todayButton
+                }
+
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    archiveButton
+                    randomButton
+                }
+            }
+            .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                refreshButton
+                todayButton
+                archiveButton
+                randomButton
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private var editorialHeaderSection: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                editorialHeading
+                Spacer(minLength: 0)
+                headerIconControlRow
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                editorialHeading
+                headerIconControlRow
+            }
+        }
+    }
+
+    private var editorialHeading: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+            SectionEyebrow(L10n.text("NASA APOD", default: "NASA APOD"), tone: .accent)
+
+            Text(editorialTitle)
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: effectiveIsDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private var headerIconControlRow: some View {
+        HStack(spacing: AppTheme.Spacing.xs) {
+            headerIconControls
+        }
+    }
+
+    private var refreshButton: some View {
         Button {
             refreshAction()
         } label: {
@@ -107,7 +145,9 @@ struct MainHeaderBar: View {
         .accessibilityIdentifier(AccessibilityID.refreshAPODButton)
         .accessibilityLabel(L10n.text("Refresh APOD data", default: "Refresh APOD data"))
         .accessibilityHint(L10n.text("Fetches the latest APOD data", default: "Fetches the latest APOD data"))
+    }
 
+    private var todayButton: some View {
         Button {
             jumpToLatestAction()
         } label: {
@@ -123,9 +163,11 @@ struct MainHeaderBar: View {
         .accessibilityIdentifier(AccessibilityID.jumpToLatestAPODDateButton)
         .accessibilityLabel(L10n.text("Jump to latest APOD date", default: "Jump to latest APOD date"))
         .accessibilityHint(L10n.text("Returns the calendar selection to today", default: "Returns the calendar selection to today"))
+    }
 
+    private var archiveButton: some View {
         Button {
-            showArchiveSheet = true
+            openArchiveAction()
         } label: {
             Label(L10n.text("Archive", default: "Archive"), systemImage: "books.vertical")
                 .font(AppTheme.Typography.buttonLabel)
@@ -139,7 +181,9 @@ struct MainHeaderBar: View {
         .accessibilityIdentifier(AccessibilityID.openArchiveButton)
         .accessibilityLabel(L10n.text("Browse APOD archive", default: "Browse APOD archive"))
         .accessibilityHint(L10n.text("Opens the searchable archive of downloaded APOD entries", default: "Opens the searchable archive of downloaded APOD entries"))
+    }
 
+    private var randomButton: some View {
         Button {
             randomizeAction()
         } label: {
@@ -203,7 +247,7 @@ struct MainHeaderBar: View {
             identifier: AccessibilityID.openFavoritesButton,
             accessibilityLabel: L10n.text("Open favorites", default: "Open favorites"),
             accessibilityHint: L10n.text("Shows your saved APOD favorites", default: "Shows your saved APOD favorites"),
-            action: { showFavoritesSheet = true }
+            action: openSavedAction
         )
     }
 

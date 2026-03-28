@@ -23,14 +23,14 @@ struct MainView: View {
     @EnvironmentObject var fetcher: NasaCollectionFetcher
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var imageScale: CGFloat = ViewConstants.minImageScale
     @State private var imageOffset: CGSize = .zero
     @State private var showShareSheet = false
     @State private var showSettingsSheet = false
-    @State private var showArchiveSheet = false
-    @State private var showFavoritesSheet = false
     @State private var isMediaAnimating = false
     @State private var isVideoLoading = false
     @State private var selectedDate = Date()
@@ -53,6 +53,8 @@ struct MainView: View {
     @AppStorage("preferHDImages") private var preferHDImages: Bool = true
     @AppStorage(APODArchiveStoragePolicy.storageKey) private var cacheItemLimit: Int = APODArchiveStoragePolicy.defaultArchiveLimit
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
+    private let openArchiveAction: () -> Void
+    private let openSavedAction: () -> Void
     private let sceneStorageDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -61,6 +63,14 @@ struct MainView: View {
         formatter.isLenient = false
         return formatter
     }()
+
+    init(
+        openArchiveAction: @escaping () -> Void = {},
+        openSavedAction: @escaping () -> Void = {}
+    ) {
+        self.openArchiveAction = openArchiveAction
+        self.openSavedAction = openSavedAction
+    }
 
     private var appearancePreference: AppAppearancePreference {
         AppAppearancePolicy.resolvedPreference(from: appearancePreferenceRawValue)
@@ -75,6 +85,10 @@ struct MainView: View {
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
+    }
+
+    private var usesWideEditorialLayout: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
 
     private func resetImageState() {
@@ -274,39 +288,7 @@ struct MainView: View {
                 videoAutoplayEligible: !wifiOnlyVideoAutoplay || networkStatus.connectionKind == .wifi
             )
         }
-        .sheet(isPresented: $showFavoritesSheet) {
-            FavoritesSheetView(
-                favorites: fetcher.favorites,
-                isPresented: $showFavoritesSheet,
-                selectAction: { favorite in
-                    fetcher.selectFavorite(favorite)
-                    applyCurrentSelectionState(syncSelectedDate: true)
-                },
-                removeAction: { favorite in
-                    fetcher.removeFavorite(favorite)
-                }
-            )
-        }
-        .sheet(isPresented: $showArchiveSheet) {
-            ArchiveSheetView(
-                archivedItems: fetcher.archiveItems,
-                favoriteIDs: Set(fetcher.favorites.map(\.id)),
-                canLoadMore: fetcher.canLoadMoreArchiveHistory,
-                isLoadingMore: fetcher.isFetchingArchive,
-                loadError: fetcher.archiveError,
-                isPresented: $showArchiveSheet,
-                selectAction: { item in
-                    fetcher.selectArchivedItem(item)
-                    applyCurrentSelectionState(syncSelectedDate: true)
-                },
-                toggleFavoriteAction: { item in
-                    fetcher.toggleFavorite(item)
-                },
-                loadMoreAction: {
-                    fetcher.loadOlderArchiveBatch()
-                }
-            )
-        }
+        .accessibilityIdentifier(AccessibilityID.mainViewRoot)
         .accessibilityElement(children: .contain)
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.mainViewRoot)
@@ -358,8 +340,6 @@ struct MainView: View {
     private var headerSection: some View {
         MainHeaderBar(
             showSettingsSheet: $showSettingsSheet,
-            showArchiveSheet: $showArchiveSheet,
-            showFavoritesSheet: $showFavoritesSheet,
             selectedDate: $selectedDate,
             minimumDate: fetcher.minimumSelectableDate,
             maximumDate: fetcher.maximumSelectableDate,
@@ -376,7 +356,9 @@ struct MainView: View {
             previousDateAction: { shiftSelectedDate(byDays: -1) },
             nextDateAction: { shiftSelectedDate(byDays: 1) },
             jumpToLatestAction: jumpToLatestDate,
-            randomizeAction: randomizeSelection
+            randomizeAction: randomizeSelection,
+            openArchiveAction: openArchiveAction,
+            openSavedAction: openSavedAction
         )
     }
 
@@ -407,9 +389,22 @@ struct MainView: View {
         } else {
             ScrollView {
                 VStack(spacing: AppTheme.Spacing.xl) {
-                    mediaSection
-                    headerSection
-                    detailsSection
+                    if usesWideEditorialLayout {
+                        headerSection
+
+                        HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
+                            mediaSection
+                                .frame(maxWidth: .infinity, alignment: .top)
+
+                            detailsSection
+                                .frame(maxWidth: 520, alignment: .top)
+                        }
+                        .padding(.horizontal, AppTheme.Spacing.lg)
+                    } else {
+                        mediaSection
+                        headerSection
+                        detailsSection
+                    }
                 }
                 .padding(.top, AppTheme.Spacing.xs)
                 .padding(.bottom, AppTheme.Spacing.xxl)

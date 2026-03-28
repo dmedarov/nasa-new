@@ -27,10 +27,7 @@ private struct StatusBannerCard: View {
                     Text(eyebrow.uppercased())
                         .font(AppTheme.Typography.sectionEyebrow)
                         .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                    Text(message)
-                        .font(AppTheme.Typography.footnote)
-                        .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
-                        .fixedSize(horizontal: false, vertical: true)
+                    stateMessage
                 }
 
                 Spacer(minLength: AppTheme.Spacing.sm)
@@ -46,7 +43,27 @@ private struct StatusBannerCard: View {
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(identifier ?? "")
+        .overlay(alignment: .topLeading) {
+            if let identifier {
+                AccessibilityMarker(identifier: identifier)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stateMessage: some View {
+        if let identifier {
+            Text(message)
+                .font(AppTheme.Typography.footnote)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(identifier)
+        } else {
+            Text(message)
+                .font(AppTheme.Typography.footnote)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
@@ -149,10 +166,13 @@ struct APIRequestEmptyStateView: View {
             systemImage: "hourglass",
             tone: .accent,
             showsProgress: true,
-            minHeight: 280
+            minHeight: 280,
+            accessibilityIdentifier: AccessibilityID.apiRequestLoadingState
         )
         .padding(.horizontal, AppTheme.Spacing.lg)
-        .accessibilityIdentifier(AccessibilityID.apiRequestLoadingState)
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker(identifier: AccessibilityID.apiRequestLoadingState)
+        }
     }
 }
 
@@ -167,13 +187,16 @@ struct APIRequestFailureView: View {
             message: error.localizedDescription,
             systemImage: "wifi.exclamationmark",
             tone: .warning,
-            minHeight: 280
+            minHeight: 280,
+            accessibilityIdentifier: AccessibilityID.apiRequestFailureState
         ) {
             Button(L10n.text("Retry", default: "Retry"), action: retryAction)
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
-        .accessibilityIdentifier(AccessibilityID.apiRequestFailureState)
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker(identifier: AccessibilityID.apiRequestFailureState)
+        }
     }
 }

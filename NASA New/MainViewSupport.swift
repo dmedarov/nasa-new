@@ -528,6 +528,7 @@ struct MissionStateCard<Actions: View>: View {
     let tone: AppTheme.SurfaceTone
     let showsProgress: Bool
     let minHeight: CGFloat
+    let accessibilityIdentifier: String?
     private let actions: Actions
 
     init(
@@ -538,6 +539,7 @@ struct MissionStateCard<Actions: View>: View {
         tone: AppTheme.SurfaceTone = .neutral,
         showsProgress: Bool = false,
         minHeight: CGFloat = 220,
+        accessibilityIdentifier: String? = nil,
         @ViewBuilder actions: () -> Actions = { EmptyView() }
     ) {
         self.eyebrow = eyebrow
@@ -547,6 +549,7 @@ struct MissionStateCard<Actions: View>: View {
         self.tone = tone
         self.showsProgress = showsProgress
         self.minHeight = minHeight
+        self.accessibilityIdentifier = accessibilityIdentifier
         self.actions = actions()
     }
 
@@ -585,6 +588,7 @@ struct MissionStateCard<Actions: View>: View {
                         Text(title)
                             .font(AppTheme.Typography.cardTitle)
                             .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                            .accessibilityIdentifier(accessibilityIdentifier ?? "")
                         Text(message)
                             .font(AppTheme.Typography.body)
                             .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))

@@ -305,6 +305,25 @@ struct SettingsSheetView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+
+                Section(L10n.text("About & Attribution", default: "About & Attribution")) {
+                    Text(
+                        L10n.text(
+                            "brand.independent_notice",
+                            default: "Independent app using NASA's public APOD service. Not affiliated with or endorsed by NASA."
+                        )
+                    )
+                    .font(AppTheme.Typography.footnote)
+
+                    Text(
+                        L10n.text(
+                            "brand.data_source_notice",
+                            default: "APOD imagery, captions, and metadata come from NASA's Astronomy Picture of the Day service. Rights for non-NASA material stay with the credited creator."
+                        )
+                    )
+                    .font(AppTheme.Typography.footnote)
+                    .foregroundColor(.secondary)
+                }
             }
             .navigationTitle(L10n.text("Settings", default: "Settings"))
             .overlay(alignment: .topLeading) {

@@ -61,7 +61,7 @@ final class NotificationScheduler {
         guard granted else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = L10n.text("New NASA APOD", default: "New NASA APOD")
+        content.title = L10n.text("notification.new_apod_title", default: "New APOD available")
         content.body = L10n.text("A new Astronomy Picture of the Day is available.", default: "A new Astronomy Picture of the Day is available.")
         content.sound = .default
 

@@ -5,6 +5,11 @@ extension NasaCollectionFetcher {
         apodData.sorted { ($0.date ?? "") > ($1.date ?? "") }
     }
 
+    func apodItem(forAPODDate dateString: String) -> NASA? {
+        apodData.first(where: { $0.date == dateString })
+            ?? favorites.first(where: { $0.date == dateString })
+    }
+
     func selectRandom(preferImagesOnly: Bool) {
         let candidates = preferImagesOnly ? apodData.filter { $0.mediaType == .image } : apodData
         let nonCurrentCandidates = candidates.filter { $0.id != currentNasa.id }
@@ -28,13 +33,13 @@ extension NasaCollectionFetcher {
             favorites.append(nasa)
         }
         sortFavorites()
-        favoritesStorage.saveFavorites(favorites)
+        persistLibraryState()
     }
 
     func removeFavorite(_ nasa: NASA) {
         guard let index = favorites.firstIndex(where: { $0.id == nasa.id }) else { return }
         favorites.remove(at: index)
-        favoritesStorage.saveFavorites(favorites)
+        persistLibraryState()
     }
 
     func selectArchivedItem(_ nasa: NASA) {
@@ -45,17 +50,35 @@ extension NasaCollectionFetcher {
             apodData.append(nasa)
             apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
         }
+        persistLibraryState()
     }
 
     func selectFavorite(_ nasa: NASA) {
         selectArchivedItem(nasa)
     }
 
+    func recordPresentedItem(_ nasa: NASA) {
+        currentNasa = nasa
+        if !apodData.contains(where: { $0.id == nasa.id }) {
+            apodData.append(nasa)
+            apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
+        }
+
+        if let libraryStorage = cacheStorage as? APODLibraryStateStorage {
+            libraryStorage.noteViewed(nasa)
+            apodData = cacheStorage.loadCachedAPODItems().sorted { ($0.date ?? "") < ($1.date ?? "") }
+        } else {
+            cacheStorage.saveCachedAPODItems(apodData)
+        }
+
+        cachedItemCount = apodData.count
+        AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
+    }
+
     func refreshFavoriteIfNeeded(with item: NASA) {
         guard let index = favorites.firstIndex(where: { $0.id == item.id }) else { return }
         favorites[index] = item
         sortFavorites()
-        favoritesStorage.saveFavorites(favorites)
     }
 
     func refreshFavoritesFromData(_ items: [NASA]) {
@@ -68,7 +91,6 @@ extension NasaCollectionFetcher {
         }
         if didChange {
             sortFavorites()
-            favoritesStorage.saveFavorites(favorites)
         }
     }
 
@@ -82,5 +104,28 @@ extension NasaCollectionFetcher {
         if !apodData.contains(where: { $0.id == currentNasa.id }) {
             currentNasa = apodData.last ?? .default
         }
+    }
+
+    func persistLibraryState() {
+        if let libraryStorage = cacheStorage as? APODLibraryStateStorage {
+            libraryStorage.sync(
+                items: apodData,
+                favorites: favorites,
+                currentID: currentNasa.id,
+                limit: cacheItemLimit
+            )
+            apodData = cacheStorage.loadCachedAPODItems().sorted { ($0.date ?? "") < ($1.date ?? "") }
+        } else {
+            trimCacheIfNeeded()
+            cacheStorage.saveCachedAPODItems(apodData)
+            favoritesStorage.saveFavorites(favorites)
+        }
+
+        if !(favoritesStorage is APODLibraryStateStorage) {
+            favoritesStorage.saveFavorites(favorites)
+        }
+
+        cachedItemCount = apodData.count
+        AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
     }
 }

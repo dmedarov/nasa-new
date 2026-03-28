@@ -49,6 +49,15 @@ extension NasaCollectionFetcher {
         }
     }
 
+    func prefetchArchiveIfNeeded(targetItemCount: Int = 180) {
+        guard !isUsingFixtureData else { return }
+        guard !isFetchingArchive else { return }
+        let desiredCount = min(max(targetItemCount, Constants.archiveBatchDayCount), cacheItemLimit)
+        guard archiveItems.count < desiredCount else { return }
+        guard canLoadMoreArchiveHistory else { return }
+        loadOlderArchiveBatch()
+    }
+
     func cancelLatestFetch() {
         latestFetchTask?.cancel()
         latestFetchTask = nil
@@ -298,9 +307,7 @@ extension NasaCollectionFetcher {
 
     func applyCacheItemLimit(_ limit: Int) {
         cacheItemLimit = max(1, limit)
-        trimCacheIfNeeded()
-        cacheStorage.saveCachedAPODItems(apodData)
-        cachedItemCount = apodData.count
+        persistLibraryState()
     }
 
     func shouldRefreshOnForeground() -> Bool {
@@ -327,8 +334,6 @@ extension NasaCollectionFetcher {
 
         apodData = mergedItems.values.sorted { ($0.date ?? "") < ($1.date ?? "") }
         refreshFavoritesFromData(items)
-        trimCacheIfNeeded()
-        cacheStorage.saveCachedAPODItems(apodData)
-        cachedItemCount = apodData.count
+        persistLibraryState()
     }
 }

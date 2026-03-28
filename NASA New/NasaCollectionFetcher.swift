@@ -103,19 +103,20 @@ final class NasaCollectionFetcher: ObservableObject {
         apiKey: String = NASAAPIKeyConfiguration.resolvedAPIKey(),
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
-        favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage(),
-        cacheStorage: APODCacheStorage = APODCacheStorageFactory.makeDefault()
+        favoritesStorage: FavoritesStorage? = nil,
+        cacheStorage: APODCacheStorage? = nil
     ) {
+        let defaultLibraryStorage = APODLibraryStoreFactory.makeDefault()
         self.service = URLSessionAPODService(session: session)
         self.apiKey = apiKey
         self.calendar = calendar
         self.nowProvider = nowProvider
-        self.favoritesStorage = favoritesStorage
-        self.cacheStorage = cacheStorage
-        self.favorites = favoritesStorage.loadFavorites()
+        self.favoritesStorage = favoritesStorage ?? defaultLibraryStorage
+        self.cacheStorage = cacheStorage ?? defaultLibraryStorage
+        self.favorites = self.favoritesStorage.loadFavorites()
         sortFavorites()
 
-        let cachedItems = cacheStorage.loadCachedAPODItems()
+        let cachedItems = self.cacheStorage.loadCachedAPODItems()
         if !cachedItems.isEmpty {
             self.apodData = cachedItems.sorted { ($0.date ?? "") < ($1.date ?? "") }
             self.currentNasa = self.apodData.last ?? .default
