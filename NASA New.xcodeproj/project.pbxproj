@@ -16,18 +16,21 @@
 		2DE45BE528D5157500B5C13B /* NASA_NewApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */; };
 		2DE45BE928D5157500B5C13B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DE45BE828D5157500B5C13B /* Assets.xcassets */; };
 		2DE45BEC28D5157500B5C13B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DE45BEB28D5157500B5C13B /* Preview Assets.xcassets */; };
+		2DCCE8E02F77D000009C8476 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DCCE8DE2F77CE82009C8476 /* Localizable.strings */; };
 		2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
 		2DE45BF528D5163A00B5C13B /* NasaCollectionFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */; };
 		2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BFC28D51CB000B5C13B /* MainView.swift */; };
-		D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
-		D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
-		D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
-		D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
 		AA1000042F00000100000001 /* NasaCollectionFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */; };
+		AA1000052F00000100000001 /* Localized.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6A37022F5B8F7900953EBA /* Localized.swift */; };
 		CC1000012F00000100000001 /* NASANewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000022F00000100000001 /* NASANewUITests.swift */; };
+		D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
+		D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
+		D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
+		D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
+		D1A000092F70000900000009 /* AccessibilityIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,14 +52,11 @@
 
 /* Begin PBXFileReference section */
 		2D6A37022F5B8F7900953EBA /* Localized.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localized.swift; sourceTree = "<group>"; };
-		D1A000012F70000100000001 /* AppConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppConfig.xcconfig; sourceTree = "<group>"; };
-		D1A000022F70000200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		D1A000032F70000300000003 /* APODDateRestoration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDateRestoration.swift; sourceTree = "<group>"; };
-		D1A000062F70000600000006 /* MainViewPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewPolicies.swift; sourceTree = "<group>"; };
 		2D9702FD28D5F64600800A71 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		2D9702FF28D6070D00800A71 /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		2D97030128D61FBF00800A71 /* ConrtolImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConrtolImageView.swift; sourceTree = "<group>"; };
 		2DB51D602F6C976C00625967 /* MainViewStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewStateTests.swift; sourceTree = "<group>"; };
+		2DCCE8DF2F77CE82009C8476 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = Localizable.strings; sourceTree = "<group>"; };
 		2DE45BE128D5157500B5C13B /* NASA New.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NASA New.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_NewApp.swift; sourceTree = "<group>"; };
 		2DE45BE828D5157500B5C13B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -69,6 +69,11 @@
 		AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NasaCollectionFetcherTests.swift; sourceTree = "<group>"; };
 		CC2000012F00000100000001 /* NASA NewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NASA NewUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC2000022F00000100000001 /* NASANewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASANewUITests.swift; sourceTree = "<group>"; };
+		D1A000012F70000100000001 /* AppConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppConfig.xcconfig; sourceTree = "<group>"; };
+		D1A000022F70000200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D1A000032F70000300000003 /* APODDateRestoration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDateRestoration.swift; sourceTree = "<group>"; };
+		D1A000062F70000600000006 /* MainViewPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewPolicies.swift; sourceTree = "<group>"; };
+		D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityIdentifiers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +102,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2DCCE8DD2F77CE4C009C8476 /* en.lproj */ = {
+			isa = PBXGroup;
+			children = (
+				2DCCE8DE2F77CE82009C8476 /* Localizable.strings */,
+			);
+			path = en.lproj;
+			sourceTree = "<group>";
+		};
 		2DE45BD828D5157500B5C13B = {
 			isa = PBXGroup;
 			children = (
@@ -104,6 +117,7 @@
 				AA4000012F00000100000001 /* NASA NewTests */,
 				CC4000012F00000100000001 /* NASA NewUITests */,
 				2DE45BE228D5157500B5C13B /* Products */,
+				2DCCE8DD2F77CE4C009C8476 /* en.lproj */,
 			);
 			sourceTree = "<group>";
 		};
@@ -123,6 +137,7 @@
 				2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */,
 				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
 				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
+				D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */,
 				2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */,
 				D1A000032F70000300000003 /* APODDateRestoration.swift */,
 				D1A000062F70000600000006 /* MainViewPolicies.swift */,
@@ -280,6 +295,7 @@
 			files = (
 				2DE45BEC28D5157500B5C13B /* Preview Assets.xcassets in Resources */,
 				2DE45BE928D5157500B5C13B /* Assets.xcassets in Resources */,
+				2DCCE8E02F77D000009C8476 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +324,7 @@
 				2D6A37032F5B8F7900953EBA /* Localized.swift in Sources */,
 				2D9702FE28D5F64600800A71 /* SwiftUIView.swift in Sources */,
 				2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */,
+				D1A000092F70000900000009 /* AccessibilityIdentifiers.swift in Sources */,
 				D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */,
 				D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */,
 				2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */,
@@ -324,6 +341,7 @@
 				AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */,
 				AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
 				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
+				AA1000052F00000100000001 /* Localized.swift in Sources */,
 				D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */,
 				D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */,
 				AA1000032F00000100000001 /* NasaModel.swift in Sources */,
@@ -353,6 +371,17 @@
 			targetProxy = CC6000012F00000100000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		2DCCE8DE2F77CE82009C8476 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2DCCE8DF2F77CE82009C8476 /* en */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		2DE45BED28D5157500B5C13B /* Debug */ = {

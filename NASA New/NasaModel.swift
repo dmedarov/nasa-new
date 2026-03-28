@@ -101,11 +101,13 @@ struct NASA: Codable, Identifiable {
 
         self.copyright = try container.decodeIfPresent(String.self, forKey: .copyright)
         self.date = NASA.validDateString(from: try container.decodeIfPresent(String.self, forKey: .date))
-        self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation) ?? "No explanation available."
+        self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
+            ?? "No explanation available."
         self.hdurl = NASA.validHTTPURL(from: try container.decodeIfPresent(String.self, forKey: .hdurl))
         self.mediaType = try container.decodeIfPresent(MediaType.self, forKey: .mediaType) ?? .other
         self.serviceVersion = try container.decodeIfPresent(String.self, forKey: .serviceVersion) ?? "v1"
-        self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Untitled"
+        self.title = try container.decodeIfPresent(String.self, forKey: .title)
+            ?? "Untitled"
         self.url = NASA.validHTTPURL(from: try container.decodeIfPresent(String.self, forKey: .url))
     }
 }

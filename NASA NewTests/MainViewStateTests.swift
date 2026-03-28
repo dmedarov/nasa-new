@@ -88,6 +88,16 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(archiveURL?.absoluteString, "https://apod.nasa.gov/apod/ap250115.html")
     }
 
+    func testAPODSourceLinkPolicyFallsBackForImpossibleDate() {
+        let fallbackURL = URL(string: "https://example.com/fallback")
+        let archiveURL = APODSourceLinkPolicy.nasaPageURL(
+            for: "2025-02-30",
+            fallbackURL: fallbackURL
+        )
+
+        XCTAssertEqual(archiveURL, fallbackURL)
+    }
+
     func testAPODSourceLinkPolicyPrefersHDImageWhenAllowed() {
         let nasa = NASA(
             date: "2025-01-15",
@@ -124,5 +134,30 @@ final class MainViewStateTests: XCTestCase {
             APODSourceLinkPolicy.preferredMediaTitle(for: nasa, dataSaverMode: true, preferHDImages: true),
             "Open Image"
         )
+    }
+
+    func testAPODAttributionPolicyPrefersExplicitCreditLine() {
+        let nasa = NASA(
+            copyright: "ESA/Hubble",
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        XCTAssertEqual(APODAttributionPolicy.creditLine(for: nasa), "ESA/Hubble")
+        XCTAssertNotNil(APODAttributionPolicy.rightsNotice(for: nasa))
+    }
+
+    func testAPODAttributionPolicyFallsBackToNASAWhenCopyrightMissing() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        XCTAssertEqual(APODAttributionPolicy.creditLine(for: nasa), "NASA")
+        XCTAssertNotNil(APODAttributionPolicy.rightsNotice(for: nasa))
     }
 }

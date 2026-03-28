@@ -190,6 +190,27 @@ struct MainView: View {
         isSyncingSelectedDateFromModel = false
         selectedDate = restoredSelectedDate
     }
+
+    private func normalizedPreferHDImages(for proposedValue: Bool? = nil) -> Bool {
+        DataSaverPreferencePolicy.resolvedPreferHDImages(
+            dataSaverMode: dataSaverMode,
+            preferHDImages: proposedValue ?? preferHDImages
+        )
+    }
+
+    private func loadInitialContentIfNeeded() {
+        guard fetcher.apodData.isEmpty, !fetcher.isFetching else {
+            syncSelectedDateWithCurrentItem()
+            return
+        }
+
+        if let restoredSelectedDate,
+           !fetcher.isSameAPODDay(restoredSelectedDate, fetcher.maximumSelectableDate) {
+            requestAPOD(for: restoredSelectedDate)
+        } else {
+            fetcher.startLatestFetch()
+        }
+    }
     
     var body: some View {
         VStack(spacing: 10) {
@@ -259,7 +280,7 @@ struct MainView: View {
         }
         .accessibilityElement(children: .contain)
         .overlay(alignment: .topLeading) {
-            AccessibilityMarker(identifier: "mainViewRoot")
+            AccessibilityMarker(identifier: AccessibilityID.mainViewRoot)
         }
         .onDisappear {
             dateSelectionTask?.cancel()
@@ -278,6 +299,7 @@ struct MainView: View {
         .task {
             fetcher.applyCacheItemLimit(cacheItemLimit)
             restoreSceneSelectionIfNeeded()
+            preferHDImages = normalizedPreferHDImages()
             await synchronizeNotificationSchedule()
         }
         .onChange(of: dailyNotificationsEnabled) { _ in
@@ -294,6 +316,9 @@ struct MainView: View {
         }
         .onChange(of: selectedDate) { newDate in
             persistSelectedDate(newDate)
+        }
+        .onChange(of: dataSaverMode) { _ in
+            preferHDImages = normalizedPreferHDImages()
         }
         .modifier(SensoryFeedbackModifier(
             randomizeFeedbackToken: randomizeFeedbackToken,
@@ -354,6 +379,7 @@ struct MainView: View {
                     shareSection
                 }
             }
+            .accessibilityIdentifier(AccessibilityID.mainContentScrollView)
             .refreshable {
                 retryLatestRequest()
             }
@@ -376,14 +402,12 @@ struct MainView: View {
             extractYouTubeID: extractYouTubeID,
             videoThumbnailURL: videoThumbnailURL
         )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(AccessibilityID.apodMediaSection)
         .opacity(isMediaAnimating ? 1 : 0)
         .onAppear {
             withAnimation(.spring(duration: 1)) { isMediaAnimating = true }
-            if fetcher.apodData.isEmpty && !fetcher.isFetching {
-                fetcher.startLatestFetch()
-            } else {
-                syncSelectedDateWithCurrentItem()
-            }
+            loadInitialContentIfNeeded()
         }
         .onChange(of: selectedDate) { date in
             if isSyncingSelectedDateFromModel {
@@ -407,6 +431,7 @@ struct MainView: View {
             preferredMediaSourceTitle: preferredMediaSourceTitle,
             preferredMediaSourceSystemImage: preferredMediaSourceSystemImage
         )
+        .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
     }
 
     private var shareSection: some View {
@@ -415,6 +440,7 @@ struct MainView: View {
             .controlSize(.large)
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
+            .accessibilityIdentifier(AccessibilityID.shareAPODButton)
             .accessibilityLabel("Share APOD")
             .accessibilityHint("Shares the current Astronomy Picture of the Day")
     }
@@ -432,19 +458,13 @@ struct MainView: View {
 
     private var backgroundLayer: some View {
         ZStack {
-            LinearGradient(
-                colors: isDarkMode
-                    ? [Color(red: 0.04, green: 0.05, blue: 0.12), Color(red: 0.09, green: 0.12, blue: 0.24)]
-                    : [Color(red: 0.93, green: 0.97, blue: 1.0), Color(red: 0.86, green: 0.92, blue: 0.99)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            AppTheme.backgroundGradient(isDarkMode: isDarkMode)
             Circle()
-                .fill((isDarkMode ? Color.cyan : Color.blue).opacity(0.16))
+                .fill(AppTheme.primaryOrbColor(isDarkMode: isDarkMode))
                 .frame(width: 320, height: 320)
                 .offset(x: 140, y: -260)
             Circle()
-                .fill((isDarkMode ? Color.indigo : Color.teal).opacity(0.14))
+                .fill(AppTheme.secondaryOrbColor(isDarkMode: isDarkMode))
                 .frame(width: 360, height: 360)
                 .offset(x: -180, y: 260)
         }
@@ -452,13 +472,10 @@ struct MainView: View {
     }
 
     private var adaptiveMaterialBackground: AnyShapeStyle {
-        if accessibilityReduceTransparency {
-            let solidColor = isDarkMode
-                ? Color(red: 0.12, green: 0.14, blue: 0.2).opacity(0.96)
-                : Color.white.opacity(0.94)
-            return AnyShapeStyle(solidColor)
-        }
-        return AnyShapeStyle(.ultraThinMaterial)
+        AppTheme.adaptiveSurface(
+            isDarkMode: isDarkMode,
+            reduceTransparency: accessibilityReduceTransparency
+        )
     }
 
     private var currentNotificationSettings: NotificationSettings {
@@ -639,14 +656,14 @@ private struct MainHeaderBar: View {
     let randomizeAction: () -> Void
 
     private var iconColor: Color {
-        isDarkMode ? .white : .indigo
+        AppTheme.accentColor(isDarkMode: isDarkMode)
     }
 
     private var headerBackground: AnyShapeStyle {
-        if accessibilityReduceTransparency {
-            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
-        }
-        return AnyShapeStyle(.ultraThinMaterial)
+        AppTheme.adaptiveSurface(
+            isDarkMode: isDarkMode,
+            reduceTransparency: accessibilityReduceTransparency
+        )
     }
 
     var body: some View {
@@ -672,10 +689,11 @@ private struct MainHeaderBar: View {
                     refreshAction()
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isFetching)
+                .accessibilityIdentifier(AccessibilityID.refreshAPODButton)
                 .accessibilityLabel("Refresh APOD data")
                 .accessibilityHint("Fetches the latest APOD data")
 
@@ -683,11 +701,11 @@ private struct MainHeaderBar: View {
                     jumpToLatestAction()
                 } label: {
                     Label("Today", systemImage: "calendar")
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isFetching && isShowingLatestDate)
-                .accessibilityIdentifier("jumpToLatestAPODDateButton")
+                .accessibilityIdentifier(AccessibilityID.jumpToLatestAPODDateButton)
                 .accessibilityLabel("Jump to latest APOD date")
                 .accessibilityHint("Returns the calendar selection to today")
 
@@ -695,10 +713,11 @@ private struct MainHeaderBar: View {
                     randomizeAction()
                 } label: {
                     Label(preferImages ? "Random Image" : "Random APOD", systemImage: "arrow.clockwise.circle")
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isFetching || !hasApodData)
+                .accessibilityIdentifier(AccessibilityID.randomAPODButton)
                 .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
                 .accessibilityHint("Loads a random Astronomy Picture of the Day")
             }
@@ -707,7 +726,7 @@ private struct MainHeaderBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(headerBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
         .padding(.horizontal, 12)
     }
 
@@ -715,6 +734,7 @@ private struct MainHeaderBar: View {
     private var headerIconControls: some View {
         headerIconButton(
             icon: isDarkMode ? "sun.min.fill" : "moon.circle",
+            identifier: AccessibilityID.toggleAppearanceButton,
             accessibilityLabel: isDarkMode ? "Switch to light mode" : "Switch to dark mode",
             accessibilityHint: "Toggles the app's appearance mode",
             action: { isDarkMode.toggle() }
@@ -722,6 +742,7 @@ private struct MainHeaderBar: View {
 
         headerIconButton(
             icon: "gearshape",
+            identifier: AccessibilityID.openSettingsButton,
             accessibilityLabel: "Open settings",
             accessibilityHint: "Adjust app preferences",
             action: { showSettingsSheet = true }
@@ -729,6 +750,7 @@ private struct MainHeaderBar: View {
 
         headerIconButton(
             icon: favoritesCount == 0 ? "heart" : "heart.fill",
+            identifier: AccessibilityID.openFavoritesButton,
             accessibilityLabel: "Open favorites",
             accessibilityHint: "Shows your saved APOD favorites",
             action: { showFavoritesSheet = true }
@@ -739,12 +761,12 @@ private struct MainHeaderBar: View {
         HStack(spacing: 8) {
             Button(action: previousDateAction) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.Typography.actionLabel)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.bordered)
             .disabled(isShowingMinimumDate)
-            .accessibilityIdentifier("previousAPODDateButton")
+            .accessibilityIdentifier(AccessibilityID.previousAPODDateButton)
             .accessibilityLabel("Previous APOD date")
             .accessibilityHint("Moves to the previous available Astronomy Picture of the Day")
 
@@ -756,12 +778,12 @@ private struct MainHeaderBar: View {
 
             Button(action: nextDateAction) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(AppTheme.Typography.actionLabel)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.bordered)
             .disabled(isShowingLatestDate)
-            .accessibilityIdentifier("nextAPODDateButton")
+            .accessibilityIdentifier(AccessibilityID.nextAPODDateButton)
             .accessibilityLabel("Next APOD date")
             .accessibilityHint("Moves to the next available Astronomy Picture of the Day")
         }
@@ -770,6 +792,7 @@ private struct MainHeaderBar: View {
     @ViewBuilder
     private func headerIconButton(
         icon: String,
+        identifier: String,
         accessibilityLabel: String,
         accessibilityHint: String,
         action: @escaping () -> Void
@@ -779,9 +802,10 @@ private struct MainHeaderBar: View {
                 .font(.system(size: headerIconSize, weight: .semibold))
                 .frame(width: max(headerButtonSize, 44), height: max(headerButtonSize, 44))
                 .foregroundColor(iconColor)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(AppTheme.glassSurface(reduceTransparency: accessibilityReduceTransparency))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous))
         }
+        .accessibilityIdentifier(identifier)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(accessibilityHint)
     }
@@ -789,6 +813,8 @@ private struct MainHeaderBar: View {
 
 private struct APODDetailsView: View {
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isExplanationExpanded = false
     let nasa: NASA
     let isFavorite: Bool
@@ -799,10 +825,10 @@ private struct APODDetailsView: View {
     let preferredMediaSourceSystemImage: String
 
     private var detailsBackground: AnyShapeStyle {
-        if accessibilityReduceTransparency {
-            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
-        }
-        return AnyShapeStyle(.ultraThinMaterial)
+        AppTheme.adaptiveSurface(
+            isDarkMode: colorScheme == .dark,
+            reduceTransparency: accessibilityReduceTransparency
+        )
     }
 
     private var formattedDate: String {
@@ -844,41 +870,39 @@ private struct APODDetailsView: View {
         return preferredMediaSourceURL != nasaPageURL
     }
 
+    private var creditLine: String {
+        APODAttributionPolicy.creditLine(for: nasa)
+    }
+
+    private var rightsNotice: String? {
+        APODAttributionPolicy.rightsNotice(for: nasa)
+    }
+
+    private var shouldUseCompactHeaderLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                Text(nasa.title ?? "Astronomy Picture")
-                    .font(.title2)
-                    .bold()
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-
-                Button(action: favoriteAction) {
-                    Image(systemName: isFavorite ? "heart.fill" : "heart")
-                        .foregroundColor(isFavorite ? .red : .secondary)
-                }
-                .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
-                .accessibilityHint("Saves this APOD to your favorites list")
-            }
+            headerSection
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(formattedDate)
-                    .font(.subheadline.weight(.semibold))
-                    .accessibilityLabel("Date: \(formattedDate)")
-                if let copyright = nasa.copyright {
-                    Label(copyright, systemImage: "c.circle.fill")
-                        .symbolRenderingMode(.hierarchical)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .accessibilityLabel("Copyright: \(copyright)")
-                }
+                    .font(AppTheme.Typography.actionLabel)
+                    .accessibilityIdentifier(AccessibilityID.apodDateText)
+                    .accessibilityLabel(Text(L10n.format("date.label", default: "Date: %@", formattedDate)))
+                Label(creditLine, systemImage: "c.circle.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .accessibilityIdentifier(AccessibilityID.apodCreditText)
+                    .accessibilityLabel(Text(L10n.format("credit.label", default: "Credit: %@", creditLine)))
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     APODMetadataBadge(title: mediaTypeTitle, systemImage: mediaTypeSystemImage)
+                    APODMetadataBadge(title: APODAttributionPolicy.sourceLabel(for: nasa), systemImage: "network")
                     if nasa.hdurl != nil {
                         APODMetadataBadge(title: "HD Available", systemImage: "sparkles.tv")
                     }
@@ -889,14 +913,23 @@ private struct APODDetailsView: View {
                 .padding(.vertical, 2)
             }
 
+            if let rightsNotice {
+                APODAttributionNotice(text: rightsNotice)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
+                Text("About This APOD")
+                    .font(AppTheme.Typography.sectionTitle)
+                    .accessibilityAddTraits(.isHeader)
                 Text(explanationText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
                     .lineSpacing(3)
                     .lineLimit(isExplanationExpanded ? nil : APODExplanationDisplayPolicy.collapsedLineLimit)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier(AccessibilityID.apodExplanationText)
                     .accessibilityTextContentType(.narrative)
-                    .accessibilityLabel("Explanation: \(explanationText)")
+                    .accessibilityLabel(Text(L10n.format("explanation.label", default: "Explanation: %@", explanationText)))
 
                 if shouldOfferExplanationExpansion {
                     Button(isExplanationExpanded ? "Show Less" : "Read More") {
@@ -905,7 +938,8 @@ private struct APODDetailsView: View {
                         }
                     }
                     .buttonStyle(.borderless)
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppTheme.Typography.actionLabel)
+                    .accessibilityIdentifier(AccessibilityID.apodExplanationToggleButton)
                 }
             }
             .padding(.horizontal, 6)
@@ -925,11 +959,52 @@ private struct APODDetailsView: View {
         }
         .padding(14)
         .background(detailsBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
         .padding(.horizontal, 16)
         .onChange(of: nasa.id) { _ in
             isExplanationExpanded = false
         }
+    }
+
+    @ViewBuilder
+    private var headerSection: some View {
+        if shouldUseCompactHeaderLayout {
+            VStack(alignment: .leading, spacing: 10) {
+                titleView
+                favoriteButton
+            }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                titleView
+                favoriteButton
+            }
+        }
+    }
+
+    private var titleView: some View {
+        Text(nasa.title ?? "Astronomy Picture")
+            .font(AppTheme.Typography.screenTitle)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(nasa.title ?? "Astronomy Picture")
+            .accessibilityIdentifier(AccessibilityID.apodTitleText)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var favoriteButton: some View {
+        Button(action: favoriteAction) {
+            Label(isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: isFavorite ? "heart.fill" : "heart")
+                .labelStyle(.iconOnly)
+                .foregroundColor(isFavorite ? AppTheme.Palette.favorite : .secondary)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier(AccessibilityID.favoriteAPODButton)
+        .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
+        .accessibilityHint("Saves this APOD to your favorites list")
     }
 
     @ViewBuilder
@@ -940,6 +1015,7 @@ private struct APODDetailsView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier(AccessibilityID.openNasaPageButton)
             .accessibilityHint("Opens the official APOD page in the browser")
         }
 
@@ -949,6 +1025,7 @@ private struct APODDetailsView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier(AccessibilityID.openPreferredMediaButton)
             .accessibilityHint("Opens the best available media source for this APOD")
         }
     }
@@ -960,11 +1037,32 @@ private struct APODMetadataBadge: View {
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.caption.weight(.semibold))
+            .font(AppTheme.Typography.metadata)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.thinMaterial)
             .clipShape(Capsule())
+    }
+}
+
+private struct APODAttributionNotice: View {
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text)
+                .font(AppTheme.Typography.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "checkmark.seal")
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.Palette.subtleFill)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1006,21 +1104,23 @@ private struct FavoritesSheetView: View {
                             systemImage: "heart.slash",
                             description: Text("Save APOD entries with the heart button to quickly revisit them.")
                         )
+                        .accessibilityIdentifier(AccessibilityID.favoritesEmptyState)
                     } else {
                         VStack(spacing: 10) {
                             Image(systemName: "heart.slash")
                                 .font(.system(size: 36))
                                 .foregroundColor(.secondary)
                             Text("No Favorites Yet")
-                                .font(.headline)
+                                .font(AppTheme.Typography.sectionTitle)
                             Text("Save APOD entries with the heart button to quickly revisit them.")
-                                .font(.subheadline)
+                                .font(AppTheme.Typography.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding()
+                        .accessibilityIdentifier(AccessibilityID.favoritesEmptyState)
                     }
                 } else {
                     List {
@@ -1032,23 +1132,35 @@ private struct FavoritesSheetView: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.title ?? "Untitled")
-                                            .font(.headline)
+                                            .font(AppTheme.Typography.sectionTitle)
                                             .foregroundColor(.primary)
-                                        Text(item.date ?? "Unknown date")
-                                            .font(.caption)
+                                        Text(APODDateDisplayPolicy.displayString(for: item.date))
+                                            .font(AppTheme.Typography.metadata)
                                             .foregroundColor(.secondary)
+                                        Text(APODAttributionPolicy.creditLine(for: item))
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
                                     }
                                     Spacer()
-                                    Image(systemName: item.mediaType == .video ? "play.rectangle" : "photo")
-                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Image(systemName: item.mediaType == .video ? "play.rectangle" : "photo")
+                                            .foregroundColor(.secondary)
+                                        Text(item.mediaType == .video ? "Video" : "Image")
+                                            .font(AppTheme.Typography.metadata)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
+                            .accessibilityIdentifier(AccessibilityID.favoriteRowIdentifier(for: item))
+                            .accessibilityHint("Opens this saved APOD")
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     removeAction(item)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
+                                .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: item))
                             }
                         }
                     }
@@ -1068,9 +1180,13 @@ private struct FavoritesSheetView: View {
                 }
             }
             .navigationTitle("Favorites")
+            .overlay(alignment: .topLeading) {
+                AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { isPresented = false }
+                        .accessibilityIdentifier(AccessibilityID.favoritesDoneButton)
                 }
             }
         }
@@ -1091,7 +1207,7 @@ private struct SettingsToggleRow: View {
                 Text(title)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.footnote)
+                        .font(AppTheme.Typography.footnote)
                         .foregroundColor(.secondary)
                 }
             }
@@ -1101,7 +1217,6 @@ private struct SettingsToggleRow: View {
                 guard isEnabled else { return }
                 isOn.toggle()
             }
-            .accessibilityHidden(true)
 
             Toggle(isOn: $isOn) {
                 EmptyView()
@@ -1113,6 +1228,37 @@ private struct SettingsToggleRow: View {
             .accessibilityHint(accessibilityHint)
         }
         .opacity(isEnabled ? 1 : 0.65)
+    }
+}
+
+private struct StatusBannerCard: View {
+    let systemImage: String
+    let message: String
+    let tint: Color
+    let actionTitle: String?
+    let action: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 20)
+            Text(message)
+                .font(AppTheme.Typography.footnote)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(AppTheme.Typography.footnoteStrong)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous))
+        .padding(.horizontal)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1161,59 +1307,55 @@ private struct SettingsSheetView: View {
         )
     }
 
-    private var dataSaverModeBinding: Binding<Bool> {
-        Binding<Bool>(
-            get: { dataSaverMode },
-            set: { newValue in
-                dataSaverMode = newValue
-                preferHDImages = DataSaverPreferencePolicy.resolvedPreferHDImages(
-                    dataSaverMode: newValue,
-                    preferHDImages: preferHDImages
-                )
-            }
-        )
-    }
-
     private var notificationPermissionLabel: String {
         switch notificationPermissionStatus {
-        case .authorized: return "Authorized"
-        case .provisional: return "Provisional"
-        case .ephemeral: return "Ephemeral"
-        case .denied: return "Denied"
-        case .notDetermined: return "Not Determined"
-        @unknown default: return "Unknown"
+        case .authorized: return L10n.text("notification.authorized", default: "Authorized")
+        case .provisional: return L10n.text("notification.provisional", default: "Provisional")
+        case .ephemeral: return L10n.text("notification.ephemeral", default: "Ephemeral")
+        case .denied: return L10n.text("notification.denied", default: "Denied")
+        case .notDetermined: return L10n.text("notification.not_determined", default: "Not Determined")
+        @unknown default: return L10n.text("notification.unknown", default: "Unknown")
         }
     }
 
     private var videoAutoplayPolicyLabel: String {
-        guard allowVideoPlayback else { return "Playback disabled" }
-        guard wifiOnlyVideoAutoplay else { return "Autoplay allowed on any network" }
-        if !networkReachable { return "Waiting for network connection" }
-        return videoAutoplayEligible ? "Autoplay allowed on Wi-Fi" : "Manual play required off Wi-Fi"
+        guard allowVideoPlayback else { return L10n.text("video.playback_disabled", default: "Playback disabled") }
+        guard wifiOnlyVideoAutoplay else { return L10n.text("video.autoplay_any_network", default: "Autoplay allowed on any network") }
+        if !networkReachable { return L10n.text("video.waiting_for_network", default: "Waiting for network connection") }
+        return videoAutoplayEligible
+            ? L10n.text("video.autoplay_wifi", default: "Autoplay allowed on Wi-Fi")
+            : L10n.text("video.manual_off_wifi", default: "Manual play required off Wi-Fi")
     }
 
     private var networkEfficiencyLabel: String {
         if !networkReachable {
-            return "Offline. Cached APOD content is preferred."
+            return L10n.text("network.offline_cached_preferred", default: "Offline. Cached APOD content is preferred.")
         }
         if dataSaverMode && networkIsConstrained {
-            return "Maximum savings. App data saver and Low Data Mode are both active."
+            return L10n.text("network.maximum_savings", default: "Maximum savings. App data saver and Low Data Mode are both active.")
         }
         if dataSaverMode {
-            return "App data saver active. Lower-bandwidth images are preferred."
+            return L10n.text("network.data_saver_active", default: "App data saver active. Lower-bandwidth images are preferred.")
         }
         if networkIsConstrained {
-            return "System Low Data Mode active. Prefer lighter media usage."
+            return L10n.text("network.low_data_mode_active", default: "System Low Data Mode active. Prefer lighter media usage.")
         }
         if networkIsExpensive {
-            return "Metered connection detected. HD media may increase data usage."
+            return L10n.text("network.metered_detected", default: "Metered connection detected. HD media may increase data usage.")
         }
-        return "Standard media delivery."
+        return L10n.text("network.standard_delivery", default: "Standard media delivery.")
     }
 
     var body: some View {
         AdaptiveNavigationContainer {
             Form {
+                Color.clear
+                    .frame(height: 36)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .accessibilityHidden(true)
+
                 Section("Content Preferences") {
                     Toggle("Prefer Images Only", isOn: $preferImages)
                         .accessibilityLabel("Prefer images only for random selection")
@@ -1230,6 +1372,7 @@ private struct SettingsSheetView: View {
                     }
                     LabeledContent("Last Status Code") {
                         Text(lastStatusCode.map(String.init) ?? "N/A")
+                            .accessibilityIdentifier(AccessibilityID.lastStatusCodeValue)
                     }
                     LabeledContent("Last Request Time") {
                         Text(formattedRequestDate(lastRequestDate))
@@ -1299,15 +1442,15 @@ private struct SettingsSheetView: View {
                     SettingsToggleRow(
                         title: "Enable Data Saver Mode",
                         subtitle: "Favors lower-bandwidth image URLs and turns off HD image preference.",
-                        toggleIdentifier: "dataSaverModeToggle",
+                        toggleIdentifier: AccessibilityID.dataSaverModeToggle,
                         accessibilityHint: "Reduces network usage for APOD media.",
                         isEnabled: true,
-                        isOn: dataSaverModeBinding
+                        isOn: $dataSaverMode
                     )
                     SettingsToggleRow(
                         title: "Prefer HD Images",
                         subtitle: "Uses the highest-resolution image when available.",
-                        toggleIdentifier: "preferHDImagesToggle",
+                        toggleIdentifier: AccessibilityID.preferHDImagesToggle,
                         accessibilityHint: "Downloads higher resolution APOD images when data saver is off.",
                         isEnabled: !dataSaverMode,
                         isOn: $preferHDImages
@@ -1342,38 +1485,47 @@ private struct SettingsSheetView: View {
                 Section("Network Diagnostics") {
                     LabeledContent("Connection") {
                         Text(networkConnectionLabel)
+                            .accessibilityIdentifier(AccessibilityID.networkConnectionValue)
                     }
                     LabeledContent("Network Reachable") {
                         Text(networkReachable ? "Yes" : "No")
                     }
                     LabeledContent("Metered Network") {
                         Text(networkIsExpensive ? "Yes" : "No")
+                            .accessibilityIdentifier(AccessibilityID.meteredNetworkValue)
                     }
                     LabeledContent("Low Data Mode") {
                         Text(networkIsConstrained ? "Yes" : "No")
+                            .accessibilityIdentifier(AccessibilityID.lowDataModeValue)
                     }
                     LabeledContent("Video Autoplay Eligible") {
                         Text(videoAutoplayEligible ? "Yes" : "No")
                     }
                     LabeledContent("Autoplay Policy") {
                         Text(videoAutoplayPolicyLabel)
+                            .accessibilityIdentifier(AccessibilityID.autoplayPolicyValue)
                             .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("Network Efficiency") {
                         Text(networkEfficiencyLabel)
+                            .accessibilityIdentifier(AccessibilityID.networkEfficiencyValue)
                             .multilineTextAlignment(.trailing)
                     }
                     if wifiOnlyVideoAutoplay {
                         Text("Videos will wait for manual playback unless the device is on Wi-Fi.")
-                            .font(.footnote)
+                            .font(AppTheme.Typography.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
             }
             .navigationTitle("Settings")
+            .overlay(alignment: .topLeading) {
+                AccessibilityMarker(identifier: AccessibilityID.settingsSheetRoot)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { isPresented = false }
+                        .accessibilityIdentifier(AccessibilityID.settingsCloseButton)
                         .accessibilityLabel("Close settings")
                 }
             }
@@ -1399,84 +1551,59 @@ private struct APIRequestStatusBanner: View {
     var body: some View {
         VStack(spacing: 6) {
             if isOfflineMode {
-                HStack(spacing: 10) {
-                    Image(systemName: "wifi.slash")
-                        .foregroundColor(.orange)
-                    Text(accessibilityDifferentiateWithoutColor
-                         ? "Offline mode. Showing cached APOD content."
-                         : "Offline mode: showing cached APOD content.")
-                        .font(.footnote)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.thinMaterial)
-                .cornerRadius(10)
-                .padding(.horizontal)
+                StatusBannerCard(
+                    systemImage: "wifi.slash",
+                    message: accessibilityDifferentiateWithoutColor
+                        ? "Offline mode. Showing cached APOD content."
+                        : "Offline mode: showing cached APOD content.",
+                    tint: AppTheme.Palette.warning,
+                    actionTitle: nil,
+                    action: nil
+                )
             }
 
             if let rateLimitRetryDate {
-                HStack(spacing: 10) {
-                    Image(systemName: "timer")
-                        .foregroundColor(.orange)
-                    Text(accessibilityDifferentiateWithoutColor
-                         ? "Rate limit warning. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened))."
-                         : "Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).")
-                        .font(.footnote)
-                        .lineLimit(2)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.thinMaterial)
-                .cornerRadius(10)
-                .padding(.horizontal)
+                StatusBannerCard(
+                    systemImage: "timer",
+                    message: accessibilityDifferentiateWithoutColor
+                        ? "Rate limit warning. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened))."
+                        : "Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).",
+                    tint: AppTheme.Palette.warning,
+                    actionTitle: nil,
+                    action: nil
+                )
             }
 
             if let apiKeyWarning {
-                HStack(spacing: 10) {
-                    Image(systemName: "key.fill")
-                        .foregroundColor(.orange)
-                    Text(accessibilityDifferentiateWithoutColor ? "API key warning. \(apiKeyWarning)" : apiKeyWarning)
-                        .font(.footnote)
-                        .lineLimit(2)
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.thinMaterial)
-                .cornerRadius(10)
-                .padding(.horizontal)
+                StatusBannerCard(
+                    systemImage: "key.fill",
+                    message: accessibilityDifferentiateWithoutColor ? "API key warning. \(apiKeyWarning)" : apiKeyWarning,
+                    tint: AppTheme.Palette.warning,
+                    actionTitle: nil,
+                    action: nil
+                )
             }
 
             if isFetching && hasLoadedContent {
                 HStack(spacing: 10) {
                     ProgressView()
                     Text("Refreshing APOD from NASA API...")
-                        .font(.footnote)
+                        .font(AppTheme.Typography.footnote)
                         .foregroundColor(.secondary)
                     Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 6)
             } else if let error, hasLoadedContent {
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text(accessibilityDifferentiateWithoutColor
-                         ? "Error. \(error.localizedDescription)"
-                         : error.localizedDescription)
-                        .font(.footnote)
-                        .lineLimit(2)
-                    Spacer()
-                    Button("Retry", action: retryAction)
-                        .font(.footnote.bold())
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.thinMaterial)
-                .cornerRadius(10)
-                .padding(.horizontal)
+                StatusBannerCard(
+                    systemImage: "exclamationmark.triangle.fill",
+                    message: accessibilityDifferentiateWithoutColor
+                        ? "Error. \(error.localizedDescription)"
+                        : error.localizedDescription,
+                    tint: AppTheme.Palette.warning,
+                    actionTitle: "Retry",
+                    action: retryAction
+                )
             }
         }
     }
@@ -1498,9 +1625,9 @@ private struct APIRequestEmptyStateView: View {
                 VStack(spacing: 12) {
                     ProgressView()
                     Text(title)
-                        .font(.headline)
+                        .font(AppTheme.Typography.sectionTitle)
                     Text(subtitle)
-                        .font(.subheadline)
+                        .font(AppTheme.Typography.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -1530,11 +1657,11 @@ private struct APIRequestFailureView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "wifi.exclamationmark")
                         .font(.system(size: 36))
-                        .foregroundColor(.orange)
+                        .foregroundColor(AppTheme.Palette.warning)
                     Text("API Request Failed")
-                        .font(.title3.bold())
+                        .font(AppTheme.Typography.cardTitle)
                     Text(error.localizedDescription)
-                        .font(.subheadline)
+                        .font(AppTheme.Typography.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     Button("Retry", action: retryAction)
@@ -1619,6 +1746,7 @@ private struct MediaView: View {
                             .padding(.horizontal)
                             .offset(x: imageOffset.width, y: imageOffset.height)
                             .scaleEffect(imageScale)
+                            .accessibilityIdentifier(AccessibilityID.apodImageView)
                             .accessibilityLabel(nasa.title ?? "Astronomy Picture")
                             .accessibilityAddTraits(.isImage)
                             .onTapGesture(count: 2) {
@@ -1661,17 +1789,21 @@ private struct MediaView: View {
                     } else if phase.error != nil {
                         MediaPlaceholderCard(
                             systemImage: "photo.badge.exclamationmark",
-                            title: "Image Unavailable",
-                            message: "This APOD image could not be loaded right now. You can still open the source directly."
+                            title: L10n.text("media.image_unavailable", default: "Image Unavailable"),
+                            message: L10n.text(
+                                "media.image_unavailable_message",
+                                default: "This APOD image could not be loaded right now. You can still open the source directly."
+                            )
                         ) {
                             if let preferredImageURL {
-                                Button("Open Source") {
+                                Button(L10n.text("media.open_source", default: "Open Source")) {
                                     openURL(preferredImageURL)
                                 }
                                 .buttonStyle(.borderedProminent)
                             }
                         }
                         .padding(.horizontal)
+                        .accessibilityIdentifier(AccessibilityID.apodImageUnavailableMessage)
                     } else {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 220)
@@ -1681,13 +1813,16 @@ private struct MediaView: View {
                 if !allowVideoPlayback {
                     MediaPlaceholderCard(
                         systemImage: "play.slash.fill",
-                        title: "Video Playback Disabled",
-                        message: "Enable video playback in Settings to watch this APOD inside the app."
+                        title: L10n.text("video.playback_disabled_title", default: "Video Playback Disabled"),
+                        message: L10n.text(
+                            "video.playback_disabled_message",
+                            default: "Enable video playback in Settings to watch this APOD inside the app."
+                        )
                     ) {
                         EmptyView()
                     }
                     .padding(.horizontal)
-                    .accessibilityIdentifier("videoDisabledMessage")
+                    .accessibilityIdentifier(AccessibilityID.videoDisabledMessage)
                 } else if let videoID = extractYouTubeID(nasa.url) {
                     let player = YouTubePlayer(source: .video(id: videoID))
                     YouTubePlayerView(player)
@@ -1708,63 +1843,82 @@ private struct MediaView: View {
                             isVideoLoading = false
                         }
                 } else if let videoURL = nasa.url, supportsInlineDirectVideo(videoURL) {
-                    VideoPlayer(player: directVideoPlayer)
-                        .frame(height: 300)
-                        .cornerRadius(16)
-                        .padding(.horizontal)
-                        .accessibilityIdentifier("directVideoPlayer")
-                        .task(id: videoURL) {
-                            configureDirectVideoPlayer(for: videoURL, autoplay: shouldAutoplayVideo)
-                        }
-                        .onDisappear {
-                            directVideoPlayer?.pause()
-                            directVideoPlayer = nil
-                        }
-                        .overlay(alignment: .bottomLeading) {
-                            if wifiOnlyVideoAutoplay && !isOnWiFiConnection {
-                                Text("Autoplay paused on non-Wi-Fi network.")
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Capsule())
-                                    .padding(10)
+                    ZStack(alignment: .bottomLeading) {
+                        VideoPlayer(player: directVideoPlayer)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(height: 300)
+                            .task(id: videoURL) {
+                                configureDirectVideoPlayer(for: videoURL, autoplay: shouldAutoplayVideo)
                             }
+                            .onDisappear {
+                                directVideoPlayer?.pause()
+                                directVideoPlayer = nil
+                            }
+
+                        Color.clear
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .allowsHitTesting(false)
+                            .accessibilityElement()
+                            .accessibilityIdentifier(AccessibilityID.directVideoPlayer)
+                            .accessibilityLabel(nasa.title ?? "Direct video player")
+                            .accessibilityHint("Plays this APOD video inline in the app.")
+                            .accessibilityValue(shouldAutoplayVideo ? "Autoplay available" : "Autoplay paused off Wi-Fi")
+
+                        if wifiOnlyVideoAutoplay && !isOnWiFiConnection {
+                            Text(L10n.text("video.autoplay_paused_off_wifi", default: "Autoplay paused on non-Wi-Fi network."))
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Capsule())
+                                .padding(10)
+                                .accessibilityHidden(true)
                         }
+                    }
+                    .frame(height: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal)
                 } else {
                     MediaPlaceholderCard(
                         systemImage: "safari.fill",
-                        title: "Browser Playback Recommended",
-                        message: "This video source is better handled in the browser, but you can still open it from here."
+                        title: L10n.text("video.browser_recommended_title", default: "Browser Playback Recommended"),
+                        message: L10n.text(
+                            "video.browser_recommended_message",
+                            default: "This video source is better handled in the browser, but you can still open it from here."
+                        )
                     ) {
                         if let videoURL = nasa.url {
-                            Button("Play Video") {
+                            Button(L10n.text("media.play_video", default: "Play Video")) {
                                 showWebVideoSheet = true
                             }
                             .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("playVideoInAppButton")
+                            .accessibilityIdentifier(AccessibilityID.playVideoInAppButton)
                             .sheet(isPresented: $showWebVideoSheet) {
                                 SafariView(url: videoURL)
                             }
 
-                            Button("Open in External Browser") {
+                            Button(L10n.text("media.open_external_browser", default: "Open in External Browser")) {
                                 openURL(videoURL)
                             }
                             .buttonStyle(.bordered)
-                            .accessibilityIdentifier("openVideoExternalButton")
+                            .accessibilityIdentifier(AccessibilityID.openVideoExternalButton)
                         }
                     }
                     .padding(.horizontal)
-                    .accessibilityIdentifier("unsupportedVideoMessage")
+                    .accessibilityIdentifier(AccessibilityID.unsupportedVideoMessage)
                 }
             } else {
                 MediaPlaceholderCard(
                     systemImage: "questionmark.video",
-                    title: "Unsupported Media",
-                    message: "This APOD entry uses a media type the app cannot present yet."
+                    title: L10n.text("media.unsupported_title", default: "Unsupported Media"),
+                    message: L10n.text(
+                        "media.unsupported_message",
+                        default: "This APOD entry uses a media type the app cannot present yet."
+                    )
                 ) {
                     if let fallbackURL = nasa.url ?? nasa.hdurl {
-                        Button("Open Source") {
+                        Button(L10n.text("media.open_source", default: "Open Source")) {
                             openURL(fallbackURL)
                         }
                         .buttonStyle(.bordered)
@@ -1803,6 +1957,8 @@ private struct MediaView: View {
 
 private struct MediaPlaceholderCard<Actions: View>: View {
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let systemImage: String
     let title: String
     let message: String
@@ -1821,10 +1977,14 @@ private struct MediaPlaceholderCard<Actions: View>: View {
     }
 
     private var backgroundStyle: AnyShapeStyle {
-        if accessibilityReduceTransparency {
-            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
+        AppTheme.glassSurface(reduceTransparency: accessibilityReduceTransparency)
+    }
+
+    private var actionsLayout: AnyLayout {
+        if dynamicTypeSize.isAccessibilitySize || horizontalSizeClass == .compact {
+            return AnyLayout(VStackLayout(spacing: 10))
         }
-        return AnyShapeStyle(.ultraThinMaterial)
+        return AnyLayout(HStackLayout(spacing: 10))
     }
 
     var body: some View {
@@ -1835,30 +1995,25 @@ private struct MediaPlaceholderCard<Actions: View>: View {
 
             VStack(spacing: 6) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .multilineTextAlignment(.center)
                 Text(message)
-                    .font(.subheadline)
+                    .font(AppTheme.Typography.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
 
             if !(Actions.self == EmptyView.self) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) {
-                        actions
-                    }
-
-                    VStack(spacing: 10) {
-                        actions
-                    }
+                actionsLayout {
+                    actions
                 }
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 220)
         .background(backgroundStyle)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
+        .accessibilityElement(children: .contain)
     }
 }
 

@@ -8,9 +8,9 @@ struct ControlImageView: View {
     
     var body: some View {
         Image(systemName: icon)
-            .font(.system(size: iconSize))
+            .font(.system(size: iconSize, weight: .semibold, design: .rounded))
             .frame(width: 44, height: 44)
-            .foregroundColor(colorScheme == .dark ? .white : .indigo)
+            .foregroundColor(AppTheme.accentColor(isDarkMode: colorScheme == .dark))
             .accessibilityLabel(accessibilityLabel)
     }
 }

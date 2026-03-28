@@ -121,7 +121,10 @@ final class NasaCollectionFetcher: ObservableObject {
         self.cachedItemCount = self.apodData.count
 
         if !isAPIKeyConfigured, ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] != "1" {
-            apiKeyWarning = "NASA_API_KEY is not configured. DEMO_KEY may be rate-limited."
+            apiKeyWarning = L10n.text(
+                "api.key.warning.unconfigured",
+                default: "NASA_API_KEY is not configured. DEMO_KEY may be rate-limited."
+            )
         }
     }
 
@@ -291,12 +294,18 @@ final class NasaCollectionFetcher: ObservableObject {
         } catch let decodeError as DecodingError {
             if requestID == activeRequestID {
                 error = .decoding(decodeError)
-                lastTransportError = "Failed to decode NASA API payload."
+                lastTransportError = L10n.text(
+                    "api.payload.decode_failed",
+                    default: "Failed to decode NASA API payload."
+                )
                 appendDiagnostic(
                     endpoint: sanitizedEndpoint(from: url),
                     statusCode: lastStatusCode,
                     result: "failure",
-                    transportError: "Failed to decode NASA API payload.",
+                    transportError: L10n.text(
+                        "api.payload.decode_failed",
+                        default: "Failed to decode NASA API payload."
+                    ),
                     usedCache: isUsingCachedData
                 )
             }
@@ -620,22 +629,29 @@ final class NasaCollectionFetcher: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .badRequest:
-                return "Unable to load APOD data right now. Please try again."
+                return L10n.text("error.bad_request", default: "Unable to load APOD data right now. Please try again.")
             case .invalidResponse:
-                return "NASA API returned an invalid response."
+                return L10n.text("error.invalid_response", default: "NASA API returned an invalid response.")
             case let .httpStatus(statusCode):
                 if statusCode == 429 {
-                    return "NASA API rate limit reached (429). Configure a personal NASA_API_KEY and retry."
+                    return L10n.text(
+                        "error.http_429",
+                        default: "NASA API rate limit reached (429). Configure a personal NASA_API_KEY and retry."
+                    )
                 }
-                return "NASA API request failed with status code \(statusCode)."
+                return L10n.format(
+                    "error.http_status",
+                    default: "NASA API request failed with status code %d.",
+                    statusCode
+                )
             case .emptyResponse:
-                return "NASA API returned no APOD items."
+                return L10n.text("error.empty_response", default: "NASA API returned no APOD items.")
             case .decoding:
-                return "Received APOD data in an unexpected format."
+                return L10n.text("error.decoding", default: "Received APOD data in an unexpected format.")
             case .network:
-                return "Network request failed. Check your connection and try again."
+                return L10n.text("error.network", default: "Network request failed. Check your connection and try again.")
             case let .unknown(message):
-                return "Unexpected error: \(message)"
+                return L10n.format("error.unknown", default: "Unexpected error: %@", message)
             }
         }
     }
