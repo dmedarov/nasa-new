@@ -27,14 +27,14 @@ struct SplashScreenView: View {
                 
                 VStack {
                     Image("logo-swift-outlined")
-                    Text("NASA - Picture of The Day")
+                    Text(L10n.text("NASA - Picture of The Day", default: "NASA - Picture of The Day"))
                         .font(AppTheme.Typography.splashTitle)
                         .foregroundColor(AppTheme.Palette.splashText)
                         .padding(1)
-                    Text("by")
+                    Text(L10n.text("by", default: "by"))
                         .font(AppTheme.Typography.splashCaption)
                         .foregroundColor(AppTheme.Palette.splashText)
-                    Text("Medarov 2022")
+                    Text(L10n.text("Medarov 2022", default: "Medarov 2022"))
                         .font(AppTheme.Typography.splashCaption)
                         .foregroundColor(AppTheme.Palette.splashText)
                 }

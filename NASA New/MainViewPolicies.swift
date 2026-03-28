@@ -108,15 +108,19 @@ struct APODDateDisplayPolicy {
         return formatter
     }()
 
-    private static let displayFormatter: DateFormatter = {
+    private static func displayFormatter(locale: Locale) -> DateFormatter {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        formatter.calendar = calendar
+        formatter.locale = locale
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "MMMM d, yyyy"
+        formatter.setLocalizedDateFormatFromTemplate("MMMM d yyyy")
         return formatter
-    }()
+    }
 
-    static func displayString(for apiDateString: String?) -> String {
+    static func displayString(for apiDateString: String?, locale: Locale = .autoupdatingCurrent) -> String {
         guard let apiDateString else {
             return L10n.text("date.unknown", default: "Unknown date")
         }
@@ -126,7 +130,7 @@ struct APODDateDisplayPolicy {
             return L10n.text("date.unknown", default: "Unknown date")
         }
         guard let parsedDate = apiDateFormatter.date(from: trimmedDate) else { return trimmedDate }
-        return displayFormatter.string(from: parsedDate)
+        return displayFormatter(locale: locale).string(from: parsedDate)
     }
 }
 

@@ -200,3 +200,17 @@
 "Zoom out" = "Zoom out";
 "Reset zoom" = "Reset zoom";
 "Zoom in" = "Zoom in";
+"Medarov 2022" = "Medarov 2022";
+"Direct video player" = "Direct video player";
+"Plays this APOD video inline in the app." = "Plays this APOD video inline in the app.";
+"N/A" = "N/A";
+"New NASA APOD" = "New NASA APOD";
+"A new Astronomy Picture of the Day is available." = "A new Astronomy Picture of the Day is available.";
+"Wi-Fi" = "Wi-Fi";
+"Cellular" = "Cellular";
+"Ethernet" = "Ethernet";
+"Loopback" = "Loopback";
+"Other" = "Other";
+"Unavailable" = "Unavailable";
+"Success" = "Success";
+"Failure" = "Failure";

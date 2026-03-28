@@ -65,7 +65,10 @@ final class MainViewStateTests: XCTestCase {
     }
 
     func testAPODDateDisplayPolicyFormatsReadableDate() {
-        XCTAssertEqual(APODDateDisplayPolicy.displayString(for: "2025-01-15"), "January 15, 2025")
+        XCTAssertEqual(
+            APODDateDisplayPolicy.displayString(for: "2025-01-15", locale: Locale(identifier: "en_US_POSIX")),
+            "January 15, 2025"
+        )
     }
 
     func testAPODDateDisplayPolicyFallsBackWhenDateMissing() {

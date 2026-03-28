@@ -220,7 +220,7 @@ struct MainView: View {
         }
         .padding(.top, 8)
         .background(backgroundLayer)
-        .navigationTitle("NASA")
+        .navigationTitle(L10n.text("NASA", default: "NASA"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(.thinMaterial, for: .navigationBar)
@@ -364,8 +364,8 @@ struct MainView: View {
     private var mainContentSection: some View {
         if !hasLoadedContent && fetcher.isFetching {
             APIRequestEmptyStateView(
-                title: "Loading APOD",
-                subtitle: "Fetching the latest Astronomy Picture of the Day from NASA API."
+                title: L10n.text("Loading APOD", default: "Loading APOD"),
+                subtitle: L10n.text("Fetching the latest Astronomy Picture of the Day from NASA API.", default: "Fetching the latest Astronomy Picture of the Day from NASA API.")
             )
             Spacer()
         } else if !hasLoadedContent, let error = fetcher.error {
@@ -441,8 +441,8 @@ struct MainView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
             .accessibilityIdentifier(AccessibilityID.shareAPODButton)
-            .accessibilityLabel("Share APOD")
-            .accessibilityHint("Shares the current Astronomy Picture of the Day")
+            .accessibilityLabel(L10n.text("Share APOD", default: "Share APOD"))
+            .accessibilityHint(L10n.text("Shares the current Astronomy Picture of the Day", default: "Shares the current Astronomy Picture of the Day"))
     }
 
     private func randomizeSelection() {
@@ -504,13 +504,13 @@ struct MainView: View {
                     if imageScale <= ViewConstants.minImageScale { resetImageState() }
                 }
             } label: {
-                ControlImageView(icon: "minus.magnifyingglass", accessibilityLabel: "Zoom out")
+                ControlImageView(icon: "minus.magnifyingglass", accessibilityLabel: L10n.text("Zoom out", default: "Zoom out"))
             }
             
             Button {
                 resetImageState()
             } label: {
-                ControlImageView(icon: "arrow.up.left.and.down.right.magnifyingglass", accessibilityLabel: "Reset zoom")
+                ControlImageView(icon: "arrow.up.left.and.down.right.magnifyingglass", accessibilityLabel: L10n.text("Reset zoom", default: "Reset zoom"))
             }
             
             Button {
@@ -518,7 +518,7 @@ struct MainView: View {
                     if imageScale < ViewConstants.maxImageScale { imageScale += 1 }
                 }
             } label: {
-                ControlImageView(icon: "plus.magnifyingglass", accessibilityLabel: "Zoom in")
+                ControlImageView(icon: "plus.magnifyingglass", accessibilityLabel: L10n.text("Zoom in", default: "Zoom in"))
             }
         }
         .padding(.vertical, 10)
@@ -547,7 +547,7 @@ struct MainView: View {
     }
 
     private var shareTitle: String {
-        fetcher.currentNasa.title ?? "Astronomy Picture"
+        fetcher.currentNasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
     }
 
     private var shareExplanation: String {
@@ -598,18 +598,18 @@ struct MainView: View {
                     subject: Text(shareTitle),
                     message: Text(shareMessage)
                 ) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label(L10n.text("Share", default: "Share"), systemImage: "square.and.arrow.up")
                 }
             } else {
                 ShareLink(
                     item: shareMessage,
                     subject: Text(shareTitle)
                 ) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label(L10n.text("Share", default: "Share"), systemImage: "square.and.arrow.up")
                 }
             }
         } else {
-            Button("Share") {
+            Button(L10n.text("Share", default: "Share")) {
                 showShareSheet = true
             }
         }
@@ -688,38 +688,47 @@ private struct MainHeaderBar: View {
                 Button {
                     refreshAction()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(L10n.text("Refresh", default: "Refresh"), systemImage: "arrow.clockwise")
                         .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isFetching)
                 .accessibilityIdentifier(AccessibilityID.refreshAPODButton)
-                .accessibilityLabel("Refresh APOD data")
-                .accessibilityHint("Fetches the latest APOD data")
+                .accessibilityLabel(L10n.text("Refresh APOD data", default: "Refresh APOD data"))
+                .accessibilityHint(L10n.text("Fetches the latest APOD data", default: "Fetches the latest APOD data"))
 
                 Button {
                     jumpToLatestAction()
                 } label: {
-                    Label("Today", systemImage: "calendar")
+                    Label(L10n.text("Today", default: "Today"), systemImage: "calendar")
                         .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isFetching && isShowingLatestDate)
                 .accessibilityIdentifier(AccessibilityID.jumpToLatestAPODDateButton)
-                .accessibilityLabel("Jump to latest APOD date")
-                .accessibilityHint("Returns the calendar selection to today")
+                .accessibilityLabel(L10n.text("Jump to latest APOD date", default: "Jump to latest APOD date"))
+                .accessibilityHint(L10n.text("Returns the calendar selection to today", default: "Returns the calendar selection to today"))
 
                 Button {
                     randomizeAction()
                 } label: {
-                    Label(preferImages ? "Random Image" : "Random APOD", systemImage: "arrow.clockwise.circle")
+                    Label(
+                        preferImages
+                            ? L10n.text("Random Image", default: "Random Image")
+                            : L10n.text("Random APOD", default: "Random APOD"),
+                        systemImage: "arrow.clockwise.circle"
+                    )
                         .font(AppTheme.Typography.actionLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isFetching || !hasApodData)
                 .accessibilityIdentifier(AccessibilityID.randomAPODButton)
-                .accessibilityLabel("Select random \(preferImages ? "image" : "APOD")")
-                .accessibilityHint("Loads a random Astronomy Picture of the Day")
+                .accessibilityLabel(
+                    preferImages
+                        ? L10n.text("Select random image", default: "Select random image")
+                        : L10n.text("Select random APOD", default: "Select random APOD")
+                )
+                .accessibilityHint(L10n.text("Loads a random Astronomy Picture of the Day", default: "Loads a random Astronomy Picture of the Day"))
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -735,24 +744,26 @@ private struct MainHeaderBar: View {
         headerIconButton(
             icon: isDarkMode ? "sun.min.fill" : "moon.circle",
             identifier: AccessibilityID.toggleAppearanceButton,
-            accessibilityLabel: isDarkMode ? "Switch to light mode" : "Switch to dark mode",
-            accessibilityHint: "Toggles the app's appearance mode",
+            accessibilityLabel: isDarkMode
+                ? L10n.text("Switch to light mode", default: "Switch to light mode")
+                : L10n.text("Switch to dark mode", default: "Switch to dark mode"),
+            accessibilityHint: L10n.text("Toggles the app's appearance mode", default: "Toggles the app's appearance mode"),
             action: { isDarkMode.toggle() }
         )
 
         headerIconButton(
             icon: "gearshape",
             identifier: AccessibilityID.openSettingsButton,
-            accessibilityLabel: "Open settings",
-            accessibilityHint: "Adjust app preferences",
+            accessibilityLabel: L10n.text("Open settings", default: "Open settings"),
+            accessibilityHint: L10n.text("Adjust app preferences", default: "Adjust app preferences"),
             action: { showSettingsSheet = true }
         )
 
         headerIconButton(
             icon: favoritesCount == 0 ? "heart" : "heart.fill",
             identifier: AccessibilityID.openFavoritesButton,
-            accessibilityLabel: "Open favorites",
-            accessibilityHint: "Shows your saved APOD favorites",
+            accessibilityLabel: L10n.text("Open favorites", default: "Open favorites"),
+            accessibilityHint: L10n.text("Shows your saved APOD favorites", default: "Shows your saved APOD favorites"),
             action: { showFavoritesSheet = true }
         )
     }
@@ -767,14 +778,14 @@ private struct MainHeaderBar: View {
             .buttonStyle(.bordered)
             .disabled(isShowingMinimumDate)
             .accessibilityIdentifier(AccessibilityID.previousAPODDateButton)
-            .accessibilityLabel("Previous APOD date")
-            .accessibilityHint("Moves to the previous available Astronomy Picture of the Day")
+            .accessibilityLabel(L10n.text("Previous APOD date", default: "Previous APOD date"))
+            .accessibilityHint(L10n.text("Moves to the previous available Astronomy Picture of the Day", default: "Moves to the previous available Astronomy Picture of the Day"))
 
             DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
                 .labelsHidden()
                 .frame(width: max(datePickerWidth, 120))
-                .accessibilityLabel("Select APOD date")
-                .accessibilityHint("Choose a date to view a specific Astronomy Picture of the Day")
+                .accessibilityLabel(L10n.text("Select APOD date", default: "Select APOD date"))
+                .accessibilityHint(L10n.text("Choose a date to view a specific Astronomy Picture of the Day", default: "Choose a date to view a specific Astronomy Picture of the Day"))
 
             Button(action: nextDateAction) {
                 Image(systemName: "chevron.right")
@@ -784,8 +795,8 @@ private struct MainHeaderBar: View {
             .buttonStyle(.bordered)
             .disabled(isShowingLatestDate)
             .accessibilityIdentifier(AccessibilityID.nextAPODDateButton)
-            .accessibilityLabel("Next APOD date")
-            .accessibilityHint("Moves to the next available Astronomy Picture of the Day")
+            .accessibilityLabel(L10n.text("Next APOD date", default: "Next APOD date"))
+            .accessibilityHint(L10n.text("Moves to the next available Astronomy Picture of the Day", default: "Moves to the next available Astronomy Picture of the Day"))
         }
     }
 
@@ -836,22 +847,11 @@ private struct APODDetailsView: View {
     }
 
     private var explanationText: String {
-        nasa.explanation ?? "No explanation available."
+        nasa.explanation ?? L10n.text("apod.explanation.unavailable", default: "No explanation available.")
     }
 
     private var shouldOfferExplanationExpansion: Bool {
         APODExplanationDisplayPolicy.shouldOfferExpansion(for: explanationText)
-    }
-
-    private var mediaTypeTitle: String {
-        switch nasa.mediaType {
-        case .image:
-            return "Image"
-        case .video:
-            return "Video"
-        case .other:
-            return "Other Media"
-        }
     }
 
     private var mediaTypeSystemImage: String {
@@ -901,13 +901,13 @@ private struct APODDetailsView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    APODMetadataBadge(title: mediaTypeTitle, systemImage: mediaTypeSystemImage)
+                    APODMetadataBadge(title: nasa.mediaType.localizedDisplayName, systemImage: mediaTypeSystemImage)
                     APODMetadataBadge(title: APODAttributionPolicy.sourceLabel(for: nasa), systemImage: "network")
                     if nasa.hdurl != nil {
-                        APODMetadataBadge(title: "HD Available", systemImage: "sparkles.tv")
+                        APODMetadataBadge(title: L10n.text("HD Available", default: "HD Available"), systemImage: "sparkles.tv")
                     }
                     if nasa.url != nil {
-                        APODMetadataBadge(title: "Source Ready", systemImage: "link")
+                        APODMetadataBadge(title: L10n.text("Source Ready", default: "Source Ready"), systemImage: "link")
                     }
                 }
                 .padding(.vertical, 2)
@@ -918,7 +918,7 @@ private struct APODDetailsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("About This APOD")
+                Text(L10n.text("About This APOD", default: "About This APOD"))
                     .font(AppTheme.Typography.sectionTitle)
                     .accessibilityAddTraits(.isHeader)
                 Text(explanationText)
@@ -932,7 +932,11 @@ private struct APODDetailsView: View {
                     .accessibilityLabel(Text(L10n.format("explanation.label", default: "Explanation: %@", explanationText)))
 
                 if shouldOfferExplanationExpansion {
-                    Button(isExplanationExpanded ? "Show Less" : "Read More") {
+                    Button(
+                        isExplanationExpanded
+                            ? L10n.text("Show Less", default: "Show Less")
+                            : L10n.text("Read More", default: "Read More")
+                    ) {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isExplanationExpanded.toggle()
                         }
@@ -982,20 +986,25 @@ private struct APODDetailsView: View {
     }
 
     private var titleView: some View {
-        Text(nasa.title ?? "Astronomy Picture")
+        Text(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
             .font(AppTheme.Typography.screenTitle)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(nasa.title ?? "Astronomy Picture")
+            .accessibilityLabel(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
             .accessibilityIdentifier(AccessibilityID.apodTitleText)
             .accessibilityAddTraits(.isHeader)
     }
 
     private var favoriteButton: some View {
         Button(action: favoriteAction) {
-            Label(isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: isFavorite ? "heart.fill" : "heart")
+            Label(
+                isFavorite
+                    ? L10n.text("Remove from favorites", default: "Remove from favorites")
+                    : L10n.text("Add to favorites", default: "Add to favorites"),
+                systemImage: isFavorite ? "heart.fill" : "heart"
+            )
                 .labelStyle(.iconOnly)
                 .foregroundColor(isFavorite ? AppTheme.Palette.favorite : .secondary)
                 .frame(minWidth: 44, minHeight: 44)
@@ -1003,20 +1012,24 @@ private struct APODDetailsView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(AccessibilityID.favoriteAPODButton)
-        .accessibilityLabel(isFavorite ? "Remove from favorites" : "Add to favorites")
-        .accessibilityHint("Saves this APOD to your favorites list")
+        .accessibilityLabel(
+            isFavorite
+                ? L10n.text("Remove from favorites", default: "Remove from favorites")
+                : L10n.text("Add to favorites", default: "Add to favorites")
+        )
+        .accessibilityHint(L10n.text("Saves this APOD to your favorites list", default: "Saves this APOD to your favorites list"))
     }
 
     @ViewBuilder
     private var quickActionButtons: some View {
         if let nasaPageURL {
             Link(destination: nasaPageURL) {
-                Label("NASA Page", systemImage: "safari")
+                Label(L10n.text("NASA Page", default: "NASA Page"), systemImage: "safari")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .accessibilityIdentifier(AccessibilityID.openNasaPageButton)
-            .accessibilityHint("Opens the official APOD page in the browser")
+            .accessibilityHint(L10n.text("Opens the official APOD page in the browser", default: "Opens the official APOD page in the browser"))
         }
 
         if showsSeparateMediaAction, let preferredMediaSourceURL {
@@ -1026,7 +1039,7 @@ private struct APODDetailsView: View {
             }
             .buttonStyle(.bordered)
             .accessibilityIdentifier(AccessibilityID.openPreferredMediaButton)
-            .accessibilityHint("Opens the best available media source for this APOD")
+            .accessibilityHint(L10n.text("Opens the best available media source for this APOD", default: "Opens the best available media source for this APOD"))
         }
     }
 }
@@ -1100,9 +1113,9 @@ private struct FavoritesSheetView: View {
                 if favorites.isEmpty {
                     if #available(iOS 17.0, *) {
                         ContentUnavailableView(
-                            "No Favorites Yet",
+                            L10n.text("No Favorites Yet", default: "No Favorites Yet"),
                             systemImage: "heart.slash",
-                            description: Text("Save APOD entries with the heart button to quickly revisit them.")
+                            description: Text(L10n.text("Save APOD entries with the heart button to quickly revisit them.", default: "Save APOD entries with the heart button to quickly revisit them."))
                         )
                         .accessibilityIdentifier(AccessibilityID.favoritesEmptyState)
                     } else {
@@ -1110,9 +1123,9 @@ private struct FavoritesSheetView: View {
                             Image(systemName: "heart.slash")
                                 .font(.system(size: 36))
                                 .foregroundColor(.secondary)
-                            Text("No Favorites Yet")
+                            Text(L10n.text("No Favorites Yet", default: "No Favorites Yet"))
                                 .font(AppTheme.Typography.sectionTitle)
-                            Text("Save APOD entries with the heart button to quickly revisit them.")
+                            Text(L10n.text("Save APOD entries with the heart button to quickly revisit them.", default: "Save APOD entries with the heart button to quickly revisit them."))
                                 .font(AppTheme.Typography.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -1131,7 +1144,7 @@ private struct FavoritesSheetView: View {
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.title ?? "Untitled")
+                                        Text(item.title ?? L10n.text("Untitled", default: "Untitled"))
                                             .font(AppTheme.Typography.sectionTitle)
                                             .foregroundColor(.primary)
                                         Text(APODDateDisplayPolicy.displayString(for: item.date))
@@ -1146,19 +1159,19 @@ private struct FavoritesSheetView: View {
                                     VStack(alignment: .trailing, spacing: 4) {
                                         Image(systemName: item.mediaType == .video ? "play.rectangle" : "photo")
                                             .foregroundColor(.secondary)
-                                        Text(item.mediaType == .video ? "Video" : "Image")
+                                        Text(item.mediaType.localizedDisplayName)
                                             .font(AppTheme.Typography.metadata)
                                             .foregroundColor(.secondary)
                                     }
                                 }
                             }
                             .accessibilityIdentifier(AccessibilityID.favoriteRowIdentifier(for: item))
-                            .accessibilityHint("Opens this saved APOD")
+                            .accessibilityHint(L10n.text("Open this saved APOD", default: "Open this saved APOD"))
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     removeAction(item)
                                 } label: {
-                                    Label("Delete", systemImage: "trash")
+                                    Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
                                 }
                                 .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: item))
                             }
@@ -1169,23 +1182,23 @@ private struct FavoritesSheetView: View {
                             if #available(iOS 17.0, *) {
                                 ContentUnavailableView.search(text: searchQuery)
                             } else {
-                                Text("No favorites match your search.")
+                                Text(L10n.text("No favorites match your search.", default: "No favorites match your search."))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
                         }
                     }
-                    .searchable(text: $searchQuery, prompt: "Search favorites")
+                    .searchable(text: $searchQuery, prompt: L10n.text("Search favorites", default: "Search favorites"))
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("Favorites")
+            .navigationTitle(L10n.text("Favorites", default: "Favorites"))
             .overlay(alignment: .topLeading) {
                 AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { isPresented = false }
+                    Button(L10n.text("Done", default: "Done")) { isPresented = false }
                         .accessibilityIdentifier(AccessibilityID.favoritesDoneButton)
                 }
             }
@@ -1291,6 +1304,17 @@ private struct SettingsSheetView: View {
     let networkIsConstrained: Bool
     let videoAutoplayEligible: Bool
 
+    private func localizedDiagnosticResult(_ result: String) -> String {
+        switch result.lowercased() {
+        case "success":
+            return L10n.text("Success", default: "Success")
+        case "failure":
+            return L10n.text("Failure", default: "Failure")
+        default:
+            return result
+        }
+    }
+
     private var notificationTimeBinding: Binding<Date> {
         Binding<Date>(
             get: {
@@ -1356,44 +1380,44 @@ private struct SettingsSheetView: View {
                     .listRowSeparator(.hidden)
                     .accessibilityHidden(true)
 
-                Section("Content Preferences") {
-                    Toggle("Prefer Images Only", isOn: $preferImages)
-                        .accessibilityLabel("Prefer images only for random selection")
-                        .accessibilityHint("Limits random selection to images only")
-                    Toggle("Allow Video Playback", isOn: $allowVideoPlayback)
-                        .accessibilityLabel("Allow video playback")
-                        .accessibilityHint("Controls whether APOD videos play inside the app")
+                Section(L10n.text("Content Preferences", default: "Content Preferences")) {
+                    Toggle(L10n.text("Prefer Images Only", default: "Prefer Images Only"), isOn: $preferImages)
+                        .accessibilityLabel(L10n.text("Prefer images only for random selection", default: "Prefer images only for random selection"))
+                        .accessibilityHint(L10n.text("Limits random selection to images only", default: "Limits random selection to images only"))
+                    Toggle(L10n.text("Allow Video Playback", default: "Allow Video Playback"), isOn: $allowVideoPlayback)
+                        .accessibilityLabel(L10n.text("Allow video playback", default: "Allow video playback"))
+                        .accessibilityHint(L10n.text("Controls whether APOD videos play inside the app", default: "Controls whether APOD videos play inside the app"))
                 }
 
-                Section("API Diagnostics") {
-                    LabeledContent("NASA_API_KEY Configured") {
-                        Text(isAPIKeyConfigured ? "Yes" : "No (Using DEMO_KEY)")
+                Section(L10n.text("API Diagnostics", default: "API Diagnostics")) {
+                    LabeledContent(L10n.text("NASA_API_KEY Configured", default: "NASA_API_KEY Configured")) {
+                        Text(isAPIKeyConfigured ? L10n.text("Yes", default: "Yes") : L10n.text("No (Using DEMO_KEY)", default: "No (Using DEMO_KEY)"))
                             .foregroundColor(isAPIKeyConfigured ? .green : .orange)
                     }
-                    LabeledContent("Last Status Code") {
-                        Text(lastStatusCode.map(String.init) ?? "N/A")
+                    LabeledContent(L10n.text("Last Status Code", default: "Last Status Code")) {
+                        Text(lastStatusCode.map(String.init) ?? L10n.notAvailable)
                             .accessibilityIdentifier(AccessibilityID.lastStatusCodeValue)
                     }
-                    LabeledContent("Last Request Time") {
+                    LabeledContent(L10n.text("Last Request Time", default: "Last Request Time")) {
                         Text(formattedRequestDate(lastRequestDate))
                     }
-                    LabeledContent("Using Cached Data") {
-                        Text(isUsingCachedData ? "Yes" : "No")
+                    LabeledContent(L10n.text("Using Cached Data", default: "Using Cached Data")) {
+                        Text(L10n.yesNo(isUsingCachedData))
                     }
                     if let rateLimitRetryDate {
-                        LabeledContent("Rate Limit Retry Time") {
+                        LabeledContent(L10n.text("Rate Limit Retry Time", default: "Rate Limit Retry Time")) {
                             Text(formattedRequestDate(rateLimitRetryDate))
                                 .multilineTextAlignment(.trailing)
                         }
                     }
                     if let lastTransportError {
-                        LabeledContent("Last Transport Error") {
+                        LabeledContent(L10n.text("Last Transport Error", default: "Last Transport Error")) {
                             Text(lastTransportError)
                                 .multilineTextAlignment(.trailing)
                         }
                     }
                     if let apiKeyWarning {
-                        LabeledContent("API Key Warning") {
+                        LabeledContent(L10n.text("API Key Warning", default: "API Key Warning")) {
                             Text(apiKeyWarning)
                                 .foregroundColor(.orange)
                                 .multilineTextAlignment(.trailing)
@@ -1402,13 +1426,13 @@ private struct SettingsSheetView: View {
                 }
 
                 if !diagnosticsHistory.isEmpty {
-                    Section("Recent Requests") {
+                    Section(L10n.text("Recent Requests", default: "Recent Requests")) {
                         ForEach(diagnosticsHistory.prefix(5)) { item in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.timestamp.formatted(date: .omitted, time: .standard))
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text("\(item.result.uppercased()) • \(item.statusCode.map(String.init) ?? "N/A")")
+                                Text("\(localizedDiagnosticResult(item.result)) • \(item.statusCode.map(String.init) ?? L10n.notAvailable)")
                                     .font(.caption)
                                 if let transportError = item.transportError, !transportError.isEmpty {
                                     Text(transportError)
@@ -1421,119 +1445,119 @@ private struct SettingsSheetView: View {
                     }
                 }
 
-                Section("Daily Notifications") {
-                    Toggle("Enable Daily APOD Alerts", isOn: $dailyNotificationsEnabled)
+                Section(L10n.text("Daily Notifications", default: "Daily Notifications")) {
+                    Toggle(L10n.text("Enable Daily APOD Alerts", default: "Enable Daily APOD Alerts"), isOn: $dailyNotificationsEnabled)
                     DatePicker(
-                        "Alert Time",
+                        L10n.text("Alert Time", default: "Alert Time"),
                         selection: notificationTimeBinding,
                         displayedComponents: .hourAndMinute
                     )
                     .disabled(!dailyNotificationsEnabled)
-                    LabeledContent("Notification Permission") {
+                    LabeledContent(L10n.text("Notification Permission", default: "Notification Permission")) {
                         Text(notificationPermissionLabel)
                     }
-                    LabeledContent("Next Scheduled Alert") {
+                    LabeledContent(L10n.text("Next Scheduled Alert", default: "Next Scheduled Alert")) {
                         Text(formattedRequestDate(nextScheduledNotificationDate))
                             .multilineTextAlignment(.trailing)
                     }
                 }
 
-                Section("Data Saver") {
+                Section(L10n.text("Data Saver", default: "Data Saver")) {
                     SettingsToggleRow(
-                        title: "Enable Data Saver Mode",
-                        subtitle: "Favors lower-bandwidth image URLs and turns off HD image preference.",
+                        title: L10n.text("Enable Data Saver Mode", default: "Enable Data Saver Mode"),
+                        subtitle: L10n.text("Favors lower-bandwidth image URLs and turns off HD image preference.", default: "Favors lower-bandwidth image URLs and turns off HD image preference."),
                         toggleIdentifier: AccessibilityID.dataSaverModeToggle,
-                        accessibilityHint: "Reduces network usage for APOD media.",
+                        accessibilityHint: L10n.text("Reduces network usage for APOD media.", default: "Reduces network usage for APOD media."),
                         isEnabled: true,
                         isOn: $dataSaverMode
                     )
                     SettingsToggleRow(
-                        title: "Prefer HD Images",
-                        subtitle: "Uses the highest-resolution image when available.",
+                        title: L10n.text("Prefer HD Images", default: "Prefer HD Images"),
+                        subtitle: L10n.text("Uses the highest-resolution image when available.", default: "Uses the highest-resolution image when available."),
                         toggleIdentifier: AccessibilityID.preferHDImagesToggle,
-                        accessibilityHint: "Downloads higher resolution APOD images when data saver is off.",
+                        accessibilityHint: L10n.text("Downloads higher resolution APOD images when data saver is off.", default: "Downloads higher resolution APOD images when data saver is off."),
                         isEnabled: !dataSaverMode,
                         isOn: $preferHDImages
                     )
-                    Toggle("Autoplay Videos on Wi-Fi Only", isOn: $wifiOnlyVideoAutoplay)
+                    Toggle(L10n.text("Autoplay Videos on Wi-Fi Only", default: "Autoplay Videos on Wi-Fi Only"), isOn: $wifiOnlyVideoAutoplay)
                         .disabled(!allowVideoPlayback)
                     Stepper(value: $cacheItemLimit, in: 30...365, step: 15) {
-                        LabeledContent("Cache Item Limit") {
+                        LabeledContent(L10n.text("Cache Item Limit", default: "Cache Item Limit")) {
                             Text(String(cacheItemLimit))
                         }
                     }
-                    Text("Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections.")
+                    Text(L10n.text("Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections.", default: "Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
 
-                Section("Storage Diagnostics") {
-                    LabeledContent("Cached APOD Items") {
+                Section(L10n.text("Storage Diagnostics", default: "Storage Diagnostics")) {
+                    LabeledContent(L10n.text("Cached APOD Items", default: "Cached APOD Items")) {
                         Text(String(cachedItemCount))
                     }
-                    LabeledContent("Applied Cache Limit") {
+                    LabeledContent(L10n.text("Applied Cache Limit", default: "Applied Cache Limit")) {
                         Text(String(appliedCacheItemLimit))
                     }
-                    LabeledContent("Data Saver Active") {
-                        Text(dataSaverMode ? "Yes" : "No")
+                    LabeledContent(L10n.text("Data Saver Active", default: "Data Saver Active")) {
+                        Text(L10n.yesNo(dataSaverMode))
                     }
-                    LabeledContent("HD Images Preferred") {
-                        Text(preferHDImages ? "Yes" : "No")
+                    LabeledContent(L10n.text("HD Images Preferred", default: "HD Images Preferred")) {
+                        Text(L10n.yesNo(preferHDImages))
                     }
                 }
 
-                Section("Network Diagnostics") {
-                    LabeledContent("Connection") {
+                Section(L10n.text("Network Diagnostics", default: "Network Diagnostics")) {
+                    LabeledContent(L10n.text("Connection", default: "Connection")) {
                         Text(networkConnectionLabel)
                             .accessibilityIdentifier(AccessibilityID.networkConnectionValue)
                     }
-                    LabeledContent("Network Reachable") {
-                        Text(networkReachable ? "Yes" : "No")
+                    LabeledContent(L10n.text("Network Reachable", default: "Network Reachable")) {
+                        Text(L10n.yesNo(networkReachable))
                     }
-                    LabeledContent("Metered Network") {
-                        Text(networkIsExpensive ? "Yes" : "No")
+                    LabeledContent(L10n.text("Metered Network", default: "Metered Network")) {
+                        Text(L10n.yesNo(networkIsExpensive))
                             .accessibilityIdentifier(AccessibilityID.meteredNetworkValue)
                     }
-                    LabeledContent("Low Data Mode") {
-                        Text(networkIsConstrained ? "Yes" : "No")
+                    LabeledContent(L10n.text("Low Data Mode", default: "Low Data Mode")) {
+                        Text(L10n.yesNo(networkIsConstrained))
                             .accessibilityIdentifier(AccessibilityID.lowDataModeValue)
                     }
-                    LabeledContent("Video Autoplay Eligible") {
-                        Text(videoAutoplayEligible ? "Yes" : "No")
+                    LabeledContent(L10n.text("Video Autoplay Eligible", default: "Video Autoplay Eligible")) {
+                        Text(L10n.yesNo(videoAutoplayEligible))
                     }
-                    LabeledContent("Autoplay Policy") {
+                    LabeledContent(L10n.text("Autoplay Policy", default: "Autoplay Policy")) {
                         Text(videoAutoplayPolicyLabel)
                             .accessibilityIdentifier(AccessibilityID.autoplayPolicyValue)
                             .multilineTextAlignment(.trailing)
                     }
-                    LabeledContent("Network Efficiency") {
+                    LabeledContent(L10n.text("Network Efficiency", default: "Network Efficiency")) {
                         Text(networkEfficiencyLabel)
                             .accessibilityIdentifier(AccessibilityID.networkEfficiencyValue)
                             .multilineTextAlignment(.trailing)
                     }
                     if wifiOnlyVideoAutoplay {
-                        Text("Videos will wait for manual playback unless the device is on Wi-Fi.")
+                        Text(L10n.text("Videos will wait for manual playback unless the device is on Wi-Fi.", default: "Videos will wait for manual playback unless the device is on Wi-Fi."))
                             .font(AppTheme.Typography.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(L10n.text("Settings", default: "Settings"))
             .overlay(alignment: .topLeading) {
                 AccessibilityMarker(identifier: AccessibilityID.settingsSheetRoot)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { isPresented = false }
+                    Button(L10n.text("Done", default: "Done")) { isPresented = false }
                         .accessibilityIdentifier(AccessibilityID.settingsCloseButton)
-                        .accessibilityLabel("Close settings")
+                        .accessibilityLabel(L10n.text("Close settings", default: "Close settings"))
                 }
             }
         }
     }
 
     private func formattedRequestDate(_ date: Date?) -> String {
-        guard let date else { return "N/A" }
+        guard let date else { return L10n.notAvailable }
         return date.formatted(date: .abbreviated, time: .standard)
     }
 }
@@ -1554,8 +1578,8 @@ private struct APIRequestStatusBanner: View {
                 StatusBannerCard(
                     systemImage: "wifi.slash",
                     message: accessibilityDifferentiateWithoutColor
-                        ? "Offline mode. Showing cached APOD content."
-                        : "Offline mode: showing cached APOD content.",
+                        ? L10n.text("Offline mode. Showing cached APOD content.", default: "Offline mode. Showing cached APOD content.")
+                        : L10n.text("Offline mode: showing cached APOD content.", default: "Offline mode: showing cached APOD content."),
                     tint: AppTheme.Palette.warning,
                     actionTitle: nil,
                     action: nil
@@ -1563,11 +1587,12 @@ private struct APIRequestStatusBanner: View {
             }
 
             if let rateLimitRetryDate {
+                let retryTime = rateLimitRetryDate.formatted(date: .omitted, time: .shortened)
                 StatusBannerCard(
                     systemImage: "timer",
                     message: accessibilityDifferentiateWithoutColor
-                        ? "Rate limit warning. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened))."
-                        : "Rate limited. Try again at \(rateLimitRetryDate.formatted(date: .omitted, time: .shortened)).",
+                        ? L10n.format("Rate limit warning. Try again at %@", default: "Rate limit warning. Try again at %@", retryTime)
+                        : L10n.format("Rate limited. Try again at %@", default: "Rate limited. Try again at %@", retryTime),
                     tint: AppTheme.Palette.warning,
                     actionTitle: nil,
                     action: nil
@@ -1577,7 +1602,9 @@ private struct APIRequestStatusBanner: View {
             if let apiKeyWarning {
                 StatusBannerCard(
                     systemImage: "key.fill",
-                    message: accessibilityDifferentiateWithoutColor ? "API key warning. \(apiKeyWarning)" : apiKeyWarning,
+                    message: accessibilityDifferentiateWithoutColor
+                        ? L10n.format("API key warning. %@", default: "API key warning. %@", apiKeyWarning)
+                        : apiKeyWarning,
                     tint: AppTheme.Palette.warning,
                     actionTitle: nil,
                     action: nil
@@ -1587,7 +1614,7 @@ private struct APIRequestStatusBanner: View {
             if isFetching && hasLoadedContent {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Refreshing APOD from NASA API...")
+                    Text(L10n.text("Refreshing APOD from NASA API...", default: "Refreshing APOD from NASA API..."))
                         .font(AppTheme.Typography.footnote)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -1598,10 +1625,10 @@ private struct APIRequestStatusBanner: View {
                 StatusBannerCard(
                     systemImage: "exclamationmark.triangle.fill",
                     message: accessibilityDifferentiateWithoutColor
-                        ? "Error. \(error.localizedDescription)"
+                        ? L10n.format("Error. %@", default: "Error. %@", error.localizedDescription)
                         : error.localizedDescription,
                     tint: AppTheme.Palette.warning,
-                    actionTitle: "Retry",
+                    actionTitle: L10n.text("Retry", default: "Retry"),
                     action: retryAction
                 )
             }
@@ -1646,11 +1673,11 @@ private struct APIRequestFailureView: View {
         Group {
             if #available(iOS 17.0, *) {
                 ContentUnavailableView {
-                    Label("API Request Failed", systemImage: "wifi.exclamationmark")
+                    Label(L10n.text("API Request Failed", default: "API Request Failed"), systemImage: "wifi.exclamationmark")
                 } description: {
                     Text(error.localizedDescription)
                 } actions: {
-                    Button("Retry", action: retryAction)
+                    Button(L10n.text("Retry", default: "Retry"), action: retryAction)
                         .buttonStyle(.borderedProminent)
                 }
             } else {
@@ -1658,13 +1685,13 @@ private struct APIRequestFailureView: View {
                     Image(systemName: "wifi.exclamationmark")
                         .font(.system(size: 36))
                         .foregroundColor(AppTheme.Palette.warning)
-                    Text("API Request Failed")
+                    Text(L10n.text("API Request Failed", default: "API Request Failed"))
                         .font(AppTheme.Typography.cardTitle)
                     Text(error.localizedDescription)
                         .font(AppTheme.Typography.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("Retry", action: retryAction)
+                    Button(L10n.text("Retry", default: "Retry"), action: retryAction)
                         .buttonStyle(.borderedProminent)
                         .padding(.top, 4)
                 }
@@ -1747,7 +1774,7 @@ private struct MediaView: View {
                             .offset(x: imageOffset.width, y: imageOffset.height)
                             .scaleEffect(imageScale)
                             .accessibilityIdentifier(AccessibilityID.apodImageView)
-                            .accessibilityLabel(nasa.title ?? "Astronomy Picture")
+                            .accessibilityLabel(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
                             .accessibilityAddTraits(.isImage)
                             .onTapGesture(count: 2) {
                                 if reduceMotion {
@@ -1861,9 +1888,15 @@ private struct MediaView: View {
                             .allowsHitTesting(false)
                             .accessibilityElement()
                             .accessibilityIdentifier(AccessibilityID.directVideoPlayer)
-                            .accessibilityLabel(nasa.title ?? "Direct video player")
-                            .accessibilityHint("Plays this APOD video inline in the app.")
-                            .accessibilityValue(shouldAutoplayVideo ? "Autoplay available" : "Autoplay paused off Wi-Fi")
+                            .accessibilityLabel(nasa.title ?? L10n.text("Direct video player", default: "Direct video player"))
+                            .accessibilityHint(L10n.text("Plays this APOD video inline in the app.", default: "Plays this APOD video inline in the app."))
+                            .accessibilityValue(
+                                shouldAutoplayVideo
+                                    ? (wifiOnlyVideoAutoplay
+                                        ? L10n.text("Autoplay allowed on Wi-Fi", default: "Autoplay allowed on Wi-Fi")
+                                        : L10n.text("Autoplay allowed on any network", default: "Autoplay allowed on any network"))
+                                    : L10n.text("Autoplay paused on non-Wi-Fi network.", default: "Autoplay paused on non-Wi-Fi network.")
+                            )
 
                         if wifiOnlyVideoAutoplay && !isOnWiFiConnection {
                             Text(L10n.text("video.autoplay_paused_off_wifi", default: "Autoplay paused on non-Wi-Fi network."))
@@ -2104,8 +2137,8 @@ private final class NotificationScheduler {
         guard granted else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "New NASA APOD"
-        content.body = "A new Astronomy Picture of the Day is available."
+        content.title = L10n.text("New NASA APOD", default: "New NASA APOD")
+        content.body = L10n.text("A new Astronomy Picture of the Day is available.", default: "A new Astronomy Picture of the Day is available.")
         content.sound = .default
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: settings.dateComponents, repeats: true)
@@ -2125,17 +2158,17 @@ private enum NetworkConnectionKind: Equatable {
     var displayName: String {
         switch self {
         case .wifi:
-            return "Wi-Fi"
+            return L10n.text("Wi-Fi", default: "Wi-Fi")
         case .cellular:
-            return "Cellular"
+            return L10n.text("Cellular", default: "Cellular")
         case .wiredEthernet:
-            return "Ethernet"
+            return L10n.text("Ethernet", default: "Ethernet")
         case .loopback:
-            return "Loopback"
+            return L10n.text("Loopback", default: "Loopback")
         case .other:
-            return "Other"
+            return L10n.text("Other", default: "Other")
         case .unavailable:
-            return "Unavailable"
+            return L10n.text("Unavailable", default: "Unavailable")
         }
     }
 }

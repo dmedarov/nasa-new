@@ -15,6 +15,19 @@ enum MediaType: String, Codable {
     }
 }
 
+extension MediaType {
+    var localizedDisplayName: String {
+        switch self {
+        case .image:
+            return L10n.text("Image", default: "Image")
+        case .video:
+            return L10n.text("Video", default: "Video")
+        case .other:
+            return L10n.text("Other Media", default: "Other Media")
+        }
+    }
+}
+
 /// Struct representing a NASA Astronomy Picture of the Day (APOD) entry.
 struct NASA: Codable, Identifiable {
     var id: String {
@@ -102,12 +115,12 @@ struct NASA: Codable, Identifiable {
         self.copyright = try container.decodeIfPresent(String.self, forKey: .copyright)
         self.date = NASA.validDateString(from: try container.decodeIfPresent(String.self, forKey: .date))
         self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
-            ?? "No explanation available."
+            ?? L10n.text("apod.explanation.unavailable", default: "No explanation available.")
         self.hdurl = NASA.validHTTPURL(from: try container.decodeIfPresent(String.self, forKey: .hdurl))
         self.mediaType = try container.decodeIfPresent(MediaType.self, forKey: .mediaType) ?? .other
         self.serviceVersion = try container.decodeIfPresent(String.self, forKey: .serviceVersion) ?? "v1"
         self.title = try container.decodeIfPresent(String.self, forKey: .title)
-            ?? "Untitled"
+            ?? L10n.text("apod.title.untitled", default: "Untitled")
         self.url = NASA.validHTTPURL(from: try container.decodeIfPresent(String.self, forKey: .url))
     }
 }
@@ -116,11 +129,11 @@ extension NASA {
     static let `default` = NASA(
         copyright: nil,
         date: nil,
-        explanation: "No data available.",
+        explanation: L10n.text("apod.data.unavailable", default: "No data available."),
         hdurl: nil,
         mediaType: .image,
         serviceVersion: "v1",
-        title: "No Image Available",
+        title: L10n.text("apod.image.unavailable", default: "No Image Available"),
         url: nil
     )
 }

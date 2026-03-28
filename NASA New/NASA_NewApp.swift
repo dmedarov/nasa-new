@@ -30,8 +30,8 @@ struct NASA_NewApp: App {
             .environmentObject(fetcher)
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .accessibilityElement()
-            .accessibilityLabel("NASA APOD App")
-            .accessibilityHint("Displays NASA's Astronomy Picture of the Day with dark/light mode support.")
+            .accessibilityLabel(L10n.text("NASA APOD App", default: "NASA APOD App"))
+            .accessibilityHint(L10n.text("Displays NASA's Astronomy Picture of the Day with dark/light mode support.", default: "Displays NASA's Astronomy Picture of the Day with dark/light mode support."))
         }
     }
 }
