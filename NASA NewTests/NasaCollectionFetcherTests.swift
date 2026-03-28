@@ -13,6 +13,36 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func prefersEnvironmentAPIKeyOverInfoDictionaryValue() {
+        let resolvedKey = NASAAPIKeyConfiguration.resolvedAPIKey(
+            environment: ["NASA_API_KEY": "ENV_KEY"],
+            infoDictionary: ["NASA_API_KEY": "BUNDLE_KEY"]
+        )
+
+        #expect(resolvedKey == "ENV_KEY")
+    }
+
+    @Test
+    func fallsBackToInfoDictionaryAPIKeyWhenEnvironmentIsMissing() {
+        let resolvedKey = NASAAPIKeyConfiguration.resolvedAPIKey(
+            environment: [:],
+            infoDictionary: ["NASA_API_KEY": "BUNDLE_KEY"]
+        )
+
+        #expect(resolvedKey == "BUNDLE_KEY")
+    }
+
+    @Test
+    func ignoresUnresolvedBuildSettingPlaceholdersWhenResolvingAPIKey() {
+        let resolvedKey = NASAAPIKeyConfiguration.resolvedAPIKey(
+            environment: [:],
+            infoDictionary: ["NASA_API_KEY": "$(NASA_API_KEY)"]
+        )
+
+        #expect(resolvedKey == NASAAPIKeyConfiguration.demoKey)
+    }
+
+    @Test
     func restorationClampsStoredDateIntoValidAPODWindow() {
         let minimumDate = deterministicCalendar.date(from: DateComponents(year: 1995, month: 6, day: 16))!
         let maximumDate = fixedNow

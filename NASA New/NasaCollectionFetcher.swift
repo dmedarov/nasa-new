@@ -1,5 +1,31 @@
 import SwiftUI
 
+enum NASAAPIKeyConfiguration {
+    static let infoDictionaryKey = "NASA_API_KEY"
+    static let demoKey = "DEMO_KEY"
+
+    static func resolvedAPIKey(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
+    ) -> String {
+        resolvedValue(from: environment[infoDictionaryKey])
+            ?? resolvedValue(from: infoDictionary[infoDictionaryKey] as? String)
+            ?? demoKey
+    }
+
+    private static func resolvedValue(from rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return nil }
+
+        // Ignore unresolved build-setting placeholders if no local secret file is present yet.
+        guard !(trimmedValue.hasPrefix("$(") && trimmedValue.hasSuffix(")")) else { return nil }
+
+        return trimmedValue
+    }
+}
+
 @MainActor
 final class NasaCollectionFetcher: ObservableObject {
     private enum Constants {
@@ -58,15 +84,20 @@ final class NasaCollectionFetcher: ObservableObject {
 
     var minimumSelectableDate: Date { minimumAPODDate }
 
-    var maximumSelectableDate: Date { normalizedDate(nowProvider()) }
+    var maximumSelectableDate: Date {
+        if isUsingFixtureData, let latestFixtureDate = latestAvailableAPODDate {
+            return latestFixtureDate
+        }
+        return normalizedDate(nowProvider())
+    }
 
     var isAPIKeyConfigured: Bool {
-        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && apiKey != "DEMO_KEY"
+        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && apiKey != NASAAPIKeyConfiguration.demoKey
     }
 
     init(
         session: URLSession = .shared,
-        apiKey: String = ProcessInfo.processInfo.environment["NASA_API_KEY"] ?? "DEMO_KEY",
+        apiKey: String = NASAAPIKeyConfiguration.resolvedAPIKey(),
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage(),
@@ -100,6 +131,13 @@ final class NasaCollectionFetcher: ObservableObject {
 
     func isSameAPODDay(_ lhs: Date, _ rhs: Date) -> Bool {
         calendar.isDate(normalizedDate(lhs), inSameDayAs: normalizedDate(rhs))
+    }
+
+    private var latestAvailableAPODDate: Date? {
+        apodData
+            .compactMap { date(from: $0.date) }
+            .map(normalizedDate)
+            .max()
     }
 
     private func buildURL(for date: Date? = nil) -> URL? {

@@ -6,41 +6,6 @@ import AVKit
 import UserNotifications
 import Network
 
-struct APODDateRestoration {
-    static func restoredDate(
-        storedValue: String?,
-        parseDate: (String?) -> Date?,
-        minimumDate: Date,
-        maximumDate: Date
-    ) -> Date? {
-        guard let restoredDate = parseDate(storedValue) else { return nil }
-        return min(max(restoredDate, minimumDate), maximumDate)
-    }
-}
-
-struct DataSaverPreferencePolicy {
-    static func resolvedPreferHDImages(dataSaverMode: Bool, preferHDImages: Bool) -> Bool {
-        dataSaverMode ? false : preferHDImages
-    }
-}
-
-struct APODDateNavigationPolicy {
-    static func shiftedDate(
-        from selectedDate: Date,
-        dayOffset: Int,
-        calendar: Calendar,
-        minimumDate: Date,
-        maximumDate: Date
-    ) -> Date {
-        let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: selectedDate) ?? selectedDate
-        return min(max(candidateDate, minimumDate), maximumDate)
-    }
-
-    static func latestDate(maximumDate: Date) -> Date {
-        maximumDate
-    }
-}
-
 struct UITestPolicy {
     static var isSceneRestorationDisabled: Bool {
         ProcessInfo.processInfo.environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1"
@@ -124,11 +89,7 @@ struct MainView: View {
     }
     
     private func apodURL(for date: String?) -> URL? {
-        guard let date = date, date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else {
-            return fetcher.currentNasa.url
-        }
-        let formattedDate = date.replacingOccurrences(of: "-", with: "").dropFirst(2)
-        return URL(string: "https://apod.nasa.gov/apod/ap\(formattedDate).html")
+        APODSourceLinkPolicy.nasaPageURL(for: date, fallbackURL: fetcher.currentNasa.url)
     }
     
     private func videoThumbnailURL(for videoID: String) -> URL? {
@@ -296,7 +257,10 @@ struct MainView: View {
                     .padding(.top, 8)
             }
         }
-        .accessibilityIdentifier("mainViewRoot")
+        .accessibilityElement(children: .contain)
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker(identifier: "mainViewRoot")
+        }
         .onDisappear {
             dateSelectionTask?.cancel()
             dateSelectionTask = nil
@@ -330,12 +294,6 @@ struct MainView: View {
         }
         .onChange(of: selectedDate) { newDate in
             persistSelectedDate(newDate)
-        }
-        .onChange(of: dataSaverMode) { enabled in
-            preferHDImages = DataSaverPreferencePolicy.resolvedPreferHDImages(
-                dataSaverMode: enabled,
-                preferHDImages: preferHDImages
-            )
         }
         .modifier(SensoryFeedbackModifier(
             randomizeFeedbackToken: randomizeFeedbackToken,
@@ -443,7 +401,11 @@ struct MainView: View {
         APODDetailsView(
             nasa: fetcher.currentNasa,
             isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-            favoriteAction: toggleFavorite
+            favoriteAction: toggleFavorite,
+            nasaPageURL: nasaPageURL,
+            preferredMediaSourceURL: preferredMediaSourceURL,
+            preferredMediaSourceTitle: preferredMediaSourceTitle,
+            preferredMediaSourceSystemImage: preferredMediaSourceSystemImage
         )
     }
 
@@ -579,7 +541,31 @@ struct MainView: View {
     }
 
     private var shareURL: URL? {
+        nasaPageURL
+    }
+
+    private var nasaPageURL: URL? {
         apodURL(for: fetcher.currentNasa.date)
+    }
+
+    private var preferredMediaSourceURL: URL? {
+        APODSourceLinkPolicy.preferredMediaURL(
+            for: fetcher.currentNasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+    }
+
+    private var preferredMediaSourceTitle: String {
+        APODSourceLinkPolicy.preferredMediaTitle(
+            for: fetcher.currentNasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+    }
+
+    private var preferredMediaSourceSystemImage: String {
+        APODSourceLinkPolicy.preferredMediaSystemImage(for: fetcher.currentNasa)
     }
 
     private var shareMessage: String {
@@ -701,6 +687,7 @@ private struct MainHeaderBar: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isFetching && isShowingLatestDate)
+                .accessibilityIdentifier("jumpToLatestAPODDateButton")
                 .accessibilityLabel("Jump to latest APOD date")
                 .accessibilityHint("Returns the calendar selection to today")
 
@@ -757,6 +744,7 @@ private struct MainHeaderBar: View {
             }
             .buttonStyle(.bordered)
             .disabled(isShowingMinimumDate)
+            .accessibilityIdentifier("previousAPODDateButton")
             .accessibilityLabel("Previous APOD date")
             .accessibilityHint("Moves to the previous available Astronomy Picture of the Day")
 
@@ -773,6 +761,7 @@ private struct MainHeaderBar: View {
             }
             .buttonStyle(.bordered)
             .disabled(isShowingLatestDate)
+            .accessibilityIdentifier("nextAPODDateButton")
             .accessibilityLabel("Next APOD date")
             .accessibilityHint("Moves to the next available Astronomy Picture of the Day")
         }
@@ -800,15 +789,59 @@ private struct MainHeaderBar: View {
 
 private struct APODDetailsView: View {
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @State private var isExplanationExpanded = false
     let nasa: NASA
     let isFavorite: Bool
     let favoriteAction: () -> Void
+    let nasaPageURL: URL?
+    let preferredMediaSourceURL: URL?
+    let preferredMediaSourceTitle: String
+    let preferredMediaSourceSystemImage: String
 
     private var detailsBackground: AnyShapeStyle {
         if accessibilityReduceTransparency {
             return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
         }
         return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    private var formattedDate: String {
+        APODDateDisplayPolicy.displayString(for: nasa.date)
+    }
+
+    private var explanationText: String {
+        nasa.explanation ?? "No explanation available."
+    }
+
+    private var shouldOfferExplanationExpansion: Bool {
+        APODExplanationDisplayPolicy.shouldOfferExpansion(for: explanationText)
+    }
+
+    private var mediaTypeTitle: String {
+        switch nasa.mediaType {
+        case .image:
+            return "Image"
+        case .video:
+            return "Video"
+        case .other:
+            return "Other Media"
+        }
+    }
+
+    private var mediaTypeSystemImage: String {
+        switch nasa.mediaType {
+        case .image:
+            return "photo"
+        case .video:
+            return "play.rectangle"
+        case .other:
+            return "questionmark.video"
+        }
+    }
+
+    private var showsSeparateMediaAction: Bool {
+        guard let preferredMediaSourceURL else { return false }
+        return preferredMediaSourceURL != nasaPageURL
     }
 
     var body: some View {
@@ -831,6 +864,9 @@ private struct APODDetailsView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
+                Text(formattedDate)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityLabel("Date: \(formattedDate)")
                 if let copyright = nasa.copyright {
                     Label(copyright, systemImage: "c.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -838,25 +874,109 @@ private struct APODDetailsView: View {
                         .multilineTextAlignment(.leading)
                         .accessibilityLabel("Copyright: \(copyright)")
                 }
-                Text(nasa.date ?? "")
-                    .font(.subheadline)
-                    .bold()
-                    .accessibilityLabel("Date: \(nasa.date ?? "Unknown")")
             }
 
-            Text(nasa.explanation ?? "No explanation available.")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-                .lineSpacing(3)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 8)
-                .accessibilityTextContentType(.narrative)
-                .accessibilityLabel("Explanation: \(nasa.explanation ?? "No explanation available.")")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    APODMetadataBadge(title: mediaTypeTitle, systemImage: mediaTypeSystemImage)
+                    if nasa.hdurl != nil {
+                        APODMetadataBadge(title: "HD Available", systemImage: "sparkles.tv")
+                    }
+                    if nasa.url != nil {
+                        APODMetadataBadge(title: "Source Ready", systemImage: "link")
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(explanationText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(3)
+                    .lineLimit(isExplanationExpanded ? nil : APODExplanationDisplayPolicy.collapsedLineLimit)
+                    .accessibilityTextContentType(.narrative)
+                    .accessibilityLabel("Explanation: \(explanationText)")
+
+                if shouldOfferExplanationExpansion {
+                    Button(isExplanationExpanded ? "Show Less" : "Read More") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExplanationExpanded.toggle()
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.subheadline.weight(.semibold))
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 8)
+
+            if nasaPageURL != nil || showsSeparateMediaAction {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        quickActionButtons
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        quickActionButtons
+                    }
+                }
+            }
         }
         .padding(14)
         .background(detailsBackground)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding(.horizontal, 16)
+        .onChange(of: nasa.id) { _ in
+            isExplanationExpanded = false
+        }
+    }
+
+    @ViewBuilder
+    private var quickActionButtons: some View {
+        if let nasaPageURL {
+            Link(destination: nasaPageURL) {
+                Label("NASA Page", systemImage: "safari")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("Opens the official APOD page in the browser")
+        }
+
+        if showsSeparateMediaAction, let preferredMediaSourceURL {
+            Link(destination: preferredMediaSourceURL) {
+                Label(preferredMediaSourceTitle, systemImage: preferredMediaSourceSystemImage)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("Opens the best available media source for this APOD")
+        }
+    }
+}
+
+private struct APODMetadataBadge: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.thinMaterial)
+            .clipShape(Capsule())
+    }
+}
+
+private struct AccessibilityMarker: View {
+    let identifier: String
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityIdentifier(identifier)
     }
 }
 
@@ -957,6 +1077,45 @@ private struct FavoritesSheetView: View {
     }
 }
 
+private struct SettingsToggleRow: View {
+    let title: String
+    let subtitle: String?
+    let toggleIdentifier: String
+    let accessibilityHint: String
+    let isEnabled: Bool
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard isEnabled else { return }
+                isOn.toggle()
+            }
+            .accessibilityHidden(true)
+
+            Toggle(isOn: $isOn) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .disabled(!isEnabled)
+            .accessibilityIdentifier(toggleIdentifier)
+            .accessibilityLabel(title)
+            .accessibilityHint(accessibilityHint)
+        }
+        .opacity(isEnabled ? 1 : 0.65)
+    }
+}
+
 private struct SettingsSheetView: View {
     @Binding var preferImages: Bool
     @Binding var allowVideoPlayback: Bool
@@ -998,6 +1157,19 @@ private struct SettingsSheetView: View {
                 let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
                 dailyNotificationHour = components.hour ?? 9
                 dailyNotificationMinute = components.minute ?? 0
+            }
+        )
+    }
+
+    private var dataSaverModeBinding: Binding<Bool> {
+        Binding<Bool>(
+            get: { dataSaverMode },
+            set: { newValue in
+                dataSaverMode = newValue
+                preferHDImages = DataSaverPreferencePolicy.resolvedPreferHDImages(
+                    dataSaverMode: newValue,
+                    preferHDImages: preferHDImages
+                )
             }
         )
     }
@@ -1124,9 +1296,22 @@ private struct SettingsSheetView: View {
                 }
 
                 Section("Data Saver") {
-                    Toggle("Enable Data Saver Mode", isOn: $dataSaverMode)
-                    Toggle("Prefer HD Images", isOn: $preferHDImages)
-                        .disabled(dataSaverMode)
+                    SettingsToggleRow(
+                        title: "Enable Data Saver Mode",
+                        subtitle: "Favors lower-bandwidth image URLs and turns off HD image preference.",
+                        toggleIdentifier: "dataSaverModeToggle",
+                        accessibilityHint: "Reduces network usage for APOD media.",
+                        isEnabled: true,
+                        isOn: dataSaverModeBinding
+                    )
+                    SettingsToggleRow(
+                        title: "Prefer HD Images",
+                        subtitle: "Uses the highest-resolution image when available.",
+                        toggleIdentifier: "preferHDImagesToggle",
+                        accessibilityHint: "Downloads higher resolution APOD images when data saver is off.",
+                        isEnabled: !dataSaverMode,
+                        isOn: $preferHDImages
+                    )
                     Toggle("Autoplay Videos on Wi-Fi Only", isOn: $wifiOnlyVideoAutoplay)
                         .disabled(!allowVideoPlayback)
                     Stepper(value: $cacheItemLimit, in: 30...365, step: 15) {
@@ -1407,13 +1592,11 @@ private struct MediaView: View {
     @State private var magnificationStartScale: CGFloat?
 
     private var preferredImageURL: URL? {
-        if dataSaverMode {
-            return nasa.url ?? nasa.hdurl
-        }
-        if preferHDImages {
-            return nasa.hdurl ?? nasa.url
-        }
-        return nasa.url ?? nasa.hdurl
+        APODSourceLinkPolicy.preferredMediaURL(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
     }
 
     private var shouldAutoplayVideo: Bool {
@@ -1476,17 +1659,18 @@ private struct MediaView: View {
                                 }
                             )
                     } else if phase.error != nil {
-                        VStack(spacing: 12) {
-                            Image("pandaplaceholder")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 300)
-                            Text("Failed to load image.")
-                                .font(.title3)
+                        MediaPlaceholderCard(
+                            systemImage: "photo.badge.exclamationmark",
+                            title: "Image Unavailable",
+                            message: "This APOD image could not be loaded right now. You can still open the source directly."
+                        ) {
+                            if let preferredImageURL {
+                                Button("Open Source") {
+                                    openURL(preferredImageURL)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
                         }
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .padding(.horizontal)
                     } else {
                         ProgressView()
@@ -1495,19 +1679,15 @@ private struct MediaView: View {
                 }
             } else if nasa.mediaType == .video {
                 if !allowVideoPlayback {
-                    VStack(spacing: 12) {
-                        Image("pandaplaceholder")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 300)
-                        Text("Video playback is disabled in Settings.")
-                            .font(.title3)
-                            .accessibilityIdentifier("videoDisabledMessage")
+                    MediaPlaceholderCard(
+                        systemImage: "play.slash.fill",
+                        title: "Video Playback Disabled",
+                        message: "Enable video playback in Settings to watch this APOD inside the app."
+                    ) {
+                        EmptyView()
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(.horizontal)
+                    .accessibilityIdentifier("videoDisabledMessage")
                 } else if let videoID = extractYouTubeID(nasa.url) {
                     let player = YouTubePlayer(source: .video(id: videoID))
                     YouTubePlayerView(player)
@@ -1552,14 +1732,11 @@ private struct MediaView: View {
                             }
                         }
                 } else {
-                    VStack(spacing: 10) {
-                        Image("pandaplaceholder")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 300)
-                        Text("Playing this source with in-app browser.")
-                            .font(.title3)
-                            .accessibilityIdentifier("unsupportedVideoMessage")
+                    MediaPlaceholderCard(
+                        systemImage: "safari.fill",
+                        title: "Browser Playback Recommended",
+                        message: "This video source is better handled in the browser, but you can still open it from here."
+                    ) {
                         if let videoURL = nasa.url {
                             Button("Play Video") {
                                 showWebVideoSheet = true
@@ -1577,23 +1754,22 @@ private struct MediaView: View {
                             .accessibilityIdentifier("openVideoExternalButton")
                         }
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding(.horizontal)
+                    .accessibilityIdentifier("unsupportedVideoMessage")
                 }
             } else {
-                VStack(spacing: 12) {
-                    Image("pandaplaceholder")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 300)
-                    Text("Unable to load video or unsupported media type.")
-                        .font(.title3)
+                MediaPlaceholderCard(
+                    systemImage: "questionmark.video",
+                    title: "Unsupported Media",
+                    message: "This APOD entry uses a media type the app cannot present yet."
+                ) {
+                    if let fallbackURL = nasa.url ?? nasa.hdurl {
+                        Button("Open Source") {
+                            openURL(fallbackURL)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal)
             }
         }
@@ -1622,6 +1798,67 @@ private struct MediaView: View {
         } else {
             directVideoPlayer?.pause()
         }
+    }
+}
+
+private struct MediaPlaceholderCard<Actions: View>: View {
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    let systemImage: String
+    let title: String
+    let message: String
+    private let actions: Actions
+
+    init(
+        systemImage: String,
+        title: String,
+        message: String,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+        self.actions = actions()
+    }
+
+    private var backgroundStyle: AnyShapeStyle {
+        if accessibilityReduceTransparency {
+            return AnyShapeStyle(Color(.systemBackground).opacity(0.95))
+        }
+        return AnyShapeStyle(.ultraThinMaterial)
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if !(Actions.self == EmptyView.self) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        actions
+                    }
+
+                    VStack(spacing: 10) {
+                        actions
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 220)
+        .background(backgroundStyle)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

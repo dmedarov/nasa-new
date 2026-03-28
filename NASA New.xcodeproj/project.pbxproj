@@ -19,6 +19,10 @@
 		2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
 		2DE45BF528D5163A00B5C13B /* NasaCollectionFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */; };
 		2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BFC28D51CB000B5C13B /* MainView.swift */; };
+		D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
+		D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000032F70000300000003 /* APODDateRestoration.swift */; };
+		D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
+		D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000062F70000600000006 /* MainViewPolicies.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -45,6 +49,10 @@
 
 /* Begin PBXFileReference section */
 		2D6A37022F5B8F7900953EBA /* Localized.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localized.swift; sourceTree = "<group>"; };
+		D1A000012F70000100000001 /* AppConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppConfig.xcconfig; sourceTree = "<group>"; };
+		D1A000022F70000200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D1A000032F70000300000003 /* APODDateRestoration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDateRestoration.swift; sourceTree = "<group>"; };
+		D1A000062F70000600000006 /* MainViewPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewPolicies.swift; sourceTree = "<group>"; };
 		2D9702FD28D5F64600800A71 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		2D9702FF28D6070D00800A71 /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		2D97030128D61FBF00800A71 /* ConrtolImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConrtolImageView.swift; sourceTree = "<group>"; };
@@ -116,12 +124,16 @@
 				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
 				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
 				2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */,
+				D1A000032F70000300000003 /* APODDateRestoration.swift */,
+				D1A000062F70000600000006 /* MainViewPolicies.swift */,
 				2DE45BF228D515C200B5C13B /* NasaModel.swift */,
 				2DE45BE828D5157500B5C13B /* Assets.xcassets */,
 				2DE45BEA28D5157500B5C13B /* Preview Content */,
 				2D9702FD28D5F64600800A71 /* SwiftUIView.swift */,
 				2D97030128D61FBF00800A71 /* ConrtolImageView.swift */,
 				2D6A37022F5B8F7900953EBA /* Localized.swift */,
+				D1A000012F70000100000001 /* AppConfig.xcconfig */,
+				D1A000022F70000200000002 /* Info.plist */,
 			);
 			path = "NASA New";
 			sourceTree = "<group>";
@@ -296,6 +308,8 @@
 				2D6A37032F5B8F7900953EBA /* Localized.swift in Sources */,
 				2D9702FE28D5F64600800A71 /* SwiftUIView.swift in Sources */,
 				2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */,
+				D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */,
+				D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */,
 				2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */,
 				2DE45BF528D5163A00B5C13B /* NasaCollectionFetcher.swift in Sources */,
 				2DE45BE528D5157500B5C13B /* NASA_NewApp.swift in Sources */,
@@ -310,6 +324,8 @@
 				AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */,
 				AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
 				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
+				D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */,
+				D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */,
 				AA1000032F00000100000001 /* NasaModel.swift in Sources */,
 				AA1000042F00000100000001 /* NasaCollectionFetcher.swift in Sources */,
 			);
@@ -463,6 +479,7 @@
 		};
 		2DE45BF028D5157500B5C13B /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D1A000012F70000100000001 /* AppConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -471,12 +488,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"NASA New/Preview Content\"";
 				DEVELOPMENT_TEAM = UT5GZ42DGX;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "NASA New/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -492,6 +505,7 @@
 		};
 		2DE45BF128D5157500B5C13B /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D1A000012F70000100000001 /* AppConfig.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -500,12 +514,8 @@
 				DEVELOPMENT_ASSET_PATHS = "\"NASA New/Preview Content\"";
 				DEVELOPMENT_TEAM = UT5GZ42DGX;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "NASA New/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

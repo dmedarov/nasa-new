@@ -63,4 +63,66 @@ final class MainViewStateTests: XCTestCase {
 
         XCTAssertEqual(clampedDate, minimumDate)
     }
+
+    func testAPODDateDisplayPolicyFormatsReadableDate() {
+        XCTAssertEqual(APODDateDisplayPolicy.displayString(for: "2025-01-15"), "January 15, 2025")
+    }
+
+    func testAPODDateDisplayPolicyFallsBackWhenDateMissing() {
+        XCTAssertEqual(APODDateDisplayPolicy.displayString(for: nil), "Unknown date")
+        XCTAssertEqual(APODDateDisplayPolicy.displayString(for: " "), "Unknown date")
+    }
+
+    func testAPODExplanationDisplayPolicyOffersExpansionForLongText() {
+        let longText = String(repeating: "Galaxy ", count: 40)
+        XCTAssertTrue(APODExplanationDisplayPolicy.shouldOfferExpansion(for: longText))
+        XCTAssertFalse(APODExplanationDisplayPolicy.shouldOfferExpansion(for: "Short APOD summary."))
+    }
+
+    func testAPODSourceLinkPolicyBuildsArchiveURLForValidDate() {
+        let archiveURL = APODSourceLinkPolicy.nasaPageURL(
+            for: "2025-01-15",
+            fallbackURL: URL(string: "https://example.com/fallback")
+        )
+
+        XCTAssertEqual(archiveURL?.absoluteString, "https://apod.nasa.gov/apod/ap250115.html")
+    }
+
+    func testAPODSourceLinkPolicyPrefersHDImageWhenAllowed() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        XCTAssertEqual(
+            APODSourceLinkPolicy.preferredMediaURL(for: nasa, dataSaverMode: false, preferHDImages: true)?.absoluteString,
+            "https://example.com/image-hd.jpg"
+        )
+        XCTAssertEqual(
+            APODSourceLinkPolicy.preferredMediaTitle(for: nasa, dataSaverMode: false, preferHDImages: true),
+            "Open HD Image"
+        )
+    }
+
+    func testAPODSourceLinkPolicyUsesStandardImageInDataSaverMode() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        XCTAssertEqual(
+            APODSourceLinkPolicy.preferredMediaURL(for: nasa, dataSaverMode: true, preferHDImages: true)?.absoluteString,
+            "https://example.com/image.jpg"
+        )
+        XCTAssertEqual(
+            APODSourceLinkPolicy.preferredMediaTitle(for: nasa, dataSaverMode: true, preferHDImages: true),
+            "Open Image"
+        )
+    }
 }
