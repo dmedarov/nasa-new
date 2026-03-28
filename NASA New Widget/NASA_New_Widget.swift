@@ -62,7 +62,7 @@ private struct APODWidgetPayload: Decodable {
 }
 
 private enum APODWidgetAPI {
-    static let kind = "NASA_New_Widget"
+    static let kind = AppGroupConfiguration.widgetKind
     private static let refreshHours = 4
 
     static func placeholderEntry() -> APODWidgetEntry {
@@ -85,48 +85,83 @@ private enum APODWidgetAPI {
     }
 
     private static func latestEntry() async -> APODWidgetEntry {
-        guard let requestURL = requestURL() else {
-            return unavailableEntry(
-                title: WidgetLocalization.text("widget.unavailable.title", default: "Latest APOD unavailable"),
-                message: WidgetLocalization.text(
-                    "widget.unavailable.message",
-                    default: "The widget could not prepare today's APOD briefing."
-                )
-            )
+        let cachedItem = latestCachedItem()
+
+        if let cachedItem, isCurrentAPODDate(cachedItem.date) {
+            return await cachedEntry(for: cachedItem)
         }
+
+        if let liveEntry = await liveNetworkEntry() {
+            return liveEntry
+        }
+
+        if let cachedItem {
+            return await cachedEntry(for: cachedItem)
+        }
+
+        return unavailableEntry(
+            title: WidgetLocalization.text("widget.unavailable.title", default: "Latest APOD unavailable"),
+            message: WidgetLocalization.text(
+                "widget.unavailable.message",
+                default: "The widget could not prepare today's APOD briefing."
+            )
+        )
+    }
+
+    private static func liveNetworkEntry() async -> APODWidgetEntry? {
+        guard let requestURL = requestURL() else { return nil }
 
         do {
             let (payloadData, _) = try await URLSession.shared.data(from: requestURL)
             let payload = try JSONDecoder().decode(APODWidgetPayload.self, from: payloadData)
             let imageData = await loadImageData(for: payload)
 
-            let dateString = payload.date ?? ""
-            let linkURL = URL(string: deepLinkString(for: dateString))
-            let credit = payload.copyright?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let summary = summarize(payload.explanation)
-
             return APODWidgetEntry(
                 date: Date(),
                 title: payload.title?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                     ?? WidgetLocalization.text("widget.placeholder.title", default: "Astronomy Picture of the Day"),
-                summary: summary,
-                credit: credit?.nonEmpty ?? WidgetLocalization.text("credit.nasa", default: "NASA"),
-                apodDate: displayDate(from: dateString),
+                summary: summarize(payload.explanation),
+                credit: payload.copyright?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                    ?? WidgetLocalization.text("credit.nasa", default: "NASA"),
+                apodDate: displayDate(from: payload.date ?? ""),
                 imageData: imageData,
                 mediaBadge: mediaBadge(for: payload.mediaType),
-                deepLinkURL: linkURL,
+                deepLinkURL: URL(string: deepLinkString(for: payload.date ?? "")),
                 stateTitle: nil,
                 stateMessage: nil
             )
         } catch {
-            return unavailableEntry(
-                title: WidgetLocalization.text("widget.unavailable.title", default: "Latest APOD unavailable"),
-                message: WidgetLocalization.text(
-                    "widget.unavailable.message",
-                    default: "The widget could not prepare today's APOD briefing."
-                )
-            )
+            return nil
         }
+    }
+
+    private static func latestCachedItem() -> NASA? {
+        let storage = APODLibraryStoreFactory.makeDefault()
+        let archiveItems = storage.loadCachedAPODItems().sorted { ($0.date ?? "") < ($1.date ?? "") }
+        if let latestArchiveItem = archiveItems.last {
+            return latestArchiveItem
+        }
+
+        return storage.loadFavorites().sorted { ($0.date ?? "") > ($1.date ?? "") }.first
+    }
+
+    private static func cachedEntry(for nasa: NASA) async -> APODWidgetEntry {
+        let imageData = await loadImageData(for: nasa)
+
+        return APODWidgetEntry(
+            date: Date(),
+            title: nasa.title?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? WidgetLocalization.text("widget.placeholder.title", default: "Astronomy Picture of the Day"),
+            summary: summarize(nasa.explanation),
+            credit: nasa.copyright?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? WidgetLocalization.text("credit.nasa", default: "NASA"),
+            apodDate: displayDate(from: nasa.date ?? ""),
+            imageData: imageData,
+            mediaBadge: mediaBadge(for: nasa.mediaType),
+            deepLinkURL: URL(string: deepLinkString(for: nasa.date ?? "")),
+            stateTitle: nil,
+            stateMessage: nil
+        )
     }
 
     private static func requestURL() -> URL? {
@@ -153,6 +188,12 @@ private enum APODWidgetAPI {
         return data
     }
 
+    private static func loadImageData(for nasa: NASA) async -> Data? {
+        guard let url = preferredImageURL(for: nasa) else { return nil }
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return data
+    }
+
     private static func preferredImageURL(for payload: APODWidgetPayload) -> URL? {
         let mediaType = (payload.mediaType ?? "").lowercased()
         if mediaType == "image" {
@@ -162,6 +203,17 @@ private enum APODWidgetAPI {
             return payload.thumbnailURL
         }
         return payload.url ?? payload.hdurl ?? payload.thumbnailURL
+    }
+
+    private static func preferredImageURL(for nasa: NASA) -> URL? {
+        switch nasa.mediaType {
+        case .image:
+            return nasa.url ?? nasa.hdurl
+        case .video:
+            return nil
+        case .other:
+            return nasa.url ?? nasa.hdurl
+        }
     }
 
     private static func summarize(_ explanation: String?) -> String {
@@ -189,6 +241,10 @@ private enum APODWidgetAPI {
         }
     }
 
+    private static func mediaBadge(for mediaType: MediaType) -> String {
+        mediaBadge(for: mediaType.rawValue)
+    }
+
     private static func displayDate(from rawDate: String) -> String {
         guard let parsedDate = Self.apiDateFormatter.date(from: rawDate) else { return rawDate }
 
@@ -202,6 +258,11 @@ private enum APODWidgetAPI {
     private static func deepLinkString(for rawDate: String) -> String {
         guard !rawDate.isEmpty else { return "nasanew://today" }
         return "nasanew://today?date=\(rawDate)"
+    }
+
+    private static func isCurrentAPODDate(_ rawDate: String?) -> Bool {
+        guard let rawDate else { return false }
+        return rawDate == apiDateFormatter.string(from: Date())
     }
 
     private static func unavailableEntry(title: String, message: String) -> APODWidgetEntry {

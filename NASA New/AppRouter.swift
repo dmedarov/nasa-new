@@ -99,12 +99,12 @@ enum AppUserActivityType {
 enum PendingAppRouteStore {
     private static let storageKey = "app.pending.route.v1"
 
-    static func save(_ route: AppRoute, userDefaults: UserDefaults = .standard) {
+    static func save(_ route: AppRoute, userDefaults: UserDefaults = AppGroupConfiguration.sharedUserDefaults) {
         guard let data = try? JSONEncoder().encode(route) else { return }
         userDefaults.set(data, forKey: storageKey)
     }
 
-    static func consume(userDefaults: UserDefaults = .standard) -> AppRoute? {
+    static func consume(userDefaults: UserDefaults = AppGroupConfiguration.sharedUserDefaults) -> AppRoute? {
         defer { userDefaults.removeObject(forKey: storageKey) }
 
         guard let data = userDefaults.data(forKey: storageKey) else {

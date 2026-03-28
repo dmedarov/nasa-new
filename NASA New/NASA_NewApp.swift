@@ -1,5 +1,8 @@
 import SwiftUI
 import UIKit
+#if canImport(AppIntents)
+import AppIntents
+#endif
 
 @main
 struct NASA_NewApp: App {
@@ -11,6 +14,11 @@ struct NASA_NewApp: App {
         AppRuntimeConfiguration.applyDeterministicOverrides()
         AppAppearancePolicy.migrateLegacyPreferenceIfNeeded()
         APODArchiveStoragePolicy.migrateLegacyLimitIfNeeded()
+#if canImport(AppIntents)
+        if #available(iOS 16.0, *) {
+            NASAAppShortcuts.updateAppShortcutParameters()
+        }
+#endif
         let configuredFetcher = NasaCollectionFetcher()
         configuredFetcher.configureFixtureModeIfNeeded()
         _fetcher = StateObject(wrappedValue: configuredFetcher)
@@ -59,6 +67,7 @@ private enum AppRuntimeConfiguration {
            let bundleIdentifier = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleIdentifier)
             UserDefaults.standard.synchronize()
+            AppGroupConfiguration.resetSharedUserDefaults()
         }
 
         if let locale = environment["UITEST_LOCALE"] {

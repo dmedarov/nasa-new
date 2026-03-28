@@ -61,4 +61,41 @@ struct OpenDateAPODIntent: AppIntent {
         return AppRoute(destination: .today, apodDate: formatter.string(from: date))
     }
 }
+
+@available(iOS 16.0, *)
+struct NASAAppShortcuts: AppShortcutsProvider {
+    static var shortcutTileColor: ShortcutTileColor { .navy }
+
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: OpenTodayAPODIntent(),
+            phrases: [
+                "Open today's APOD in \(.applicationName)",
+                "Show today's astronomy picture in \(.applicationName)"
+            ],
+            shortTitle: "Today",
+            systemImageName: "sparkles.tv"
+        )
+
+        AppShortcut(
+            intent: OpenArchiveIntent(),
+            phrases: [
+                "Open the archive in \(.applicationName)",
+                "Browse the APOD archive in \(.applicationName)"
+            ],
+            shortTitle: "Archive",
+            systemImageName: "books.vertical"
+        )
+
+        AppShortcut(
+            intent: OpenSavedIntent(),
+            phrases: [
+                "Open saved APODs in \(.applicationName)",
+                "Show my saved astronomy pictures in \(.applicationName)"
+            ],
+            shortTitle: "Saved",
+            systemImageName: "bookmark"
+        )
+    }
+}
 #endif

@@ -73,6 +73,7 @@ extension NasaCollectionFetcher {
 
         cachedItemCount = apodData.count
         AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
+        AppWidgetRefreshCoordinator.reloadSharedTimelines()
     }
 
     func refreshFavoriteIfNeeded(with item: NASA) {
@@ -127,5 +128,6 @@ extension NasaCollectionFetcher {
 
         cachedItemCount = apodData.count
         AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
+        AppWidgetRefreshCoordinator.reloadSharedTimelines()
     }
 }

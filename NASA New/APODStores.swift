@@ -106,10 +106,15 @@ final class VolatileAPODLibraryStorage: APODLibraryStorage, APODLibraryStateStor
 struct UserDefaultsAPODLibraryStorage: APODLibraryStorage, APODLibraryStateStorage {
     private static let favoritesKey = "nasa.favorite.items.v2"
     private static let archiveKey = "nasa.apod.cache.items.v2"
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults = AppGroupConfiguration.sharedUserDefaults) {
+        self.userDefaults = userDefaults
+    }
 
     func loadFavorites() -> [NASA] {
         guard
-            let data = UserDefaults.standard.data(forKey: Self.favoritesKey),
+            let data = userDefaults.data(forKey: Self.favoritesKey),
             let favorites = try? JSONDecoder().decode([NASA].self, from: data)
         else {
             return []
@@ -119,12 +124,12 @@ struct UserDefaultsAPODLibraryStorage: APODLibraryStorage, APODLibraryStateStora
 
     func saveFavorites(_ favorites: [NASA]) {
         guard let data = try? JSONEncoder().encode(favorites) else { return }
-        UserDefaults.standard.set(data, forKey: Self.favoritesKey)
+        userDefaults.set(data, forKey: Self.favoritesKey)
     }
 
     func loadCachedAPODItems() -> [NASA] {
         guard
-            let data = UserDefaults.standard.data(forKey: Self.archiveKey),
+            let data = userDefaults.data(forKey: Self.archiveKey),
             let items = try? JSONDecoder().decode([NASA].self, from: data)
         else {
             return []
@@ -134,7 +139,7 @@ struct UserDefaultsAPODLibraryStorage: APODLibraryStorage, APODLibraryStateStora
 
     func saveCachedAPODItems(_ items: [NASA]) {
         guard let data = try? JSONEncoder().encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: Self.archiveKey)
+        userDefaults.set(data, forKey: Self.archiveKey)
     }
 
     func sync(items: [NASA], favorites: [NASA], currentID: String?, limit: Int) {
@@ -232,7 +237,13 @@ final class SwiftDataAPODLibraryStorage: APODLibraryStorage, APODLibraryStateSto
         legacyStorage: UserDefaultsAPODLibraryStorage,
         nowProvider: @escaping () -> Date = { Date() }
     ) throws {
-        self.container = try ModelContainer(for: StoredAPODRecord.self)
+        let configuration = ModelConfiguration(
+            "APODLibrary",
+            allowsSave: true,
+            groupContainer: .identifier(AppGroupConfiguration.identifier),
+            cloudKitDatabase: .none
+        )
+        self.container = try ModelContainer(for: StoredAPODRecord.self, configurations: configuration)
         self.legacyStorage = legacyStorage
         self.nowProvider = nowProvider
         migrateLegacyDataIfNeeded()
@@ -391,7 +402,9 @@ final class SwiftDataAPODLibraryStorage: APODLibraryStorage, APODLibraryStateSto
 
     private func migrateLegacyDataIfNeeded() {
         let migratedKey = "nasa.apod.library.swiftdata.migrated.v1"
-        if UserDefaults.standard.bool(forKey: migratedKey) {
+        let migrationDefaults = AppGroupConfiguration.sharedUserDefaults
+
+        if migrationDefaults.bool(forKey: migratedKey) {
             return
         }
 
@@ -407,7 +420,7 @@ final class SwiftDataAPODLibraryStorage: APODLibraryStorage, APODLibraryStateSto
             )
         }
 
-        UserDefaults.standard.set(true, forKey: migratedKey)
+        migrationDefaults.set(true, forKey: migratedKey)
     }
 }
 #endif
