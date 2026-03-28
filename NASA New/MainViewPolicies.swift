@@ -152,6 +152,12 @@ struct APODExplanationDisplayPolicy {
     }
 }
 
+struct APODMediaInteractionPolicy {
+    static func allowsImagePanning(atScale scale: CGFloat) -> Bool {
+        scale > 1.01
+    }
+}
+
 struct APODSourceLinkPolicy {
     private static let apiDateFormatter: DateFormatter = {
         let formatter = DateFormatter()

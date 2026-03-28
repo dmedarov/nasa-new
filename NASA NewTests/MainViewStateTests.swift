@@ -82,6 +82,12 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertFalse(APODExplanationDisplayPolicy.shouldOfferExpansion(for: "Short APOD summary."))
     }
 
+    func testAPODMediaInteractionPolicyOnlyAllowsPanningWhenZoomed() {
+        XCTAssertFalse(APODMediaInteractionPolicy.allowsImagePanning(atScale: 1.0))
+        XCTAssertFalse(APODMediaInteractionPolicy.allowsImagePanning(atScale: 1.01))
+        XCTAssertTrue(APODMediaInteractionPolicy.allowsImagePanning(atScale: 1.2))
+    }
+
     func testAPODSourceLinkPolicyBuildsArchiveURLForValidDate() {
         let archiveURL = APODSourceLinkPolicy.nasaPageURL(
             for: "2025-01-15",

@@ -1760,59 +1760,82 @@ private struct MediaView: View {
         return isOnWiFiConnection
     }
 
+    private var imagePanGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard APODMediaInteractionPolicy.allowsImagePanning(atScale: imageScale) else { return }
+                imageOffset = value.translation
+            }
+            .onEnded { _ in
+                if !APODMediaInteractionPolicy.allowsImagePanning(atScale: imageScale) {
+                    resetImageState()
+                }
+            }
+    }
+
+    private var imageMagnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                let startScale = magnificationStartScale ?? imageScale
+                if magnificationStartScale == nil {
+                    magnificationStartScale = startScale
+                }
+                imageScale = min(max(startScale * value, 1), 5)
+            }
+            .onEnded { _ in
+                magnificationStartScale = nil
+                if imageScale <= 1 { resetImageState() }
+            }
+    }
+
+    private func toggleImageZoom() {
+        let updates = {
+            imageScale = imageScale == 1 ? 2 : 1
+            if imageScale == 1 {
+                imageOffset = .zero
+            }
+        }
+
+        if reduceMotion {
+            updates()
+        } else {
+            withAnimation(.spring()) {
+                updates()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func interactiveImageView(_ image: Image) -> some View {
+        let baseImage = image
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .cornerRadius(16)
+            .shadow(radius: 5)
+            .padding(.horizontal)
+            .offset(x: imageOffset.width, y: imageOffset.height)
+            .scaleEffect(imageScale)
+            .accessibilityIdentifier(AccessibilityID.apodImageView)
+            .accessibilityLabel(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
+            .accessibilityAddTraits(.isImage)
+            .onTapGesture(count: 2) {
+                toggleImageZoom()
+            }
+            .simultaneousGesture(imageMagnificationGesture)
+
+        if APODMediaInteractionPolicy.allowsImagePanning(atScale: imageScale) {
+            baseImage.simultaneousGesture(imagePanGesture)
+        } else {
+            baseImage
+        }
+    }
+
     var body: some View {
         @ViewBuilder var content: some View {
             if nasa.mediaType == .image {
                 AsyncImage(url: preferredImageURL) { phase in
                     if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .cornerRadius(16)
-                            .shadow(radius: 5)
-                            .padding(.horizontal)
-                            .offset(x: imageOffset.width, y: imageOffset.height)
-                            .scaleEffect(imageScale)
-                            .accessibilityIdentifier(AccessibilityID.apodImageView)
-                            .accessibilityLabel(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
-                            .accessibilityAddTraits(.isImage)
-                            .onTapGesture(count: 2) {
-                                if reduceMotion {
-                                    imageScale = imageScale == 1 ? 2 : 1
-                                    if imageScale == 1 {
-                                        imageOffset = .zero
-                                    }
-                                } else {
-                                    withAnimation(.spring()) {
-                                        imageScale = imageScale == 1 ? 2 : 1
-                                        if imageScale == 1 {
-                                            imageOffset = .zero
-                                        }
-                                    }
-                                }
-                            }
-                            .simultaneousGesture(DragGesture()
-                                .onChanged { value in
-                                    guard imageScale > 1 else { return }
-                                    imageOffset = value.translation
-                                }
-                                .onEnded { _ in
-                                    if imageScale <= 1 { resetImageState() }
-                                }
-                            )
-                            .simultaneousGesture(MagnificationGesture()
-                                .onChanged { value in
-                                    let startScale = magnificationStartScale ?? imageScale
-                                    if magnificationStartScale == nil {
-                                        magnificationStartScale = startScale
-                                    }
-                                    imageScale = min(max(startScale * value, 1), 5)
-                                }
-                                .onEnded { _ in
-                                    magnificationStartScale = nil
-                                    if imageScale <= 1 { resetImageState() }
-                                }
-                            )
+                        interactiveImageView(image)
                     } else if phase.error != nil {
                         MediaPlaceholderCard(
                             systemImage: "photo.badge.exclamationmark",
