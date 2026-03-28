@@ -29,6 +29,7 @@ struct MainView: View {
     @State private var imageOffset: CGSize = .zero
     @State private var showShareSheet = false
     @State private var showSettingsSheet = false
+    @State private var showArchiveSheet = false
     @State private var showFavoritesSheet = false
     @State private var isMediaAnimating = false
     @State private var isVideoLoading = false
@@ -50,7 +51,7 @@ struct MainView: View {
     @AppStorage("dailyNotificationMinute") private var dailyNotificationMinute: Int = 0
     @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
     @AppStorage("preferHDImages") private var preferHDImages: Bool = true
-    @AppStorage("cacheItemLimit") private var cacheItemLimit: Int = 90
+    @AppStorage(APODArchiveStoragePolicy.storageKey) private var cacheItemLimit: Int = APODArchiveStoragePolicy.defaultArchiveLimit
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
     private let sceneStorageDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -286,6 +287,26 @@ struct MainView: View {
                 }
             )
         }
+        .sheet(isPresented: $showArchiveSheet) {
+            ArchiveSheetView(
+                archivedItems: fetcher.archiveItems,
+                favoriteIDs: Set(fetcher.favorites.map(\.id)),
+                canLoadMore: fetcher.canLoadMoreArchiveHistory,
+                isLoadingMore: fetcher.isFetchingArchive,
+                loadError: fetcher.archiveError,
+                isPresented: $showArchiveSheet,
+                selectAction: { item in
+                    fetcher.selectArchivedItem(item)
+                    applyCurrentSelectionState(syncSelectedDate: true)
+                },
+                toggleFavoriteAction: { item in
+                    fetcher.toggleFavorite(item)
+                },
+                loadMoreAction: {
+                    fetcher.loadOlderArchiveBatch()
+                }
+            )
+        }
         .accessibilityElement(children: .contain)
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.mainViewRoot)
@@ -337,6 +358,7 @@ struct MainView: View {
     private var headerSection: some View {
         MainHeaderBar(
             showSettingsSheet: $showSettingsSheet,
+            showArchiveSheet: $showArchiveSheet,
             showFavoritesSheet: $showFavoritesSheet,
             selectedDate: $selectedDate,
             minimumDate: fetcher.minimumSelectableDate,

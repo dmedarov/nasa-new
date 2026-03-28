@@ -9,6 +9,7 @@ struct NASA_NewApp: App {
     init() {
         AppRuntimeConfiguration.applyDeterministicOverrides()
         AppAppearancePolicy.migrateLegacyPreferenceIfNeeded()
+        APODArchiveStoragePolicy.migrateLegacyLimitIfNeeded()
         let configuredFetcher = NasaCollectionFetcher()
         configuredFetcher.configureFixtureModeIfNeeded()
         _fetcher = StateObject(wrappedValue: configuredFetcher)

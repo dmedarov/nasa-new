@@ -8,6 +8,7 @@ struct MainHeaderBar: View {
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @Binding var showSettingsSheet: Bool
+    @Binding var showArchiveSheet: Bool
     @Binding var showFavoritesSheet: Bool
     @Binding var selectedDate: Date
     let minimumDate: Date
@@ -122,6 +123,22 @@ struct MainHeaderBar: View {
         .accessibilityIdentifier(AccessibilityID.jumpToLatestAPODDateButton)
         .accessibilityLabel(L10n.text("Jump to latest APOD date", default: "Jump to latest APOD date"))
         .accessibilityHint(L10n.text("Returns the calendar selection to today", default: "Returns the calendar selection to today"))
+
+        Button {
+            showArchiveSheet = true
+        } label: {
+            Label(L10n.text("Archive", default: "Archive"), systemImage: "books.vertical")
+                .font(AppTheme.Typography.buttonLabel)
+                .frame(minWidth: 112)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
+        .tint(AppTheme.accentColor(isDarkMode: effectiveIsDarkMode))
+        .disabled(!hasApodData)
+        .controlSize(.regular)
+        .accessibilityIdentifier(AccessibilityID.openArchiveButton)
+        .accessibilityLabel(L10n.text("Browse APOD archive", default: "Browse APOD archive"))
+        .accessibilityHint(L10n.text("Opens the searchable archive of downloaded APOD entries", default: "Opens the searchable archive of downloaded APOD entries"))
 
         Button {
             randomizeAction()

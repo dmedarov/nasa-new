@@ -51,6 +51,57 @@ struct AdaptiveNavigationContainer<Content: View>: View {
     }
 }
 
+struct MissionSearchField: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
+    @Binding var text: String
+    let placeholder: String
+    let accessibilityIdentifier: String
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    var body: some View {
+        HStack(spacing: AppTheme.Spacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                .accessibilityHidden(true)
+
+            TextField(placeholder, text: $text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .accessibilityIdentifier(accessibilityIdentifier)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Clear search", default: "Clear search"))
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
+                .fill(AppTheme.glassSurface(
+                    reduceTransparency: appRuntimeOverrides.resolvedReduceTransparency(systemValue: accessibilityReduceTransparency),
+                    isDarkMode: isDarkMode
+                ))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
+                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+        }
+    }
+}
+
 struct AppEnvironmentOverrideContainer<Content: View>: View {
     let overrides: AppEnvironmentOverrides
     let preferredColorScheme: ColorScheme?

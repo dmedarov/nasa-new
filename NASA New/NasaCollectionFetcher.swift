@@ -30,7 +30,8 @@ enum NASAAPIKeyConfiguration {
 final class NasaCollectionFetcher: ObservableObject {
     enum Constants {
         static let foregroundRefreshInterval: TimeInterval = 60 * 60
-        static let defaultCacheItemLimit = 90
+        static let defaultCacheItemLimit = APODArchiveStoragePolicy.defaultArchiveLimit
+        static let archiveBatchDayCount = 60
     }
 
     @Published var apodData = [NASA]()
@@ -49,6 +50,8 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published var rateLimitRetryDate: Date?
     @Published var cachedItemCount = 0
     @Published var cacheItemLimit = Constants.defaultCacheItemLimit
+    @Published var isFetchingArchive = false
+    @Published var archiveError: FetchError?
 
     let service: APODService
     let apiKey: String
@@ -101,7 +104,7 @@ final class NasaCollectionFetcher: ObservableObject {
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         favoritesStorage: FavoritesStorage = UserDefaultsFavoritesStorage(),
-        cacheStorage: APODCacheStorage = UserDefaultsAPODCacheStorage()
+        cacheStorage: APODCacheStorage = APODCacheStorageFactory.makeDefault()
     ) {
         self.service = URLSessionAPODService(session: session)
         self.apiKey = apiKey

@@ -1,6 +1,24 @@
 import Foundation
 import SwiftUI
 
+enum APODArchiveStoragePolicy {
+    static let storageKey = "cacheItemLimit"
+    static let migrationKey = "archiveLimitMigration.v1"
+    static let defaultArchiveLimit = 365
+    static let legacyDefaultLimit = 90
+
+    static func migrateLegacyLimitIfNeeded(userDefaults: UserDefaults = .standard) {
+        guard !userDefaults.bool(forKey: migrationKey) else { return }
+
+        let existingValue = userDefaults.object(forKey: storageKey) as? Int
+        if existingValue == nil || existingValue == legacyDefaultLimit {
+            userDefaults.set(defaultArchiveLimit, forKey: storageKey)
+        }
+
+        userDefaults.set(true, forKey: migrationKey)
+    }
+}
+
 enum AppTheme {
     enum Palette {
         static let spaceTop = Color(red: 0.02, green: 0.03, blue: 0.1)

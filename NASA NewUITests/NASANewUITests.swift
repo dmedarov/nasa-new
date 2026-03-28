@@ -9,6 +9,7 @@ final class NASANewUITests: XCTestCase {
         static let shareSection = "shareSection"
         static let refreshAPODButton = "refreshAPODButton"
         static let randomAPODButton = "randomAPODButton"
+        static let openArchiveButton = "openArchiveButton"
         static let openSettingsButton = "openSettingsButton"
         static let openFavoritesButton = "openFavoritesButton"
         static let apiRequestFailureState = "apiRequestFailureState"
@@ -19,6 +20,8 @@ final class NASANewUITests: XCTestCase {
         static let favoritesSheetRoot = "favoritesSheetRoot"
         static let favoritesEmptyState = "favoritesEmptyState"
         static let favoritesSearchField = "favoritesSearchField"
+        static let archiveSheetRoot = "archiveSheetRoot"
+        static let archiveSearchField = "archiveSearchField"
         static let favoriteAPODButton = "favoriteAPODButton"
         static let jumpToLatestAPODDateButton = "jumpToLatestAPODDateButton"
         static let previousAPODDateButton = "previousAPODDateButton"
@@ -46,6 +49,10 @@ final class NASANewUITests: XCTestCase {
 
         static func favoriteDeleteAction(date: String) -> String {
             "favoriteAPODDelete-\(date)"
+        }
+
+        static func archiveRow(date: String) -> String {
+            "archiveAPODRow-\(date)"
         }
     }
 
@@ -177,6 +184,25 @@ final class NASANewUITests: XCTestCase {
         }
 
         let identifiedField = element(UIElementID.favoritesSearchField)
+        if identifiedField.waitForExistence(timeout: timeout) {
+            return identifiedField
+        }
+
+        return nil
+    }
+
+    private func waitForArchiveSearchInput(timeout: TimeInterval = 5.0) -> XCUIElement? {
+        let searchField = app.searchFields["Search archive"]
+        if searchField.waitForExistence(timeout: min(timeout, 2.0)) {
+            return searchField
+        }
+
+        let textField = app.textFields["Search archive"]
+        if textField.waitForExistence(timeout: min(timeout, 2.0)) {
+            return textField
+        }
+
+        let identifiedField = element(UIElementID.archiveSearchField)
         if identifiedField.waitForExistence(timeout: timeout) {
             return identifiedField
         }
@@ -549,6 +575,31 @@ final class NASANewUITests: XCTestCase {
         deleteButton.tap()
 
         XCTAssertTrue(waitForElement(identifier: UIElementID.favoritesEmptyState, timeout: 5.0))
+    }
+
+    func testArchiveSearchAndSelectionFlow() {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+
+        tapElement(UIElementID.openArchiveButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-14")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-14"))
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        archiveRow.tap()
+
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
     }
 
     func testLongExplanationAtAccessibilitySizePreservesShareAction() {

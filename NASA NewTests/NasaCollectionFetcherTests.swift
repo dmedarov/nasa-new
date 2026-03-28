@@ -588,6 +588,67 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func fetchOlderArchiveBatchRequestsPreviousRangeAndMergesResults() async {
+        let requestedURL = ThreadSafeBox<URL?>(nil)
+        let cachedItems = [
+            NASA(
+                date: "2025-01-14",
+                explanation: "Yesterday",
+                mediaType: .image,
+                title: "Yesterday",
+                url: URL(string: "https://example.com/yesterday.jpg")
+            ),
+            NASA(
+                date: "2025-01-15",
+                explanation: "Today",
+                mediaType: .image,
+                title: "Today",
+                url: URL(string: "https://example.com/today.jpg")
+            )
+        ]
+        let payload = """
+        [
+            {
+                "date": "2024-11-16",
+                "explanation": "Older archive item",
+                "media_type": "image",
+                "title": "Older Archive",
+                "url": "https://example.com/older.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+        let cacheStorage = InMemoryAPODCacheStorage(initialItems: cachedItems)
+        let session = makeSession { request in
+            requestedURL.set(request.url)
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, payload)
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: cacheStorage
+        )
+
+        await fetcher.fetchOlderArchiveBatch()
+
+        guard let url = requestedURL.get(), let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            Issue.record("Expected a request URL to be captured.")
+            return
+        }
+
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        #expect(query["start_date"] == "2024-11-15")
+        #expect(query["end_date"] == "2025-01-13")
+        #expect(fetcher.apodData.contains(where: { $0.title == "Older Archive" }))
+        #expect(fetcher.currentNasa.title == "Today")
+        #expect(cacheStorage.cachedItems.count == 3)
+    }
+
+    @Test
     func startLatestFetchCancelsPreviousInFlightRequest() async {
         let firstPayload = """
         [

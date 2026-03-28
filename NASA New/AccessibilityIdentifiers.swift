@@ -11,6 +11,7 @@ enum AccessibilityID {
     static let shareSection = "shareSection"
     static let refreshAPODButton = "refreshAPODButton"
     static let randomAPODButton = "randomAPODButton"
+    static let openArchiveButton = "openArchiveButton"
     static let toggleAppearanceButton = "toggleAppearanceButton"
     static let openSettingsButton = "openSettingsButton"
     static let openFavoritesButton = "openFavoritesButton"
@@ -36,6 +37,10 @@ enum AccessibilityID {
     static let favoritesEmptyState = "favoritesEmptyState"
     static let favoritesDoneButton = "favoritesDoneButton"
     static let favoritesSearchField = "favoritesSearchField"
+    static let archiveSheetRoot = "archiveSheetRoot"
+    static let archiveSearchField = "archiveSearchField"
+    static let archiveEmptyState = "archiveEmptyState"
+    static let archiveLoadMoreButton = "archiveLoadMoreButton"
     static let settingsSheetRoot = "settingsSheetRoot"
     static let settingsCloseButton = "settingsCloseButton"
     static let dataSaverModeToggle = "dataSaverModeToggle"
@@ -61,5 +66,9 @@ enum AccessibilityID {
 
     static func favoriteDeleteActionIdentifier(for nasa: NASA) -> String {
         "favoriteAPODDelete-\(nasa.date ?? "unknown")"
+    }
+
+    static func archiveRowIdentifier(for nasa: NASA) -> String {
+        "archiveAPODRow-\(nasa.date ?? "unknown")"
     }
 }

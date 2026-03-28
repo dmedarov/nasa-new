@@ -1,6 +1,10 @@
 import Foundation
 
 extension NasaCollectionFetcher {
+    var archiveItems: [NASA] {
+        apodData.sorted { ($0.date ?? "") > ($1.date ?? "") }
+    }
+
     func selectRandom(preferImagesOnly: Bool) {
         let candidates = preferImagesOnly ? apodData.filter { $0.mediaType == .image } : apodData
         let nonCurrentCandidates = candidates.filter { $0.id != currentNasa.id }
@@ -33,7 +37,7 @@ extension NasaCollectionFetcher {
         favoritesStorage.saveFavorites(favorites)
     }
 
-    func selectFavorite(_ nasa: NASA) {
+    func selectArchivedItem(_ nasa: NASA) {
         currentNasa = nasa
         if let index = apodData.firstIndex(where: { $0.id == nasa.id }) {
             apodData[index] = nasa
@@ -41,6 +45,10 @@ extension NasaCollectionFetcher {
             apodData.append(nasa)
             apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
         }
+    }
+
+    func selectFavorite(_ nasa: NASA) {
+        selectArchivedItem(nasa)
     }
 
     func refreshFavoriteIfNeeded(with item: NASA) {

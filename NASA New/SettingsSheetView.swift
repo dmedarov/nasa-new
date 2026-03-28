@@ -245,18 +245,18 @@ struct SettingsSheetView: View {
                     )
                     Toggle(L10n.text("Autoplay Videos on Wi-Fi Only", default: "Autoplay Videos on Wi-Fi Only"), isOn: $wifiOnlyVideoAutoplay)
                         .disabled(!allowVideoPlayback)
-                    Stepper(value: $cacheItemLimit, in: 30...365, step: 15) {
-                        LabeledContent(L10n.text("Cache Item Limit", default: "Cache Item Limit")) {
+                    Stepper(value: $cacheItemLimit, in: 90...1460, step: 30) {
+                        LabeledContent(L10n.text("On-Device Archive Limit", default: "On-Device Archive Limit")) {
                             Text(String(cacheItemLimit))
                         }
                     }
-                    Text(L10n.text("Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections.", default: "Data Saver favors lower-bandwidth image URLs and can reduce media quality on slower connections."))
+                    Text(L10n.text("Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media.", default: "Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
 
                 Section(L10n.text("Storage Diagnostics", default: "Storage Diagnostics")) {
-                    LabeledContent(L10n.text("Cached APOD Items", default: "Cached APOD Items")) {
+                    LabeledContent(L10n.text("Archived APOD Items", default: "Archived APOD Items")) {
                         Text(String(cachedItemCount))
                     }
                     LabeledContent(L10n.text("Applied Cache Limit", default: "Applied Cache Limit")) {
