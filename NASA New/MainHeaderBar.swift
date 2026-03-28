@@ -112,7 +112,7 @@ struct MainHeaderBar: View {
 
     private var editorialHeading: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-            SectionEyebrow(L10n.text("NASA APOD", default: "NASA APOD"), tone: .accent)
+            SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
             Text(editorialTitle)
                 .font(AppTheme.Typography.cardTitle)

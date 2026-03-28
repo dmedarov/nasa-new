@@ -20,4 +20,35 @@ struct AppRouterTests {
         #expect(PendingAppRouteStore.consume(userDefaults: userDefaults) == route)
         #expect(PendingAppRouteStore.consume(userDefaults: userDefaults) == nil)
     }
+
+    @Test
+    func appDeepLinkBuildsPublicWebURLWhenConfigured() {
+        let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
+        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
+
+        let generatedURL = AppDeepLink.url(for: route, publicBaseURL: publicBaseURL)
+
+        #expect(generatedURL == URL(string: "https://example.com/space-briefing/archive?date=2025-01-07"))
+    }
+
+    @Test
+    func appDeepLinkParsesConfiguredPublicWebURL() {
+        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
+        let url = URL(string: "https://example.com/space-briefing/saved?date=2025-02-11")!
+
+        let route = AppDeepLink.route(from: url, publicBaseURL: publicBaseURL)
+
+        #expect(route == AppRoute(destination: .saved, apodDate: "2025-02-11"))
+    }
+
+    @Test
+    func appDeepLinkFallsBackToCustomSchemeWithoutPublicBaseURL() {
+        let route = AppRoute(destination: .today, apodDate: "2025-03-01")
+
+        let generatedURL = AppDeepLink.url(for: route, publicBaseURL: nil)
+        let parsedRoute = generatedURL.flatMap { AppDeepLink.route(from: $0, publicBaseURL: nil) }
+
+        #expect(generatedURL == URL(string: "nasanew://today?date=2025-03-01"))
+        #expect(parsedRoute == route)
+    }
 }

@@ -1,0 +1,5 @@
+.DS_Store
+**/.DS_Store
+build/
+NASA New/LocalSecrets.xcconfig
+NASA New.xcodeproj/xcuserdata/

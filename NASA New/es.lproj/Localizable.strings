@@ -89,3 +89,13 @@
 "Open this saved APOD" = "Abre este APOD guardado";
 "Delete" = "Eliminar";
 "Retry" = "Reintentar";
+"loading.apod_public_service" = "Cargando el resumen APOD de hoy desde el servicio publico Astronomy Picture of the Day de la NASA.";
+"Open Today" = "Abrir hoy";
+"Open the current APOD briefing." = "Abre el resumen APOD actual.";
+"Open Archive" = "Abrir archivo";
+"Open the APOD archive browser." = "Abre el explorador del archivo APOD.";
+"Open Saved" = "Abrir guardados";
+"Open the saved APOD collection." = "Abre la coleccion APOD guardada.";
+"Open APOD by Date" = "Abrir APOD por fecha";
+"Open a specific APOD date in the app." = "Abre una fecha APOD especifica en la app.";
+"Date" = "Fecha";

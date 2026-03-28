@@ -334,3 +334,13 @@
 "On-Device Archive Limit" = "On-Device Archive Limit";
 "Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media." = "Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media.";
 "Archived APOD Items" = "Archived APOD Items";
+"loading.apod_public_service" = "Fetching today's APOD briefing from NASA's public Astronomy Picture of the Day service.";
+"Open Today" = "Open Today";
+"Open the current APOD briefing." = "Open the current APOD briefing.";
+"Open Archive" = "Open Archive";
+"Open the APOD archive browser." = "Open the APOD archive browser.";
+"Open Saved" = "Open Saved";
+"Open the saved APOD collection." = "Open the saved APOD collection.";
+"Open APOD by Date" = "Open APOD by Date";
+"Open a specific APOD date in the app." = "Open a specific APOD date in the app.";
+"Date" = "Date";

@@ -89,3 +89,13 @@
 "Open this saved APOD" = "Отваря този запазен APOD";
 "Delete" = "Изтрий";
 "Retry" = "Опитай отново";
+"loading.apod_public_service" = "Зареждане на днешния APOD обзор от публичната услуга Astronomy Picture of the Day на NASA.";
+"Open Today" = "Отвори днес";
+"Open the current APOD briefing." = "Отворете текущия APOD обзор.";
+"Open Archive" = "Отвори архива";
+"Open the APOD archive browser." = "Отворете браузъра за APOD архива.";
+"Open Saved" = "Отвори запазените";
+"Open the saved APOD collection." = "Отворете запазената APOD колекция.";
+"Open APOD by Date" = "Отвори APOD по дата";
+"Open a specific APOD date in the app." = "Отворете конкретна APOD дата в приложението.";
+"Date" = "Дата";

@@ -31,7 +31,7 @@ struct SplashScreenView: View {
 
                 MissionPanel(tone: .accent, padding: AppTheme.Spacing.xxl) {
                     VStack(spacing: AppTheme.Spacing.md) {
-                        SectionEyebrow(L10n.text("NASA APOD", default: "NASA APOD"), tone: .accent)
+                        SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
                         Image("logo-swift-outlined")
                             .accessibilityHidden(true)

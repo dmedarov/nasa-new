@@ -256,7 +256,7 @@ struct MainView: View {
         }
         .padding(.top, AppTheme.Spacing.xs)
         .background(backgroundLayer)
-        .navigationTitle(L10n.text("NASA", default: "NASA"))
+        .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(.thinMaterial, for: .navigationBar)
@@ -388,7 +388,10 @@ struct MainView: View {
         if !hasLoadedContent && fetcher.isFetching {
             APIRequestEmptyStateView(
                 title: L10n.text("Loading APOD", default: "Loading APOD"),
-                subtitle: L10n.text("Fetching the latest Astronomy Picture of the Day from NASA API.", default: "Fetching the latest Astronomy Picture of the Day from NASA API.")
+                subtitle: L10n.text(
+                    "loading.apod_public_service",
+                    default: "Fetching today's APOD briefing from NASA's public Astronomy Picture of the Day service."
+                )
             )
             Spacer()
         } else if !hasLoadedContent, let error = fetcher.error {

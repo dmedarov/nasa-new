@@ -87,7 +87,10 @@ struct AppShellView: View {
             activity.title = L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
             activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .today))
             activity.isEligibleForSearch = true
+            activity.isEligibleForHandoff = true
             activity.isEligibleForPrediction = true
+            activity.isEligibleForPublicIndexing = false
+            activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .today))
         }
     }
 
@@ -99,7 +102,10 @@ struct AppShellView: View {
                 activity.title = L10n.text("APOD Archive", default: "APOD Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .archive))
                 activity.isEligibleForSearch = true
+                activity.isEligibleForHandoff = true
                 activity.isEligibleForPrediction = true
+                activity.isEligibleForPublicIndexing = false
+                activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .archive))
             }
     }
 
@@ -111,7 +117,10 @@ struct AppShellView: View {
                 activity.title = L10n.text("Saved Archive", default: "Saved Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .saved))
                 activity.isEligibleForSearch = true
+                activity.isEligibleForHandoff = true
                 activity.isEligibleForPrediction = true
+                activity.isEligibleForPublicIndexing = false
+                activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .saved))
             }
     }
 

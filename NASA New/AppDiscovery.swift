@@ -6,6 +6,15 @@ import UniformTypeIdentifiers
 #endif
 
 enum AppDiscoveryCoordinator {
+    private static let apiDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }()
+
     static func configure(activity: NSUserActivity, for nasa: NASA, destination: AppDestination) {
         let route = AppRoute(destination: destination, apodDate: nasa.date)
 
@@ -14,8 +23,11 @@ enum AppDiscoveryCoordinator {
         activity.isEligibleForSearch = true
         activity.isEligibleForHandoff = true
         activity.isEligibleForPrediction = true
+        activity.isEligibleForPublicIndexing = false
         activity.persistentIdentifier = NSUserActivityPersistentIdentifier(nasa.id)
         activity.targetContentIdentifier = nasa.id
+        activity.requiredUserInfoKeys = Set(["destination", "apodDate", "routeData"])
+        activity.webpageURL = AppDeepLink.publicWebURL(for: route)
         activity.contentAttributeSet = attributeSet(for: nasa)
     }
 
@@ -87,15 +99,22 @@ enum AppDiscoveryCoordinator {
         let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
         attributeSet.title = nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
         attributeSet.contentDescription = nasa.explanation
+        attributeSet.subject = APODAttributionPolicy.creditLine(for: nasa)
+        attributeSet.creator = APODAttributionPolicy.creditLine(for: nasa)
+        attributeSet.displayName = nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
+        if let rawDate = nasa.date,
+           let creationDate = apiDateFormatter.date(from: rawDate) {
+            attributeSet.contentCreationDate = creationDate
+        }
         attributeSet.keywords = [
             L10n.text("Today", default: "Today"),
             L10n.text("Archive", default: "Archive"),
             L10n.text("Saved", default: "Saved"),
             L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day"),
+            L10n.text("Space Briefing", default: "Space Briefing"),
             nasa.date ?? "",
             APODAttributionPolicy.creditLine(for: nasa)
         ].filter { !$0.isEmpty }
-        attributeSet.displayName = nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
         return attributeSet
 #else
         fatalError("CoreSpotlight is unavailable on this platform.")

@@ -33,7 +33,7 @@ private struct APODWidgetEntry: TimelineEntry {
         apodDate: "",
         imageData: nil,
         mediaBadge: WidgetLocalization.text("widget.media.apod", default: "APOD"),
-        deepLinkURL: URL(string: "nasanew://today"),
+        deepLinkURL: APODWidgetAPI.widgetDestinationURL(for: nil),
         stateTitle: nil,
         stateMessage: nil
     )
@@ -126,7 +126,7 @@ private enum APODWidgetAPI {
                 apodDate: displayDate(from: payload.date ?? ""),
                 imageData: imageData,
                 mediaBadge: mediaBadge(for: payload.mediaType),
-                deepLinkURL: URL(string: deepLinkString(for: payload.date ?? "")),
+                deepLinkURL: deepLinkURL(for: payload.date),
                 stateTitle: nil,
                 stateMessage: nil
             )
@@ -158,7 +158,7 @@ private enum APODWidgetAPI {
             apodDate: displayDate(from: nasa.date ?? ""),
             imageData: imageData,
             mediaBadge: mediaBadge(for: nasa.mediaType),
-            deepLinkURL: URL(string: deepLinkString(for: nasa.date ?? "")),
+            deepLinkURL: deepLinkURL(for: nasa.date),
             stateTitle: nil,
             stateMessage: nil
         )
@@ -255,9 +255,54 @@ private enum APODWidgetAPI {
         return formatter.string(from: parsedDate)
     }
 
-    private static func deepLinkString(for rawDate: String) -> String {
-        guard !rawDate.isEmpty else { return "nasanew://today" }
-        return "nasanew://today?date=\(rawDate)"
+    private static func deepLinkURL(for rawDate: String?) -> URL? {
+        widgetDestinationURL(for: rawDate)
+    }
+
+    fileprivate static func widgetDestinationURL(for rawDate: String?) -> URL? {
+        let trimmedDate = rawDate?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedDate = trimmedDate?.isEmpty == false ? trimmedDate : nil
+
+        if let publicBaseURL = configuredPublicBaseURL(),
+           var components = URLComponents(url: publicBaseURL, resolvingAgainstBaseURL: false) {
+            components.scheme = publicBaseURL.scheme?.lowercased()
+            components.host = publicBaseURL.host?.lowercased()
+            components.fragment = nil
+            components.queryItems = normalizedDate.map { [URLQueryItem(name: "date", value: $0)] }
+
+            let baseComponents = publicBaseURL.pathComponents.filter { $0 != "/" }
+            components.path = "/" + (baseComponents + ["today"]).joined(separator: "/")
+            return components.url
+        }
+
+        var components = URLComponents()
+        components.scheme = "nasanew"
+        components.host = "today"
+        components.queryItems = normalizedDate.map { [URLQueryItem(name: "date", value: $0)] }
+        return components.url
+    }
+
+    private static func configuredPublicBaseURL(bundle: Bundle = .main) -> URL? {
+        guard let rawValue = bundle.object(forInfoDictionaryKey: "APOD_PUBLIC_WEB_BASE_URL") as? String else {
+            return nil
+        }
+
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty, !trimmedValue.contains("$(") else { return nil }
+        guard var components = URLComponents(string: trimmedValue) else { return nil }
+        guard let scheme = components.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              components.host != nil else {
+            return nil
+        }
+
+        components.fragment = nil
+        components.query = nil
+        if components.path.hasSuffix("/") && components.path.count > 1 {
+            components.path.removeLast()
+        }
+
+        return components.url
     }
 
     private static func isCurrentAPODDate(_ rawDate: String?) -> Bool {
@@ -277,7 +322,7 @@ private enum APODWidgetAPI {
             apodDate: "",
             imageData: nil,
             mediaBadge: WidgetLocalization.text("widget.media.apod", default: "APOD"),
-            deepLinkURL: URL(string: "nasanew://today"),
+            deepLinkURL: APODWidgetAPI.widgetDestinationURL(for: nil),
             stateTitle: title,
             stateMessage: message
         )
