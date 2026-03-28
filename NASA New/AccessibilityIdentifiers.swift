@@ -43,6 +43,8 @@ enum AccessibilityID {
     static let archiveLoadMoreButton = "archiveLoadMoreButton"
     static let settingsSheetRoot = "settingsSheetRoot"
     static let settingsCloseButton = "settingsCloseButton"
+    static let followSystemAppearanceToggle = "followSystemAppearanceToggle"
+    static let darkModeToggle = "darkModeToggle"
     static let dataSaverModeToggle = "dataSaverModeToggle"
     static let preferHDImagesToggle = "preferHDImagesToggle"
     static let lastStatusCodeValue = "lastStatusCodeValue"

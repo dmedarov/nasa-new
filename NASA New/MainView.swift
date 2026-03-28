@@ -76,6 +76,13 @@ struct MainView: View {
         AppAppearancePolicy.resolvedPreference(from: appearancePreferenceRawValue)
     }
 
+    private var appearancePreferenceBinding: Binding<AppAppearancePreference> {
+        Binding(
+            get: { appearancePreference },
+            set: { appearancePreferenceRawValue = $0.rawValue }
+        )
+    }
+
     private var effectiveIsDarkMode: Bool {
         AppAppearancePolicy.effectiveIsDarkMode(
             preference: appearancePreference,
@@ -259,6 +266,7 @@ struct MainView: View {
         }
         .sheet(isPresented: $showSettingsSheet) {
             SettingsSheetView(
+                appearancePreference: appearancePreferenceBinding,
                 preferImages: $preferImages,
                 allowVideoPlayback: $allowVideoPlayback,
                 dailyNotificationsEnabled: $dailyNotificationsEnabled,

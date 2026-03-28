@@ -278,6 +278,14 @@ struct AppAppearancePolicy {
         preference.isDarkModeOverride ?? (systemColorScheme == .dark)
     }
 
+    static func explicitPreference(matching systemColorScheme: ColorScheme) -> AppAppearancePreference {
+        systemColorScheme == .dark ? .dark : .light
+    }
+
+    static func explicitPreference(forDarkMode isDarkMode: Bool) -> AppAppearancePreference {
+        isDarkMode ? .dark : .light
+    }
+
     static func nextPreference(after preference: AppAppearancePreference) -> AppAppearancePreference {
         switch preference {
         case .system:

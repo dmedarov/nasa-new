@@ -17,6 +17,8 @@ final class NASANewUITests: XCTestCase {
         static let apiRateLimitBanner = "apiRateLimitBanner"
         static let settingsSheetRoot = "settingsSheetRoot"
         static let settingsCloseButton = "settingsCloseButton"
+        static let followSystemAppearanceToggle = "followSystemAppearanceToggle"
+        static let darkModeToggle = "darkModeToggle"
         static let favoritesSheetRoot = "favoritesSheetRoot"
         static let favoritesEmptyState = "favoritesEmptyState"
         static let favoritesSearchField = "favoritesSearchField"
@@ -226,20 +228,30 @@ final class NASANewUITests: XCTestCase {
         }
     }
 
-    private func swipeUpPrimaryContent() {
-        let primaryScrollView = element(UIElementID.mainContentScrollView)
-        let scrollSurface: XCUIElement
+    private func activeScrollSurface() -> XCUIElement? {
+        if element(UIElementID.archiveSheetRoot).exists || element(UIElementID.favoritesSheetRoot).exists {
+            let candidates = [app.collectionViews.firstMatch, app.tables.firstMatch, app.scrollViews.firstMatch]
+            return candidates.first(where: { $0.waitForExistence(timeout: 0.5) })
+        }
 
-        if primaryScrollView.waitForExistence(timeout: 1.0) {
-            scrollSurface = primaryScrollView
-        } else {
-            let fallbackScrollView = app.scrollViews.firstMatch
-            if fallbackScrollView.waitForExistence(timeout: 1.0) {
-                scrollSurface = fallbackScrollView
-            } else {
-                app.swipeUp()
-                return
-            }
+        let primaryScrollView = element(UIElementID.mainContentScrollView)
+        if primaryScrollView.waitForExistence(timeout: 0.5) {
+            return primaryScrollView
+        }
+
+        let fallbackCandidates = [app.scrollViews.firstMatch, app.collectionViews.firstMatch, app.tables.firstMatch]
+        return fallbackCandidates.first(where: { $0.waitForExistence(timeout: 0.5) })
+    }
+
+    private func swipeUpPrimaryContent() {
+        if element(UIElementID.settingsSheetRoot).exists {
+            app.swipeUp()
+            return
+        }
+
+        guard let scrollSurface = activeScrollSurface() else {
+            app.swipeUp()
+            return
         }
 
         let start = scrollSurface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82))
@@ -254,6 +266,12 @@ final class NASANewUITests: XCTestCase {
 
     private func waitForElementToBecomeHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let predicate = NSPredicate(format: "hittable == true")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func waitForElementToDisappear(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
@@ -311,6 +329,13 @@ final class NASANewUITests: XCTestCase {
         return statusCodeValue.label
     }
 
+    private func closeSettingsSheet() {
+        let closeButton = app.buttons[UIElementID.settingsCloseButton]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5.0))
+        closeButton.tap()
+        XCTAssertTrue(waitForElementToDisappear(element(UIElementID.settingsSheetRoot), timeout: 5.0))
+    }
+
     private func attachDebugMarker(_ name: String, details: String) {
         let attachment = XCTAttachment(string: details)
         attachment.name = name
@@ -356,6 +381,7 @@ final class NASANewUITests: XCTestCase {
         let preferHDSwitch = app.switches[UIElementID.preferHDImagesToggle]
         revealElement(dataSaverSwitch)
         XCTAssertTrue(dataSaverSwitch.waitForExistence(timeout: 5.0))
+        revealElement(preferHDSwitch)
         XCTAssertTrue(preferHDSwitch.waitForExistence(timeout: 5.0))
         attachDebugMarker("DataSaverControlsVisible", details: "\(dataSaverSwitch.debugDescription)\n\(preferHDSwitch.debugDescription)")
         return (dataSaverSwitch, preferHDSwitch)
@@ -547,6 +573,35 @@ final class NASANewUITests: XCTestCase {
         attachDebugMarker("DataSaverFinalState", details: "dataSaver=\(String(describing: refreshedDataSaverSwitch.value)) preferHD=\(String(describing: refreshedPreferHDSwitch.value)) enabled=\(refreshedPreferHDSwitch.isEnabled)")
     }
 
+    func testAppearanceSwitchAllowsManualDarkModeSelection() {
+        configureLaunchEnvironment(colorScheme: "light")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        tapElement(UIElementID.openSettingsButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
+
+        let followSystemSwitch = app.switches[UIElementID.followSystemAppearanceToggle]
+        let darkModeSwitch = app.switches[UIElementID.darkModeToggle]
+        revealElement(followSystemSwitch)
+        XCTAssertTrue(followSystemSwitch.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(darkModeSwitch.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForSwitchValue(followSystemSwitch, equals: "1", timeout: 5.0))
+
+        followSystemSwitch.tap()
+
+        let refreshedFollowSystemSwitch = app.switches[UIElementID.followSystemAppearanceToggle]
+        let refreshedDarkModeSwitch = app.switches[UIElementID.darkModeToggle]
+        XCTAssertTrue(waitForSwitchValue(refreshedFollowSystemSwitch, equals: "0", timeout: 5.0))
+        XCTAssertTrue(waitForSwitchValue(refreshedDarkModeSwitch, equals: "0", timeout: 5.0))
+        XCTAssertTrue(refreshedDarkModeSwitch.isEnabled)
+
+        refreshedDarkModeSwitch.tap()
+
+        let enabledDarkModeSwitch = app.switches[UIElementID.darkModeToggle]
+        XCTAssertTrue(waitForSwitchValue(enabledDarkModeSwitch, equals: "1", timeout: 5.0))
+    }
+
     func testFavoritesSearchAndSwipeDeleteFlow() {
         launchAndWaitForMainView()
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD"))
@@ -672,12 +727,12 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
 
         let initialStatus = openSettingsAndReadDiagnosticsStatus()
-        app.buttons[UIElementID.settingsCloseButton].tap()
+        closeSettingsSheet()
 
         tapElement(UIElementID.refreshAPODButton)
         let firstRefreshedStatus = openSettingsAndReadDiagnosticsStatus(waitForNumericStatus: true)
         XCTAssertNotEqual(firstRefreshedStatus, initialStatus)
-        app.buttons[UIElementID.settingsCloseButton].tap()
+        closeSettingsSheet()
 
         tapElement(UIElementID.refreshAPODButton)
         let secondRefreshedStatus = openSettingsAndReadDiagnosticsStatus(waitForNumericStatus: true)

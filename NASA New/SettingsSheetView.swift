@@ -40,6 +40,8 @@ private struct SettingsToggleRow: View {
 }
 
 struct SettingsSheetView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Binding var appearancePreference: AppAppearancePreference
     @Binding var preferImages: Bool
     @Binding var allowVideoPlayback: Bool
     @Binding var dailyNotificationsEnabled: Bool
@@ -134,6 +136,37 @@ struct SettingsSheetView: View {
         return L10n.text("network.standard_delivery", default: "Standard media delivery.")
     }
 
+    private var followsSystemAppearance: Bool {
+        appearancePreference == .system
+    }
+
+    private var followSystemAppearanceBinding: Binding<Bool> {
+        Binding(
+            get: { followsSystemAppearance },
+            set: { newValue in
+                if newValue {
+                    appearancePreference = .system
+                } else {
+                    appearancePreference = AppAppearancePolicy.explicitPreference(matching: colorScheme)
+                }
+            }
+        )
+    }
+
+    private var darkModeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                AppAppearancePolicy.effectiveIsDarkMode(
+                    preference: appearancePreference,
+                    systemColorScheme: colorScheme
+                )
+            },
+            set: { isDarkMode in
+                appearancePreference = AppAppearancePolicy.explicitPreference(forDarkMode: isDarkMode)
+            }
+        )
+    }
+
     var body: some View {
         AdaptiveNavigationContainer {
             Form {
@@ -143,6 +176,48 @@ struct SettingsSheetView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .accessibilityHidden(true)
+
+                Section(L10n.text("appearance.section_title", default: "Appearance")) {
+                    SettingsToggleRow(
+                        title: L10n.text("appearance.follow_system", default: "Follow System Appearance"),
+                        subtitle: L10n.text(
+                            "appearance.follow_system_subtitle",
+                            default: "Keeps the app matched to your iPhone or iPad appearance automatically."
+                        ),
+                        toggleIdentifier: AccessibilityID.followSystemAppearanceToggle,
+                        accessibilityHint: L10n.text(
+                            "appearance.follow_system_hint",
+                            default: "Keeps the app aligned with the device appearance."
+                        ),
+                        isEnabled: true,
+                        isOn: followSystemAppearanceBinding
+                    )
+
+                    SettingsToggleRow(
+                        title: L10n.text("appearance.dark_mode", default: "Dark Mode"),
+                        subtitle: followsSystemAppearance
+                            ? L10n.text(
+                                "appearance.dark_mode_disabled_subtitle",
+                                default: "Turn off Follow System Appearance to choose a fixed light or dark mode."
+                            )
+                            : L10n.text(
+                                "appearance.dark_mode_subtitle",
+                                default: "Switches the app between light and dark appearance."
+                            ),
+                        toggleIdentifier: AccessibilityID.darkModeToggle,
+                        accessibilityHint: followsSystemAppearance
+                            ? L10n.text(
+                                "appearance.dark_mode_disabled_hint",
+                                default: "Disable Follow System Appearance first to set a fixed theme."
+                            )
+                            : L10n.text(
+                                "appearance.dark_mode_hint",
+                                default: "Turns dark appearance on or off for the app."
+                            ),
+                        isEnabled: !followsSystemAppearance,
+                        isOn: darkModeBinding
+                    )
+                }
 
                 Section(L10n.text("Content Preferences", default: "Content Preferences")) {
                     Toggle(L10n.text("Prefer Images Only", default: "Prefer Images Only"), isOn: $preferImages)

@@ -36,6 +36,15 @@
 "Prefer Images Only" = "Solo imagenes";
 "Allow Video Playback" = "Permitir reproduccion de video";
 "Daily Notifications" = "Notificaciones diarias";
+"appearance.section_title" = "Apariencia";
+"appearance.follow_system" = "Seguir apariencia del sistema";
+"appearance.follow_system_subtitle" = "Mantiene la app alineada automaticamente con la apariencia de tu iPhone o iPad.";
+"appearance.follow_system_hint" = "Mantiene la app alineada con la apariencia del dispositivo.";
+"appearance.dark_mode" = "Modo oscuro";
+"appearance.dark_mode_subtitle" = "Cambia la app entre apariencia clara y oscura.";
+"appearance.dark_mode_hint" = "Activa o desactiva la apariencia oscura de la app.";
+"appearance.dark_mode_disabled_subtitle" = "Desactiva Seguir apariencia del sistema para elegir un modo claro u oscuro fijo.";
+"appearance.dark_mode_disabled_hint" = "Primero desactiva Seguir apariencia del sistema para fijar un tema.";
 "Enable Daily APOD Alerts" = "Activar alertas diarias de APOD";
 "Alert Time" = "Hora de alerta";
 "Notification Permission" = "Permiso de notificaciones";

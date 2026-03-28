@@ -36,6 +36,15 @@
 "Prefer Images Only" = "Само изображения";
 "Allow Video Playback" = "Разреши видео";
 "Daily Notifications" = "Ежедневни известия";
+"appearance.section_title" = "Облик";
+"appearance.follow_system" = "Следвай системния облик";
+"appearance.follow_system_subtitle" = "Поддържа приложението в същия облик като вашия iPhone или iPad.";
+"appearance.follow_system_hint" = "Поддържа приложението съобразено с облика на устройството.";
+"appearance.dark_mode" = "Тъмен режим";
+"appearance.dark_mode_subtitle" = "Превключва приложението между светъл и тъмен облик.";
+"appearance.dark_mode_hint" = "Включва или изключва тъмния облик за приложението.";
+"appearance.dark_mode_disabled_subtitle" = "Изключете Следвай системния облик, за да изберете фиксиран светъл или тъмен режим.";
+"appearance.dark_mode_disabled_hint" = "Първо изключете Следвай системния облик, за да зададете фиксирана тема.";
 "Enable Daily APOD Alerts" = "Включи ежедневни APOD известия";
 "Alert Time" = "Час на известяване";
 "Notification Permission" = "Разрешение за известия";

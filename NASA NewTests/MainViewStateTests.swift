@@ -30,6 +30,16 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertFalse(AppAppearancePolicy.effectiveIsDarkMode(preference: .system, systemColorScheme: .light))
     }
 
+    func testAppAppearancePolicyCreatesExplicitPreferenceFromSystemColorScheme() {
+        XCTAssertEqual(AppAppearancePolicy.explicitPreference(matching: .dark), .dark)
+        XCTAssertEqual(AppAppearancePolicy.explicitPreference(matching: .light), .light)
+    }
+
+    func testAppAppearancePolicyCreatesExplicitPreferenceFromDarkModeFlag() {
+        XCTAssertEqual(AppAppearancePolicy.explicitPreference(forDarkMode: true), .dark)
+        XCTAssertEqual(AppAppearancePolicy.explicitPreference(forDarkMode: false), .light)
+    }
+
     func testAppAppearancePolicyMigratesLegacyPreference() {
         let suiteName = "MainViewStateTests.appearanceMigration.\(UUID().uuidString)"
         guard let userDefaults = UserDefaults(suiteName: suiteName) else {

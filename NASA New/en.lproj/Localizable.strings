@@ -43,6 +43,15 @@
 "appearance.system" = "System";
 "appearance.light" = "Light";
 "appearance.dark" = "Dark";
+"appearance.section_title" = "Appearance";
+"appearance.follow_system" = "Follow System Appearance";
+"appearance.follow_system_subtitle" = "Keeps the app matched to your iPhone or iPad appearance automatically.";
+"appearance.follow_system_hint" = "Keeps the app aligned with the device appearance.";
+"appearance.dark_mode" = "Dark Mode";
+"appearance.dark_mode_subtitle" = "Switches the app between light and dark appearance.";
+"appearance.dark_mode_hint" = "Turns dark appearance on or off for the app.";
+"appearance.dark_mode_disabled_subtitle" = "Turn off Follow System Appearance to choose a fixed light or dark mode.";
+"appearance.dark_mode_disabled_hint" = "Disable Follow System Appearance first to set a fixed theme.";
 "appearance.change" = "Change appearance. Current: %@";
 "appearance.cycle_hint" = "Cycles between system, light, and dark appearance.";
 "NASA APOD App" = "NASA APOD App";
