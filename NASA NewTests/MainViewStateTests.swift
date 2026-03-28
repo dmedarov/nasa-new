@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import NASA_New
 
 final class MainViewStateTests: XCTestCase {
@@ -17,6 +18,36 @@ final class MainViewStateTests: XCTestCase {
     func testDataSaverPolicyPreservesHDPreferenceWhenDisabled() {
         XCTAssertTrue(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: true))
         XCTAssertFalse(DataSaverPreferencePolicy.resolvedPreferHDImages(dataSaverMode: false, preferHDImages: false))
+    }
+
+    func testAppAppearancePolicyDefaultsToSystemForMissingOrInvalidValues() {
+        XCTAssertEqual(AppAppearancePolicy.resolvedPreference(from: nil), .system)
+        XCTAssertEqual(AppAppearancePolicy.resolvedPreference(from: "unexpected"), .system)
+    }
+
+    func testAppAppearancePolicyUsesSystemColorSchemeWhenFollowingSystem() {
+        XCTAssertTrue(AppAppearancePolicy.effectiveIsDarkMode(preference: .system, systemColorScheme: .dark))
+        XCTAssertFalse(AppAppearancePolicy.effectiveIsDarkMode(preference: .system, systemColorScheme: .light))
+    }
+
+    func testAppAppearancePolicyMigratesLegacyPreference() {
+        let suiteName = "MainViewStateTests.appearanceMigration.\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Unable to create test user defaults suite")
+            return
+        }
+
+        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.set(true, forKey: AppAppearancePolicy.legacyStorageKey)
+
+        AppAppearancePolicy.migrateLegacyPreferenceIfNeeded(in: userDefaults)
+
+        XCTAssertEqual(
+            userDefaults.string(forKey: AppAppearancePolicy.storageKey),
+            AppAppearancePreference.dark.rawValue
+        )
+
+        userDefaults.removePersistentDomain(forName: suiteName)
     }
 
     func testAPODDateNavigationShiftsBackwardWithinBounds() {
@@ -145,6 +176,28 @@ final class MainViewStateTests: XCTestCase {
         )
     }
 
+    func testAPODSourceLinkPolicyDescribesHDMediaSource() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://images.example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://images.example.com/image.jpg")
+        )
+
+        XCTAssertEqual(
+            APODSourceLinkPolicy.preferredMediaDescription(for: nasa, dataSaverMode: false, preferHDImages: true),
+            "Direct high-resolution image file referenced by the APOD entry."
+        )
+    }
+
+    func testAPODSourceLinkPolicyHostLabelStripsWWWPrefix() {
+        XCTAssertEqual(
+            APODSourceLinkPolicy.hostLabel(for: URL(string: "https://www.youtube.com/watch?v=abc123")),
+            "youtube.com"
+        )
+    }
+
     func testAPODAttributionPolicyPrefersExplicitCreditLine() {
         let nasa = NASA(
             copyright: "ESA/Hubble",
@@ -155,6 +208,8 @@ final class MainViewStateTests: XCTestCase {
         )
 
         XCTAssertEqual(APODAttributionPolicy.creditLine(for: nasa), "ESA/Hubble")
+        XCTAssertEqual(APODAttributionPolicy.creditTitle(for: nasa), "Rights Holder")
+        XCTAssertEqual(APODAttributionPolicy.rightsStatus(for: nasa), .copyrightProtected)
         XCTAssertNotNil(APODAttributionPolicy.rightsNotice(for: nasa))
     }
 
@@ -167,6 +222,20 @@ final class MainViewStateTests: XCTestCase {
         )
 
         XCTAssertEqual(APODAttributionPolicy.creditLine(for: nasa), "NASA")
+        XCTAssertEqual(APODAttributionPolicy.rightsStatus(for: nasa), .nasaContentLikely)
         XCTAssertNotNil(APODAttributionPolicy.rightsNotice(for: nasa))
+    }
+
+    func testAPODAttributionPolicyTreatsExplicitNASACreditAsLikelyNASAContent() {
+        let nasa = NASA(
+            copyright: "NASA",
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        XCTAssertEqual(APODAttributionPolicy.rightsStatus(for: nasa), .nasaContentLikely)
+        XCTAssertEqual(APODAttributionPolicy.rightsBadgeTitle(for: nasa), "NASA source likely")
     }
 }

@@ -28,39 +28,39 @@ enum NASAAPIKeyConfiguration {
 
 @MainActor
 final class NasaCollectionFetcher: ObservableObject {
-    private enum Constants {
+    enum Constants {
         static let foregroundRefreshInterval: TimeInterval = 60 * 60
         static let defaultCacheItemLimit = 90
     }
 
-    @Published private(set) var apodData = [NASA]()
+    @Published var apodData = [NASA]()
     @Published var currentNasa = NASA.default
     @Published var error: FetchError?
-    @Published private(set) var isFetching = false
-    @Published private(set) var isUsingFixtureData = false
-    @Published private(set) var favorites = [NASA]()
-    @Published private(set) var lastStatusCode: Int?
-    @Published private(set) var lastRequestDate: Date?
-    @Published private(set) var lastTransportError: String?
-    @Published private(set) var isUsingCachedData = false
-    @Published private(set) var isOfflineMode = false
-    @Published private(set) var requestDiagnostics = [RequestDiagnostic]()
-    @Published private(set) var apiKeyWarning: String?
-    @Published private(set) var rateLimitRetryDate: Date?
-    @Published private(set) var cachedItemCount = 0
-    @Published private(set) var cacheItemLimit = Constants.defaultCacheItemLimit
+    @Published var isFetching = false
+    @Published var isUsingFixtureData = false
+    @Published var favorites = [NASA]()
+    @Published var lastStatusCode: Int?
+    @Published var lastRequestDate: Date?
+    @Published var lastTransportError: String?
+    @Published var isUsingCachedData = false
+    @Published var isOfflineMode = false
+    @Published var requestDiagnostics = [RequestDiagnostic]()
+    @Published var apiKeyWarning: String?
+    @Published var rateLimitRetryDate: Date?
+    @Published var cachedItemCount = 0
+    @Published var cacheItemLimit = Constants.defaultCacheItemLimit
 
-    private let service: APODService
-    private let apiKey: String
-    private let calendar: Calendar
-    private let nowProvider: @Sendable () -> Date
-    private let favoritesStorage: FavoritesStorage
-    private let cacheStorage: APODCacheStorage
-    private var activeRequestID = UUID()
-    private var latestFetchTask: Task<Void, Never>?
-    private var fixtureScenario: FixtureScenario?
-    private var fixtureFetchCycle = 0
-    private let dateFormatter: DateFormatter = {
+    let service: APODService
+    let apiKey: String
+    let calendar: Calendar
+    let nowProvider: @Sendable () -> Date
+    let favoritesStorage: FavoritesStorage
+    let cacheStorage: APODCacheStorage
+    var activeRequestID = UUID()
+    var latestFetchTask: Task<Void, Never>?
+    var fixtureScenario: FixtureScenario?
+    var fixtureFetchCycle = 0
+    let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
@@ -68,14 +68,14 @@ final class NasaCollectionFetcher: ObservableObject {
         formatter.isLenient = false
         return formatter
     }()
-    private let retryAfterDateFormatter: DateFormatter = {
+    let retryAfterDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
         return formatter
     }()
-    private let minimumAPODDate: Date = {
+    let minimumAPODDate: Date = {
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.locale = Locale(identifier: "en_US_POSIX")
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
@@ -128,7 +128,7 @@ final class NasaCollectionFetcher: ObservableObject {
         }
     }
 
-    private func normalizedDate(_ date: Date) -> Date {
+    func normalizedDate(_ date: Date) -> Date {
         calendar.startOfDay(for: max(date, minimumAPODDate))
     }
 
@@ -136,485 +136,11 @@ final class NasaCollectionFetcher: ObservableObject {
         calendar.isDate(normalizedDate(lhs), inSameDayAs: normalizedDate(rhs))
     }
 
-    private var latestAvailableAPODDate: Date? {
+    var latestAvailableAPODDate: Date? {
         apodData
             .compactMap { date(from: $0.date) }
             .map(normalizedDate)
             .max()
-    }
-
-    private func buildURL(for date: Date? = nil) -> URL? {
-        var components = URLComponents(string: "https://api.nasa.gov/planetary/apod")
-        var queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-
-        if let date {
-            queryItems.append(URLQueryItem(name: "date", value: dateFormatter.string(from: normalizedDate(date))))
-        } else {
-            let now = normalizedDate(nowProvider())
-            let endDate = dateFormatter.string(from: now)
-            let startDate = normalizedDate(calendar.date(byAdding: .day, value: -90, to: now) ?? now)
-            let startDateString = dateFormatter.string(from: startDate)
-            queryItems.append(URLQueryItem(name: "start_date", value: startDateString))
-            queryItems.append(URLQueryItem(name: "end_date", value: endDate))
-        }
-
-        components?.queryItems = queryItems
-        return components?.url
-    }
-
-    @available(iOS 15.0, *)
-    func fetchData() async {
-        await fetchData(for: nil)
-    }
-
-    @available(iOS 15.0, *)
-    func startLatestFetch(for date: Date? = nil) {
-        latestFetchTask?.cancel()
-        latestFetchTask = Task { [weak self] in
-            await self?.fetchData(for: date)
-        }
-    }
-
-    func cancelLatestFetch() {
-        latestFetchTask?.cancel()
-        latestFetchTask = nil
-    }
-
-    @available(iOS 15.0, *)
-    func fetchData(for date: Date?) async {
-        if handleFixtureFetchIfNeeded(for: date) { return }
-        let requestID = UUID()
-        activeRequestID = requestID
-        isFetching = true
-        error = nil
-        isOfflineMode = false
-        lastRequestDate = nowProvider()
-        lastTransportError = nil
-        rateLimitRetryDate = nil
-        defer {
-            if requestID == activeRequestID {
-                isFetching = false
-            }
-        }
-
-        guard let url = buildURL(for: date) else {
-            if requestID == activeRequestID {
-                error = .badRequest
-            }
-            return
-        }
-
-        do {
-            let (data, response) = try await service.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw FetchError.invalidResponse
-            }
-            if requestID == activeRequestID {
-                lastStatusCode = httpResponse.statusCode
-            }
-            guard (200...299).contains(httpResponse.statusCode) else {
-                if requestID == activeRequestID, httpResponse.statusCode == 429 {
-                    rateLimitRetryDate = retryAfterDate(from: httpResponse, referenceDate: nowProvider())
-                }
-                throw FetchError.httpStatus(httpResponse.statusCode)
-            }
-
-            let decoder = JSONDecoder()
-
-            if date != nil {
-                let item = try decoder.decode(NASA.self, from: data)
-                guard requestID == activeRequestID else { return }
-                currentNasa = item
-                if let index = apodData.firstIndex(where: { $0.id == item.id }) {
-                    apodData[index] = item
-                } else {
-                    apodData.append(item)
-                }
-                apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
-                refreshFavoriteIfNeeded(with: item)
-                trimCacheIfNeeded()
-                cacheStorage.saveCachedAPODItems(apodData)
-                cachedItemCount = apodData.count
-                isUsingCachedData = false
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: httpResponse.statusCode,
-                    result: "success",
-                    transportError: nil,
-                    usedCache: false
-                )
-            } else {
-                let decoded = try decoder.decode([NASA].self, from: data)
-                    .sorted { ($0.date ?? "") < ($1.date ?? "") }
-                guard !decoded.isEmpty else {
-                    throw FetchError.emptyResponse
-                }
-                guard requestID == activeRequestID else { return }
-                apodData = decoded
-                currentNasa = decoded.last ?? .default
-                refreshFavoritesFromData(decoded)
-                trimCacheIfNeeded()
-                cacheStorage.saveCachedAPODItems(apodData)
-                cachedItemCount = apodData.count
-                isUsingCachedData = false
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: httpResponse.statusCode,
-                    result: "success",
-                    transportError: nil,
-                    usedCache: false
-                )
-            }
-        } catch is CancellationError {
-            return
-        } catch let fetchError as FetchError {
-            if requestID == activeRequestID {
-                error = fetchError
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: lastStatusCode,
-                    result: "failure",
-                    transportError: fetchError.localizedDescription,
-                    usedCache: isUsingCachedData
-                )
-            }
-        } catch let urlError as URLError {
-            if requestID == activeRequestID, urlError.code != .cancelled {
-                error = .network(urlError)
-                lastTransportError = urlError.localizedDescription
-                isOfflineMode = !apodData.isEmpty
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: nil,
-                    result: "failure",
-                    transportError: urlError.localizedDescription,
-                    usedCache: !apodData.isEmpty
-                )
-            }
-        } catch let decodeError as DecodingError {
-            if requestID == activeRequestID {
-                error = .decoding(decodeError)
-                lastTransportError = L10n.text(
-                    "api.payload.decode_failed",
-                    default: "Failed to decode NASA API payload."
-                )
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: lastStatusCode,
-                    result: "failure",
-                    transportError: L10n.text(
-                        "api.payload.decode_failed",
-                        default: "Failed to decode NASA API payload."
-                    ),
-                    usedCache: isUsingCachedData
-                )
-            }
-        } catch {
-            if requestID == activeRequestID {
-                self.error = .unknown(error.localizedDescription)
-                lastTransportError = error.localizedDescription
-                appendDiagnostic(
-                    endpoint: sanitizedEndpoint(from: url),
-                    statusCode: lastStatusCode,
-                    result: "failure",
-                    transportError: error.localizedDescription,
-                    usedCache: isUsingCachedData
-                )
-            }
-        }
-    }
-
-    func date(from value: String?) -> Date? {
-        guard let value else { return nil }
-        return dateFormatter.date(from: value)
-    }
-
-    func selectRandom(preferImagesOnly: Bool) {
-        let candidates = preferImagesOnly ? apodData.filter { $0.mediaType == .image } : apodData
-        let nonCurrentCandidates = candidates.filter { $0.id != currentNasa.id }
-        let pool = nonCurrentCandidates.isEmpty ? candidates : nonCurrentCandidates
-        guard let random = pool.randomElement() else { return }
-        currentNasa = random
-    }
-
-    func clearError() {
-        error = nil
-    }
-
-    func applyCacheItemLimit(_ limit: Int) {
-        cacheItemLimit = max(1, limit)
-        trimCacheIfNeeded()
-        cacheStorage.saveCachedAPODItems(apodData)
-        cachedItemCount = apodData.count
-    }
-
-    func shouldRefreshOnForeground() -> Bool {
-        guard !isUsingFixtureData else { return false }
-        guard !isFetching else { return false }
-        guard !apodData.isEmpty else { return true }
-        guard let lastRequestDate else { return true }
-        return nowProvider().timeIntervalSince(lastRequestDate) >= Constants.foregroundRefreshInterval
-    }
-
-    func isFavorite(_ nasa: NASA) -> Bool {
-        favorites.contains(where: { $0.id == nasa.id })
-    }
-
-    func toggleFavorite(_ nasa: NASA) {
-        if let index = favorites.firstIndex(where: { $0.id == nasa.id }) {
-            favorites.remove(at: index)
-        } else {
-            favorites.append(nasa)
-        }
-        sortFavorites()
-        favoritesStorage.saveFavorites(favorites)
-    }
-
-    func removeFavorite(_ nasa: NASA) {
-        guard let index = favorites.firstIndex(where: { $0.id == nasa.id }) else { return }
-        favorites.remove(at: index)
-        favoritesStorage.saveFavorites(favorites)
-    }
-
-    func selectFavorite(_ nasa: NASA) {
-        currentNasa = nasa
-        if let index = apodData.firstIndex(where: { $0.id == nasa.id }) {
-            apodData[index] = nasa
-        } else {
-            apodData.append(nasa)
-            apodData.sort { ($0.date ?? "") < ($1.date ?? "") }
-        }
-    }
-
-    func configureFixtureModeIfNeeded() {
-        guard ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] == "1" else { return }
-        isUsingFixtureData = true
-        isUsingCachedData = false
-        isOfflineMode = false
-        error = nil
-        fixtureFetchCycle = 0
-
-        let mode = ProcessInfo.processInfo.environment["UITEST_FIXTURE_MODE"] ?? "default"
-        fixtureScenario = FixtureScenario(rawValue: mode) ?? .default
-
-        if fixtureScenario == .dateNavigation {
-            let fixtures = [
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-13",
-                    explanation: "Date navigation fixture for January 13.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-13-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-13",
-                    url: URL(string: "https://example.com/apod-2025-01-13.jpg")
-                ),
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-14",
-                    explanation: "Date navigation fixture for January 14.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-14-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-14",
-                    url: URL(string: "https://example.com/apod-2025-01-14.jpg")
-                ),
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-15",
-                    explanation: "Date navigation fixture for January 15.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-15-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-15",
-                    url: URL(string: "https://example.com/apod-2025-01-15.jpg")
-                )
-            ]
-
-            apodData = fixtures
-            currentNasa = fixtures.last ?? .default
-            cachedItemCount = apodData.count
-            return
-        }
-
-        let fixture: NASA
-        switch fixtureScenario ?? .default {
-        case .dateNavigation:
-            fixture = NASA.default
-        case .unsupportedVideo:
-            fixture = NASA(
-                copyright: "NASA",
-                date: "2025-01-15",
-                explanation: "Unsupported video fixture.",
-                hdurl: nil,
-                mediaType: .video,
-                serviceVersion: "v1",
-                title: "Fixture Unsupported Video",
-                url: URL(string: "https://vimeo.com/76979871")
-            )
-        case .directVideo:
-            fixture = NASA(
-                copyright: "NASA",
-                date: "2025-01-15",
-                explanation: "Direct video fixture.",
-                hdurl: nil,
-                mediaType: .video,
-                serviceVersion: "v1",
-                title: "Fixture Direct Video",
-                url: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
-            )
-        case .diagnosticsCycle:
-            fixture = NASA(
-                copyright: "NASA",
-                date: "2025-01-15",
-                explanation: "Diagnostics cycle fixture.",
-                hdurl: URL(string: "https://example.com/apod_hd.jpg"),
-                mediaType: .image,
-                serviceVersion: "v1",
-                title: "Fixture APOD",
-                url: URL(string: "https://example.com/apod.jpg")
-            )
-            lastStatusCode = nil
-            lastTransportError = nil
-        case .default:
-            fixture = NASA(
-                copyright: "NASA",
-                date: "2025-01-15",
-                explanation: "This is deterministic fixture content used for UI testing.",
-                hdurl: URL(string: "https://example.com/apod_hd.jpg"),
-                mediaType: .image,
-                serviceVersion: "v1",
-                title: "Fixture APOD",
-                url: URL(string: "https://example.com/apod.jpg")
-            )
-        }
-
-        apodData = [fixture]
-        currentNasa = fixture
-        cachedItemCount = apodData.count
-    }
-
-    private func handleFixtureFetchIfNeeded(for date: Date?) -> Bool {
-        guard isUsingFixtureData else { return false }
-        if fixtureScenario == .dateNavigation {
-            if let date,
-               let requestedDate = self.dateFormatter.date(from: self.dateFormatter.string(from: normalizedDate(date))),
-               let matchingItem = apodData.first(where: {
-                   guard let itemDate = self.date(from: $0.date) else { return false }
-                   return calendar.isDate(itemDate, inSameDayAs: requestedDate)
-               }) {
-                currentNasa = matchingItem
-            }
-            return true
-        }
-        guard fixtureScenario == .diagnosticsCycle else { return true }
-
-        fixtureFetchCycle += 1
-        lastRequestDate = nowProvider()
-        if fixtureFetchCycle % 2 == 1 {
-            lastStatusCode = 429
-            lastTransportError = nil
-            error = .httpStatus(429)
-            appendDiagnostic(
-                endpoint: "fixture://diagnostics-cycle",
-                statusCode: 429,
-                result: "failure",
-                transportError: nil,
-                usedCache: false
-            )
-        } else {
-            lastStatusCode = 200
-            lastTransportError = nil
-            error = nil
-            appendDiagnostic(
-                endpoint: "fixture://diagnostics-cycle",
-                statusCode: 200,
-                result: "success",
-                transportError: nil,
-                usedCache: false
-            )
-        }
-        return true
-    }
-
-    private func appendDiagnostic(
-        endpoint: String,
-        statusCode: Int?,
-        result: String,
-        transportError: String?,
-        usedCache: Bool
-    ) {
-        let item = RequestDiagnostic(
-            timestamp: nowProvider(),
-            endpoint: endpoint,
-            statusCode: statusCode,
-            result: result,
-            transportError: transportError,
-            usedCache: usedCache
-        )
-        requestDiagnostics.insert(item, at: 0)
-        if requestDiagnostics.count > 20 {
-            requestDiagnostics.removeLast(requestDiagnostics.count - 20)
-        }
-    }
-
-    private func sanitizedEndpoint(from url: URL) -> String {
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return url.absoluteString
-        }
-        components.queryItems = components.queryItems?.map { item in
-            if item.name == "api_key" {
-                return URLQueryItem(name: item.name, value: "REDACTED")
-            }
-            return item
-        }
-        return components.url?.absoluteString ?? url.absoluteString
-    }
-
-    private func retryAfterDate(from response: HTTPURLResponse, referenceDate: Date) -> Date? {
-        guard let rawValue = response.value(forHTTPHeaderField: "Retry-After")?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawValue.isEmpty else {
-            return nil
-        }
-
-        if let seconds = TimeInterval(rawValue), seconds >= 0 {
-            return referenceDate.addingTimeInterval(seconds)
-        }
-
-        return retryAfterDateFormatter.date(from: rawValue)
-    }
-
-    private func refreshFavoriteIfNeeded(with item: NASA) {
-        guard let index = favorites.firstIndex(where: { $0.id == item.id }) else { return }
-        favorites[index] = item
-        sortFavorites()
-        favoritesStorage.saveFavorites(favorites)
-    }
-
-    private func refreshFavoritesFromData(_ items: [NASA]) {
-        var didChange = false
-        for item in items {
-            if let index = favorites.firstIndex(where: { $0.id == item.id }) {
-                favorites[index] = item
-                didChange = true
-            }
-        }
-        if didChange {
-            sortFavorites()
-            favoritesStorage.saveFavorites(favorites)
-        }
-    }
-
-    private func sortFavorites() {
-        favorites.sort { ($0.date ?? "") > ($1.date ?? "") }
-    }
-
-    private func trimCacheIfNeeded() {
-        guard apodData.count > cacheItemLimit else { return }
-        apodData = Array(apodData.suffix(cacheItemLimit))
-        if !apodData.contains(where: { $0.id == currentNasa.id }) {
-            currentNasa = apodData.last ?? .default
-        }
     }
 
     enum FetchError: LocalizedError {
@@ -654,83 +180,5 @@ final class NasaCollectionFetcher: ObservableObject {
                 return L10n.format("error.unknown", default: "Unexpected error: %@", message)
             }
         }
-    }
-}
-
-struct RequestDiagnostic: Identifiable, Sendable {
-    let id = UUID()
-    let timestamp: Date
-    let endpoint: String
-    let statusCode: Int?
-    let result: String
-    let transportError: String?
-    let usedCache: Bool
-}
-
-private enum FixtureScenario: String {
-    case `default`
-    case unsupportedVideo = "unsupported_video"
-    case directVideo = "direct_video"
-    case diagnosticsCycle = "diagnostics_cycle"
-    case dateNavigation = "date_navigation"
-}
-
-protocol FavoritesStorage {
-    func loadFavorites() -> [NASA]
-    func saveFavorites(_ favorites: [NASA])
-}
-
-protocol APODCacheStorage {
-    func loadCachedAPODItems() -> [NASA]
-    func saveCachedAPODItems(_ items: [NASA])
-}
-
-protocol APODService {
-    func data(from url: URL) async throws -> (Data, URLResponse)
-}
-
-struct UserDefaultsFavoritesStorage: FavoritesStorage {
-    private static let key = "nasa.favorite.items.v1"
-
-    func loadFavorites() -> [NASA] {
-        guard
-            let data = UserDefaults.standard.data(forKey: Self.key),
-            let favorites = try? JSONDecoder().decode([NASA].self, from: data)
-        else {
-            return []
-        }
-        return favorites
-    }
-
-    func saveFavorites(_ favorites: [NASA]) {
-        guard let data = try? JSONEncoder().encode(favorites) else { return }
-        UserDefaults.standard.set(data, forKey: Self.key)
-    }
-}
-
-struct UserDefaultsAPODCacheStorage: APODCacheStorage {
-    private static let key = "nasa.apod.cache.items.v1"
-
-    func loadCachedAPODItems() -> [NASA] {
-        guard
-            let data = UserDefaults.standard.data(forKey: Self.key),
-            let items = try? JSONDecoder().decode([NASA].self, from: data)
-        else {
-            return []
-        }
-        return items
-    }
-
-    func saveCachedAPODItems(_ items: [NASA]) {
-        guard let data = try? JSONEncoder().encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: Self.key)
-    }
-}
-
-struct URLSessionAPODService: APODService {
-    let session: URLSession
-
-    func data(from url: URL) async throws -> (Data, URLResponse) {
-        try await session.data(from: url)
     }
 }

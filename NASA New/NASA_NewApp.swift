@@ -4,34 +4,40 @@ import UIKit
 @main
 struct NASA_NewApp: App {
     @StateObject private var fetcher: NasaCollectionFetcher
-    @AppStorage("isDarkMode") var isDarkMode: Bool = true
+    @AppStorage(AppAppearancePolicy.storageKey) private var appearancePreferenceRawValue: String = AppAppearancePreference.system.rawValue
 
     init() {
         AppRuntimeConfiguration.applyDeterministicOverrides()
+        AppAppearancePolicy.migrateLegacyPreferenceIfNeeded()
         let configuredFetcher = NasaCollectionFetcher()
         configuredFetcher.configureFixtureModeIfNeeded()
         _fetcher = StateObject(wrappedValue: configuredFetcher)
     }
+
+    private var appearancePreference: AppAppearancePreference {
+        AppAppearancePolicy.resolvedPreference(from: appearancePreferenceRawValue)
+    }
     
     var body: some Scene {
         WindowGroup {
-            Group {
-                if #available(iOS 16.0, *) {
-                    NavigationStack {
-                        SplashScreenView()
+            AppEnvironmentOverrideContainer(
+                overrides: AppEnvironmentOverrides.current,
+                preferredColorScheme: appearancePreference.preferredColorScheme
+            ) {
+                Group {
+                    if #available(iOS 16.0, *) {
+                        NavigationStack {
+                            SplashScreenView()
+                        }
+                    } else {
+                        NavigationView {
+                            SplashScreenView()
+                        }
+                        .navigationViewStyle(.stack)
                     }
-                } else {
-                    NavigationView {
-                        SplashScreenView()
-                    }
-                    .navigationViewStyle(.stack)
                 }
+                .environmentObject(fetcher)
             }
-            .environmentObject(fetcher)
-            .preferredColorScheme(isDarkMode ? .dark : .light)
-            .accessibilityElement()
-            .accessibilityLabel(L10n.text("NASA APOD App", default: "NASA APOD App"))
-            .accessibilityHint(L10n.text("Displays NASA's Astronomy Picture of the Day with dark/light mode support.", default: "Displays NASA's Astronomy Picture of the Day with dark/light mode support."))
         }
     }
 }

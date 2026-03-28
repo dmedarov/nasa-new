@@ -20,6 +20,29 @@
 		2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
 		2DE45BF528D5163A00B5C13B /* NasaCollectionFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */; };
 		2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BFC28D51CB000B5C13B /* MainView.swift */; };
+		E10000012F80000100000001 /* MainHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000012F80000100000001 /* MainHeaderBar.swift */; };
+		E10000022F80000200000002 /* APODDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000022F80000200000002 /* APODDetailsView.swift */; };
+		E10000032F80000300000003 /* FavoritesSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000032F80000300000003 /* FavoritesSheetView.swift */; };
+		E10000042F80000400000004 /* SettingsSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000042F80000400000004 /* SettingsSheetView.swift */; };
+		E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000052F80000500000005 /* APIRequestFeedbackViews.swift */; };
+		E10000062F80000600000006 /* APODMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000062F80000600000006 /* APODMediaView.swift */; };
+		E10000072F80000700000007 /* MainViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000072F80000700000007 /* MainViewSupport.swift */; };
+		E10000082F80000800000008 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000082F80000800000008 /* NotificationScheduler.swift */; };
+		E10000092F80000900000009 /* NetworkStatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000092F80000900000009 /* NetworkStatusMonitor.swift */; };
+		E100000A2F80000A0000000A /* APODService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000A2F80000A0000000A /* APODService.swift */; };
+		E100000B2F80000B0000000B /* APODStores.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000B2F80000B0000000B /* APODStores.swift */; };
+		E100000C2F80000C0000000C /* APODRequestDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */; };
+		E100000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift */; };
+		E100000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift */; };
+		E100000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift */; };
+		E10000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift */; };
+		F100000A2F81000A0000000A /* APODService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000A2F80000A0000000A /* APODService.swift */; };
+		F100000B2F81000B0000000B /* APODStores.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000B2F80000B0000000B /* APODStores.swift */; };
+		F100000C2F81000C0000000C /* APODRequestDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */; };
+		F100000D2F81000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift */; };
+		F100000E2F81000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift */; };
+		F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift */; };
+		F10000102F81001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -64,6 +87,22 @@
 		2DE45BF228D515C200B5C13B /* NasaModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NasaModel.swift; sourceTree = "<group>"; };
 		2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NasaCollectionFetcher.swift; sourceTree = "<group>"; };
 		2DE45BFC28D51CB000B5C13B /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		E20000012F80000100000001 /* MainHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainHeaderBar.swift; sourceTree = "<group>"; };
+		E20000022F80000200000002 /* APODDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDetailsView.swift; sourceTree = "<group>"; };
+		E20000032F80000300000003 /* FavoritesSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesSheetView.swift; sourceTree = "<group>"; };
+		E20000042F80000400000004 /* SettingsSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheetView.swift; sourceTree = "<group>"; };
+		E20000052F80000500000005 /* APIRequestFeedbackViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequestFeedbackViews.swift; sourceTree = "<group>"; };
+		E20000062F80000600000006 /* APODMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODMediaView.swift; sourceTree = "<group>"; };
+		E20000072F80000700000007 /* MainViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewSupport.swift; sourceTree = "<group>"; };
+		E20000082F80000800000008 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		E20000092F80000900000009 /* NetworkStatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatusMonitor.swift; sourceTree = "<group>"; };
+		E200000A2F80000A0000000A /* APODService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODService.swift; sourceTree = "<group>"; };
+		E200000B2F80000B0000000B /* APODStores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODStores.swift; sourceTree = "<group>"; };
+		E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODRequestDiagnostics.swift; sourceTree = "<group>"; };
+		E200000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+Fetching.swift"; sourceTree = "<group>"; };
+		E200000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+Favorites.swift"; sourceTree = "<group>"; };
+		E200000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+Fixtures.swift"; sourceTree = "<group>"; };
+		E20000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+Diagnostics.swift"; sourceTree = "<group>"; };
 		AA2000012F00000100000001 /* NASA NewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "NASA NewTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA2000022F00000100000001 /* NasaModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NasaModelTests.swift; sourceTree = "<group>"; };
 		AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NasaCollectionFetcherTests.swift; sourceTree = "<group>"; };
@@ -137,8 +176,24 @@
 				2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */,
 				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
 				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
+				E20000072F80000700000007 /* MainViewSupport.swift */,
+				E20000012F80000100000001 /* MainHeaderBar.swift */,
+				E20000022F80000200000002 /* APODDetailsView.swift */,
+				E20000032F80000300000003 /* FavoritesSheetView.swift */,
+				E20000042F80000400000004 /* SettingsSheetView.swift */,
+				E20000052F80000500000005 /* APIRequestFeedbackViews.swift */,
+				E20000062F80000600000006 /* APODMediaView.swift */,
 				D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */,
 				2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */,
+				E200000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift */,
+				E200000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift */,
+				E200000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift */,
+				E20000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift */,
+				E200000A2F80000A0000000A /* APODService.swift */,
+				E200000B2F80000B0000000B /* APODStores.swift */,
+				E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */,
+				E20000082F80000800000008 /* NotificationScheduler.swift */,
+				E20000092F80000900000009 /* NetworkStatusMonitor.swift */,
 				D1A000032F70000300000003 /* APODDateRestoration.swift */,
 				D1A000062F70000600000006 /* MainViewPolicies.swift */,
 				2DE45BF228D515C200B5C13B /* NasaModel.swift */,
@@ -321,15 +376,31 @@
 			buildActionMask = 2147483647;
 			files = (
 				2D97030228D61FBF00800A71 /* ConrtolImageView.swift in Sources */,
+				E10000062F80000600000006 /* APODMediaView.swift in Sources */,
+				E10000022F80000200000002 /* APODDetailsView.swift in Sources */,
+				E100000C2F80000C0000000C /* APODRequestDiagnostics.swift in Sources */,
+				E100000A2F80000A0000000A /* APODService.swift in Sources */,
+				E100000B2F80000B0000000B /* APODStores.swift in Sources */,
 				2D6A37032F5B8F7900953EBA /* Localized.swift in Sources */,
+				E10000032F80000300000003 /* FavoritesSheetView.swift in Sources */,
+				E10000012F80000100000001 /* MainHeaderBar.swift in Sources */,
 				2D9702FE28D5F64600800A71 /* SwiftUIView.swift in Sources */,
 				2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */,
+				E10000072F80000700000007 /* MainViewSupport.swift in Sources */,
 				D1A000092F70000900000009 /* AccessibilityIdentifiers.swift in Sources */,
 				D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */,
 				D1A000072F70000700000007 /* MainViewPolicies.swift in Sources */,
 				2DE45BF328D515C200B5C13B /* NasaModel.swift in Sources */,
+				E10000102F80001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */,
+				E100000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */,
+				E100000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */,
+				E100000F2F80000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
 				2DE45BF528D5163A00B5C13B /* NasaCollectionFetcher.swift in Sources */,
 				2DE45BE528D5157500B5C13B /* NASA_NewApp.swift in Sources */,
+				E10000092F80000900000009 /* NetworkStatusMonitor.swift in Sources */,
+				E10000082F80000800000008 /* NotificationScheduler.swift in Sources */,
+				E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */,
+				E10000042F80000400000004 /* SettingsSheetView.swift in Sources */,
 				2D97030028D6070D00800A71 /* SplashScreenView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -338,7 +409,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F100000C2F81000C0000000C /* APODRequestDiagnostics.swift in Sources */,
+				F100000A2F81000A0000000A /* APODService.swift in Sources */,
+				F100000B2F81000B0000000B /* APODStores.swift in Sources */,
 				AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */,
+				F10000102F81001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */,
+				F100000D2F81000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */,
+				F100000E2F81000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */,
+				F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
 				AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
 				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
 				AA1000052F00000100000001 /* Localized.swift in Sources */,

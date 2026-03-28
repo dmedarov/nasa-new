@@ -3,46 +3,61 @@ import SwiftUI
 struct SplashScreenView: View {
     private enum SplashTiming {
         static let holdForUITest: UInt64 = 4_000_000_000
-        static let fixtureModeDelay: UInt64 = 250_000_000
-        static let successDelay: UInt64 = 1_800_000_000
-        static let errorDelay: UInt64 = 900_000_000
+        static let fixtureModeDelay: UInt64 = 150_000_000
+        static let successDelay: UInt64 = 450_000_000
+        static let errorDelay: UInt64 = 450_000_000
         static let fetchCompletionPollDelay: UInt64 = 50_000_000
         static let maxAdditionalFetchWait: UInt64 = 1_500_000_000
     }
 
     @EnvironmentObject var fetcher: NasaCollectionFetcher
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var isActive = false
-    @State private var size = 0.8
-    @State private var opacity = 0.5
+    @State private var size = 0.94
+    @State private var opacity = 0.0
+
+    private var effectiveReduceMotion: Bool {
+        appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
+    }
     
     var body: some View {
         if isActive {
             MainView()
         } else {
             ZStack {
-                Image("LaunchScreen")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-                
-                VStack {
-                    Image("logo-swift-outlined")
-                    Text(L10n.text("NASA - Picture of The Day", default: "NASA - Picture of The Day"))
-                        .font(AppTheme.Typography.splashTitle)
-                        .foregroundColor(AppTheme.Palette.splashText)
-                        .padding(1)
-                    Text(L10n.text("by", default: "by"))
-                        .font(AppTheme.Typography.splashCaption)
-                        .foregroundColor(AppTheme.Palette.splashText)
-                    Text(L10n.text("Medarov 2022", default: "Medarov 2022"))
-                        .font(AppTheme.Typography.splashCaption)
-                        .foregroundColor(AppTheme.Palette.splashText)
+                SpaceBackdropView()
+                    .accessibilityHidden(true)
+
+                MissionPanel(tone: .accent, padding: AppTheme.Spacing.xxl) {
+                    VStack(spacing: AppTheme.Spacing.md) {
+                        SectionEyebrow(L10n.text("NASA APOD", default: "NASA APOD"), tone: .accent)
+
+                        Image("logo-swift-outlined")
+                            .accessibilityHidden(true)
+
+                        Text(L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day"))
+                            .font(AppTheme.Typography.splashTitle)
+                            .foregroundColor(AppTheme.Palette.splashText)
+                            .multilineTextAlignment(.center)
+
+                        Text(L10n.text("Daily space imagery, editorial context, and source links from NASA’s APOD archive.", default: "Daily space imagery, editorial context, and source links from NASA’s APOD archive."))
+                            .font(AppTheme.Typography.splashCaption)
+                            .foregroundColor(AppTheme.Palette.splashText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: 420)
                 }
                 .scaleEffect(size)
                 .opacity(opacity)
                 .onAppear {
-                    withAnimation(.easeIn(duration: 1.2)) {
-                        size = 0.9
+                    if let animation = AppTheme.Motion.reveal(reduceMotion: effectiveReduceMotion) {
+                        withAnimation(animation) {
+                            size = 1.0
+                            opacity = 1.0
+                        }
+                    } else {
+                        size = 1.0
                         opacity = 1.0
                     }
                 }
@@ -78,7 +93,11 @@ struct SplashScreenView: View {
                     await waitForFetchCompletion()
                 }
                 guard !Task.isCancelled else { return }
-                withAnimation { isActive = true }
+                if let animation = AppTheme.Motion.standard(reduceMotion: effectiveReduceMotion) {
+                    withAnimation(animation) { isActive = true }
+                } else {
+                    isActive = true
+                }
             }
         }
     }
