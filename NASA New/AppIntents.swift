@@ -49,16 +49,8 @@ struct OpenDateAPODIntent: AppIntent {
     var date: Date
 
     func perform() async throws -> some IntentResult {
-        PendingAppRouteStore.save(targetRoute)
+        PendingAppRouteStore.save(SharedAPODContentProvider().route(for: .today, date: date))
         return .result()
-    }
-
-    private var targetRoute: AppRoute {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return AppRoute(destination: .today, apodDate: formatter.string(from: date))
     }
 }
 
@@ -95,6 +87,16 @@ struct NASAAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Saved",
             systemImageName: "bookmark"
+        )
+
+        AppShortcut(
+            intent: OpenDateAPODIntent(),
+            phrases: [
+                "Open an APOD date in \(.applicationName)",
+                "Show an astronomy picture by date in \(.applicationName)"
+            ],
+            shortTitle: "By Date",
+            systemImageName: "calendar"
         )
     }
 }

@@ -6,8 +6,41 @@ struct NotificationSettings: Equatable {
     var hour: Int
     var minute: Int
 
+    init(isEnabled: Bool, hour: Int, minute: Int) {
+        self.isEnabled = isEnabled
+        self.hour = hour
+        self.minute = minute
+    }
+
+    func normalized() -> NotificationSettings {
+        NotificationSettingsPolicy.normalized(
+            isEnabled: isEnabled,
+            hour: hour,
+            minute: minute
+        )
+    }
+
     var dateComponents: DateComponents {
-        DateComponents(hour: hour, minute: minute)
+        NotificationSettingsPolicy.dateComponents(
+            isEnabled: isEnabled,
+            hour: hour,
+            minute: minute
+        )
+    }
+}
+
+enum NotificationSettingsPolicy {
+    static func normalized(isEnabled: Bool, hour: Int, minute: Int) -> NotificationSettings {
+        NotificationSettings(
+            isEnabled: isEnabled,
+            hour: max(0, min(23, hour)),
+            minute: max(0, min(59, minute))
+        )
+    }
+
+    static func dateComponents(isEnabled: Bool, hour: Int, minute: Int) -> DateComponents {
+        let normalizedSettings = normalized(isEnabled: isEnabled, hour: hour, minute: minute)
+        return DateComponents(hour: normalizedSettings.hour, minute: normalizedSettings.minute)
     }
 }
 

@@ -1,31 +1,5 @@
 import SwiftUI
 
-enum NASAAPIKeyConfiguration {
-    static let infoDictionaryKey = "NASA_API_KEY"
-    static let demoKey = "DEMO_KEY"
-
-    static func resolvedAPIKey(
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
-    ) -> String {
-        resolvedValue(from: environment[infoDictionaryKey])
-            ?? resolvedValue(from: infoDictionary[infoDictionaryKey] as? String)
-            ?? demoKey
-    }
-
-    private static func resolvedValue(from rawValue: String?) -> String? {
-        guard let rawValue else { return nil }
-
-        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedValue.isEmpty else { return nil }
-
-        // Ignore unresolved build-setting placeholders if no local secret file is present yet.
-        guard !(trimmedValue.hasPrefix("$(") && trimmedValue.hasSuffix(")")) else { return nil }
-
-        return trimmedValue
-    }
-}
-
 @MainActor
 final class NasaCollectionFetcher: ObservableObject {
     enum Constants {
@@ -58,6 +32,7 @@ final class NasaCollectionFetcher: ObservableObject {
     let apiKey: String
     let calendar: Calendar
     let nowProvider: @Sendable () -> Date
+    let contentProvider: any APODContentProviding
     let favoritesStorage: FavoritesStorage
     let cacheStorage: APODCacheStorage
     let offlineMediaStore: any APODOfflineMediaStore
@@ -66,14 +41,6 @@ final class NasaCollectionFetcher: ObservableObject {
     var offlineMediaSyncTask: Task<Void, Never>?
     var fixtureScenario: FixtureScenario?
     var fixtureFetchCycle = 0
-    let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.isLenient = false
-        return formatter
-    }()
     let retryAfterDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -81,12 +48,11 @@ final class NasaCollectionFetcher: ObservableObject {
         formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
         return formatter
     }()
-    let minimumAPODDate: Date = {
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.locale = Locale(identifier: "en_US_POSIX")
-        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        return utcCalendar.date(from: DateComponents(year: 1995, month: 6, day: 16)) ?? .distantPast
-    }()
+    private static let minimumAPODDateString = "1995-06-16"
+
+    var minimumAPODDate: Date {
+        APODDateCoding.date(from: Self.minimumAPODDateString, calendar: calendar) ?? .distantPast
+    }
 
     var minimumSelectableDate: Date { minimumAPODDate }
 
@@ -108,20 +74,37 @@ final class NasaCollectionFetcher: ObservableObject {
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         favoritesStorage: FavoritesStorage? = nil,
         cacheStorage: APODCacheStorage? = nil,
-        offlineMediaStore: (any APODOfflineMediaStore)? = nil
+        offlineMediaStore: (any APODOfflineMediaStore)? = nil,
+        contentProvider: (any APODContentProviding)? = nil
     ) {
         let defaultLibraryStorage = APODLibraryStoreFactory.makeDefault()
+        let resolvedFavoritesStorage = favoritesStorage ?? defaultLibraryStorage
+        let resolvedCacheStorage = cacheStorage ?? defaultLibraryStorage
+        let resolvedOfflineMediaStore = offlineMediaStore ?? SharedAPODOfflineMediaStore(session: session)
+        let resolvedLibraryStorage = CompositeAPODLibraryStorage(
+            favoritesStorage: resolvedFavoritesStorage,
+            cacheStorage: resolvedCacheStorage
+        )
+
         self.service = URLSessionAPODService(session: session)
         self.apiKey = apiKey
-        self.calendar = calendar
+        self.calendar = APODDateCoding.gregorianCalendar(from: calendar)
         self.nowProvider = nowProvider
-        self.favoritesStorage = favoritesStorage ?? defaultLibraryStorage
-        self.cacheStorage = cacheStorage ?? defaultLibraryStorage
-        self.offlineMediaStore = offlineMediaStore ?? SharedAPODOfflineMediaStore(session: session)
-        self.favorites = self.favoritesStorage.loadFavorites()
+        self.favoritesStorage = resolvedFavoritesStorage
+        self.cacheStorage = resolvedCacheStorage
+        self.offlineMediaStore = resolvedOfflineMediaStore
+        self.contentProvider = contentProvider ?? SharedAPODContentProvider(
+            libraryStorage: resolvedLibraryStorage,
+            apiKey: apiKey,
+            calendar: calendar,
+            nowProvider: nowProvider
+        )
+
+        let librarySnapshot = self.contentProvider.librarySnapshot()
+        self.favorites = librarySnapshot.favorites
         sortFavorites()
 
-        let cachedItems = self.cacheStorage.loadCachedAPODItems()
+        let cachedItems = librarySnapshot.cachedItems
         if !cachedItems.isEmpty {
             self.apodData = cachedItems.sorted { ($0.date ?? "") < ($1.date ?? "") }
             self.currentNasa = self.apodData.last ?? .default
@@ -132,7 +115,7 @@ final class NasaCollectionFetcher: ObservableObject {
         if !isAPIKeyConfigured, ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] != "1" {
             apiKeyWarning = L10n.text(
                 "api.key.warning.unconfigured",
-                default: "NASA_API_KEY is not configured. DEMO_KEY may be rate-limited."
+                default: "NASA_API_KEY is not configured. Space Briefing is using DEMO_KEY, which is shared and may hit rate limits sooner."
             )
         }
 
@@ -142,7 +125,11 @@ final class NasaCollectionFetcher: ObservableObject {
     }
 
     func normalizedDate(_ date: Date) -> Date {
-        calendar.startOfDay(for: max(date, minimumAPODDate))
+        APODDateCoding.normalizedDate(date, minimumDate: minimumAPODDate, calendar: calendar)
+    }
+
+    func apodDateString(from date: Date) -> String {
+        APODDateCoding.apiDateString(from: normalizedDate(date), calendar: calendar)
     }
 
     func isSameAPODDay(_ lhs: Date, _ rhs: Date) -> Bool {

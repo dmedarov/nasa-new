@@ -20,6 +20,27 @@ protocol APODLibraryStateStorage {
 
 typealias APODLibraryStorage = FavoritesStorage & APODCacheStorage
 
+struct CompositeAPODLibraryStorage: APODLibraryStorage {
+    let favoritesStorage: FavoritesStorage
+    let cacheStorage: APODCacheStorage
+
+    func loadFavorites() -> [NASA] {
+        favoritesStorage.loadFavorites()
+    }
+
+    func saveFavorites(_ favorites: [NASA]) {
+        favoritesStorage.saveFavorites(favorites)
+    }
+
+    func loadCachedAPODItems() -> [NASA] {
+        cacheStorage.loadCachedAPODItems()
+    }
+
+    func saveCachedAPODItems(_ items: [NASA]) {
+        cacheStorage.saveCachedAPODItems(items)
+    }
+}
+
 enum APODLibraryStoreFactory {
     static func makeDefault() -> any APODLibraryStorage {
         if usesVolatileStoreForCurrentRuntime {

@@ -55,14 +55,6 @@ struct MainView: View {
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
     private let openArchiveAction: () -> Void
     private let openSavedAction: () -> Void
-    private let sceneStorageDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 
     init(
         openArchiveAction: @escaping () -> Void = {},
@@ -150,7 +142,7 @@ struct MainView: View {
     }
 
     private func persistSelectedDate(_ date: Date) {
-        storedSelectedDateValue = sceneStorageDateFormatter.string(from: date)
+        storedSelectedDateValue = fetcher.apodDateString(from: date)
     }
 
     private var restoredSelectedDate: Date? {
@@ -487,9 +479,10 @@ struct MainView: View {
     private var currentNotificationSettings: NotificationSettings {
         NotificationSettings(
             isEnabled: dailyNotificationsEnabled,
-            hour: max(0, min(23, dailyNotificationHour)),
-            minute: max(0, min(59, dailyNotificationMinute))
+            hour: dailyNotificationHour,
+            minute: dailyNotificationMinute
         )
+        .normalized()
     }
 
     private func refreshNotificationStatus() async {

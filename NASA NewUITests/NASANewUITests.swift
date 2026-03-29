@@ -214,6 +214,20 @@ final class NASANewUITests: XCTestCase {
         return nil
     }
 
+    private func waitForFilterOption(_ title: String, timeout: TimeInterval = 5.0) -> XCUIElement? {
+        let segmentedButton = app.segmentedControls.buttons[title]
+        if segmentedButton.waitForExistence(timeout: min(timeout, 2.0)) {
+            return segmentedButton
+        }
+
+        let button = app.buttons[title]
+        if button.waitForExistence(timeout: timeout) {
+            return button
+        }
+
+        return nil
+    }
+
     private func revealElement(_ target: XCUIElement, maxSwipes: Int = 5) {
         var swipeCount = 0
         while !target.exists && swipeCount < maxSwipes {
@@ -486,6 +500,8 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(app.buttons[UIElementID.jumpToLatestAPODDateButton].waitForExistence(timeout: 5.0))
         navigateBackToEarlierAPODDay()
         let refreshedTodayButton = app.buttons[UIElementID.jumpToLatestAPODDateButton]
+        revealElement(refreshedTodayButton)
+        scrollElementToHittable(refreshedTodayButton)
         XCTAssertTrue(waitForElementToBecomeHittable(refreshedTodayButton, timeout: 5.0))
         attachDebugMarker("TodayButtonReady", details: refreshedTodayButton.debugDescription)
         refreshedTodayButton.tap()
@@ -688,6 +704,89 @@ final class NASANewUITests: XCTestCase {
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
+    }
+
+    func testArchiveFilterPersistsAcrossRelaunch() {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        tapElement(UIElementID.openArchiveButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let imagesFilter = waitForFilterOption("Images") else {
+            XCTFail("Expected archive Images filter to be available")
+            return
+        }
+
+        imagesFilter.tap()
+        XCTAssertTrue(imagesFilter.isSelected)
+
+        app.terminate()
+        app = XCUIApplication()
+        configureLaunchEnvironment(fixtureMode: "date_navigation", resetUserDefaults: false)
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        tapElement(UIElementID.openArchiveButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let persistedImagesFilter = waitForFilterOption("Images") else {
+            XCTFail("Expected archive Images filter to be available after relaunch")
+            return
+        }
+
+        XCTAssertTrue(persistedImagesFilter.isSelected)
+    }
+
+    func testSavedFilterPersistsAcrossRelaunch() {
+        configureLaunchEnvironment()
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD"))
+        guard let favoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button to become available")
+            return
+        }
+
+        scrollElementToHittable(favoriteButton)
+        XCTAssertTrue(waitForElementToBecomeHittable(favoriteButton, timeout: 5.0))
+        favoriteButton.tap()
+        tapElement(UIElementID.openFavoritesButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.favoritesSheetRoot, timeout: 5.0))
+
+        guard let sourceFilter = waitForFilterOption("Source") else {
+            XCTFail("Expected saved Source filter to be available")
+            return
+        }
+
+        sourceFilter.tap()
+        XCTAssertTrue(sourceFilter.isSelected)
+
+        app.terminate()
+        app = XCUIApplication()
+        configureLaunchEnvironment(resetUserDefaults: false)
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        guard let relaunchedFavoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button to be available after relaunch")
+            return
+        }
+
+        scrollElementToHittable(relaunchedFavoriteButton)
+        XCTAssertTrue(waitForElementToBecomeHittable(relaunchedFavoriteButton, timeout: 5.0))
+        relaunchedFavoriteButton.tap()
+        tapElement(UIElementID.openFavoritesButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.favoritesSheetRoot, timeout: 5.0))
+
+        guard let persistedSourceFilter = waitForFilterOption("Source") else {
+            XCTFail("Expected saved Source filter to be available after relaunch")
+            return
+        }
+
+        XCTAssertTrue(persistedSourceFilter.isSelected)
     }
 
     func testLongExplanationAtAccessibilitySizePreservesShareAction() {

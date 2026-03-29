@@ -89,8 +89,8 @@ struct APIRequestStatusBanner: View {
                     eyebrow: L10n.text("Offline Cache", default: "Offline Cache"),
                     systemImage: "wifi.slash",
                     message: effectiveDifferentiateWithoutColor
-                        ? L10n.text("Offline mode. Showing cached APOD content.", default: "Offline mode. Showing cached APOD content.")
-                        : L10n.text("Offline mode: showing cached APOD content.", default: "Offline mode: showing cached APOD content."),
+                        ? L10n.text("Offline mode. Showing cached APOD stories and any saved local media.", default: "Offline mode. Showing cached APOD stories and any saved local media.")
+                        : L10n.text("Offline mode: showing cached APOD stories and any saved local media.", default: "Offline mode: showing cached APOD stories and any saved local media."),
                     tone: .warning,
                     identifier: AccessibilityID.apiOfflineBanner,
                     actionTitle: nil,
@@ -104,8 +104,8 @@ struct APIRequestStatusBanner: View {
                     eyebrow: L10n.text("NASA API Rate Limit", default: "NASA API Rate Limit"),
                     systemImage: "timer",
                     message: effectiveDifferentiateWithoutColor
-                        ? L10n.format("Rate limit warning. Try again at %@", default: "Rate limit warning. Try again at %@", retryTime)
-                        : L10n.format("Rate limited. Try again at %@", default: "Rate limited. Try again at %@", retryTime),
+                        ? L10n.format("Rate limit warning. Try again at %@ or switch to a personal NASA_API_KEY.", default: "Rate limit warning. Try again at %@ or switch to a personal NASA_API_KEY.", retryTime)
+                        : L10n.format("Rate limited. Try again at %@ or switch to a personal NASA_API_KEY.", default: "Rate limited. Try again at %@ or switch to a personal NASA_API_KEY.", retryTime),
                     tone: .warning,
                     identifier: AccessibilityID.apiRateLimitBanner,
                     actionTitle: nil,

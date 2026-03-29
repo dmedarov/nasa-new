@@ -37,6 +37,8 @@ enum AccessibilityID {
     static let favoritesEmptyState = "favoritesEmptyState"
     static let favoritesDoneButton = "favoritesDoneButton"
     static let favoritesSearchField = "favoritesSearchField"
+    static let savedGridLayoutButton = "savedGridLayoutButton"
+    static let savedListLayoutButton = "savedListLayoutButton"
     static let archiveSheetRoot = "archiveSheetRoot"
     static let archiveSearchField = "archiveSearchField"
     static let archiveEmptyState = "archiveEmptyState"

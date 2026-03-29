@@ -2,32 +2,19 @@ import Foundation
 
 extension NasaCollectionFetcher {
     func buildURL(for date: Date? = nil) -> URL? {
-        var components = URLComponents(string: "https://api.nasa.gov/planetary/apod")
-        var queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-
         if let date {
-            queryItems.append(URLQueryItem(name: "date", value: dateFormatter.string(from: normalizedDate(date))))
-        } else {
-            let now = normalizedDate(nowProvider())
-            let endDate = dateFormatter.string(from: now)
-            let startDate = normalizedDate(calendar.date(byAdding: .day, value: -90, to: now) ?? now)
-            let startDateString = dateFormatter.string(from: startDate)
-            queryItems.append(URLQueryItem(name: "start_date", value: startDateString))
-            queryItems.append(URLQueryItem(name: "end_date", value: endDate))
+            return contentProvider.dailyRequestURL(for: normalizedDate(date), includeThumbnails: false)
         }
 
-        components?.queryItems = queryItems
-        return components?.url
+        return contentProvider.latestEntriesRequestURL(windowDayCount: 90)
     }
 
     func buildArchiveRangeURL(startDate: Date, endDate: Date) -> URL? {
-        var components = URLComponents(string: "https://api.nasa.gov/planetary/apod")
-        components?.queryItems = [
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "start_date", value: dateFormatter.string(from: normalizedDate(startDate))),
-            URLQueryItem(name: "end_date", value: dateFormatter.string(from: normalizedDate(endDate)))
-        ]
-        return components?.url
+        contentProvider.archiveRangeURL(
+            startDate: normalizedDate(startDate),
+            endDate: normalizedDate(endDate),
+            includeThumbnails: false
+        )
     }
 
     @available(iOS 15.0, *)
@@ -52,7 +39,7 @@ extension NasaCollectionFetcher {
     @available(iOS 15.0, *)
     func archiveItem(for targetDate: Date, fetchIfNeeded: Bool = true) async -> NASA? {
         let normalizedTargetDate = normalizedDate(targetDate)
-        let targetDateString = dateFormatter.string(from: normalizedTargetDate)
+        let targetDateString = apodDateString(from: normalizedTargetDate)
 
         if let existingItem = apodItem(forAPODDate: targetDateString) {
             return existingItem
@@ -318,7 +305,7 @@ extension NasaCollectionFetcher {
     @available(iOS 15.0, *)
     func fetchArchiveWindow(containing targetDate: Date) async {
         let normalizedTargetDate = normalizedDate(targetDate)
-        let targetDateString = dateFormatter.string(from: normalizedTargetDate)
+        let targetDateString = apodDateString(from: normalizedTargetDate)
 
         if handleFixtureFetchIfNeeded(for: normalizedTargetDate) {
             return
@@ -417,8 +404,7 @@ extension NasaCollectionFetcher {
     }
 
     func date(from value: String?) -> Date? {
-        guard let value else { return nil }
-        return dateFormatter.date(from: value)
+        APODDateCoding.date(from: value, calendar: calendar)
     }
 
     func archiveWindow(containing targetDate: Date, dayCount: Int = Constants.archiveBatchDayCount) -> (startDate: Date, endDate: Date) {

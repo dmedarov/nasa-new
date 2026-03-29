@@ -4,7 +4,7 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct NasaCollectionFetcherTests {
-    private let fixedNow = Date(timeIntervalSince1970: 1_736_467_200) // 2025-01-15T00:00:00Z
+    private let fixedNow = Date(timeIntervalSince1970: 1_736_467_200) // 2025-01-10T00:00:00Z
     private var deterministicCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
@@ -337,6 +337,114 @@ struct NasaCollectionFetcherTests {
 
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(query["date"] == "1995-06-16")
+    }
+
+    @Test
+    func sharedContentProviderBuildsDeterministicRequestURLs() {
+        let provider = SharedAPODContentProvider(
+            libraryStorage: VolatileAPODLibraryStorage(),
+            offlineMediaLoader: InMemoryStoredOfflineMediaLoader(),
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        let dailyURL = provider.dailyRequestURL(for: fixedNow, includeThumbnails: true)
+        let latestURL = provider.latestEntriesRequestURL(windowDayCount: 7)
+        let archiveURL = provider.archiveRangeURL(
+            startDate: deterministicCalendar.date(from: DateComponents(year: 2025, month: 1, day: 1))!,
+            endDate: deterministicCalendar.date(from: DateComponents(year: 2025, month: 1, day: 3))!,
+            includeThumbnails: true
+        )
+
+        let dailyQuery = dailyURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?.queryItems ?? []
+        let latestQuery = latestURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?.queryItems ?? []
+        let archiveQuery = archiveURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?.queryItems ?? []
+
+        #expect(Dictionary(uniqueKeysWithValues: dailyQuery.map { ($0.name, $0.value ?? "") }) == [
+            "api_key": "TEST_KEY",
+            "date": "2025-01-10",
+            "thumbs": "true"
+        ])
+        #expect(Dictionary(uniqueKeysWithValues: latestQuery.map { ($0.name, $0.value ?? "") }) == [
+            "api_key": "TEST_KEY",
+            "start_date": "2025-01-03",
+            "end_date": "2025-01-10"
+        ])
+        #expect(Dictionary(uniqueKeysWithValues: archiveQuery.map { ($0.name, $0.value ?? "") }) == [
+            "api_key": "TEST_KEY",
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-03",
+            "thumbs": "true"
+        ])
+    }
+
+    @Test
+    func sharedContentProviderPrefersFavoriteOnLatestStoredDay() async {
+        let cachedToday = NASA(
+            date: "2025-01-10",
+            explanation: "Cached latest item.",
+            mediaType: .image,
+            title: "Cached Latest",
+            url: URL(string: "https://example.com/cached-latest.jpg")
+        )
+        let favoriteToday = NASA(
+            date: "2025-01-10",
+            explanation: "Favorite latest item.",
+            mediaType: .image,
+            title: "Favorite Latest",
+            url: URL(string: "https://example.com/favorite-latest.jpg")
+        )
+        let provider = SharedAPODContentProvider(
+            libraryStorage: VolatileAPODLibraryStorage(
+                cachedItems: [cachedToday],
+                favorites: [favoriteToday]
+            ),
+            offlineMediaLoader: InMemoryStoredOfflineMediaLoader(
+                records: [
+                    favoriteToday.id: APODStoredOfflineAsset(
+                        localAssetRelativePath: "favorite-latest.jpg",
+                        localPreviewRelativePath: nil,
+                        availabilityRawValue: APODStoredOfflineAvailability.availableOffline.rawValue
+                    )
+                ]
+            ),
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        let latestEntry = await provider.latestStoredEntry()
+        let datedEntry = await provider.storedEntry(forAPODDate: "2025-01-10")
+
+        #expect(latestEntry?.entry.nasa.title == "Favorite Latest")
+        #expect(latestEntry?.entry.isFavorite == true)
+        #expect(latestEntry?.entry.offlineMedia?.availability == .availableOffline)
+        #expect(latestEntry?.freshness == .current)
+        #expect(datedEntry?.nasa.title == "Favorite Latest")
+    }
+
+    @Test
+    func sharedContentProviderMarksOlderStoredEntryAsStale() async {
+        let archivedItem = NASA(
+            date: "2025-01-05",
+            explanation: "Archived item.",
+            mediaType: .image,
+            title: "Archived",
+            url: URL(string: "https://example.com/archived.jpg")
+        )
+        let provider = SharedAPODContentProvider(
+            libraryStorage: VolatileAPODLibraryStorage(cachedItems: [archivedItem]),
+            offlineMediaLoader: InMemoryStoredOfflineMediaLoader(),
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow }
+        )
+
+        let latestEntry = await provider.latestStoredEntry()
+
+        #expect(latestEntry?.entry.nasa.title == "Archived")
+        #expect(latestEntry?.freshness == .stale)
     }
 
     @Test
@@ -1048,6 +1156,18 @@ private final class InMemoryAPODCacheStorage: APODCacheStorage {
 
     func saveCachedAPODItems(_ items: [NASA]) {
         cachedItems = items
+    }
+}
+
+private struct InMemoryStoredOfflineMediaLoader: APODOfflineMediaRecordLoading {
+    let records: [String: APODStoredOfflineAsset]
+
+    init(records: [String: APODStoredOfflineAsset] = [:]) {
+        self.records = records
+    }
+
+    func loadRecords() async -> [String: APODStoredOfflineAsset] {
+        records
     }
 }
 

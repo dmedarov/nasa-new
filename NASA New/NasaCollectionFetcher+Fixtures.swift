@@ -204,7 +204,7 @@ extension NasaCollectionFetcher {
         guard isUsingFixtureData else { return false }
         if fixtureScenario == .dateNavigation {
             if let date,
-               let requestedDate = self.dateFormatter.date(from: self.dateFormatter.string(from: normalizedDate(date))),
+               let requestedDate = self.date(from: self.apodDateString(from: normalizedDate(date))),
                let matchingItem = apodData.first(where: {
                    guard let itemDate = self.date(from: $0.date) else { return false }
                    return calendar.isDate(itemDate, inSameDayAs: requestedDate)
