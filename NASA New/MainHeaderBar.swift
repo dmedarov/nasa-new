@@ -180,7 +180,7 @@ struct MainHeaderBar: View {
         .controlSize(.regular)
         .accessibilityIdentifier(AccessibilityID.openArchiveButton)
         .accessibilityLabel(L10n.text("Browse APOD archive", default: "Browse APOD archive"))
-        .accessibilityHint(L10n.text("Opens the searchable archive of downloaded APOD entries", default: "Opens the searchable archive of downloaded APOD entries"))
+        .accessibilityHint(L10n.text("archive.accessibility.hint", default: "Opens the searchable archive of saved and cached APOD entries."))
     }
 
     private var randomButton: some View {

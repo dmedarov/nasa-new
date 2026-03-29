@@ -52,6 +52,7 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published var cacheItemLimit = Constants.defaultCacheItemLimit
     @Published var isFetchingArchive = false
     @Published var archiveError: FetchError?
+    @Published var offlineMediaAssetsByID = [String: APODOfflineMediaAsset]()
 
     let service: APODService
     let apiKey: String
@@ -59,8 +60,10 @@ final class NasaCollectionFetcher: ObservableObject {
     let nowProvider: @Sendable () -> Date
     let favoritesStorage: FavoritesStorage
     let cacheStorage: APODCacheStorage
+    let offlineMediaStore: any APODOfflineMediaStore
     var activeRequestID = UUID()
     var latestFetchTask: Task<Void, Never>?
+    var offlineMediaSyncTask: Task<Void, Never>?
     var fixtureScenario: FixtureScenario?
     var fixtureFetchCycle = 0
     let dateFormatter: DateFormatter = {
@@ -104,7 +107,8 @@ final class NasaCollectionFetcher: ObservableObject {
         calendar: Calendar = .current,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         favoritesStorage: FavoritesStorage? = nil,
-        cacheStorage: APODCacheStorage? = nil
+        cacheStorage: APODCacheStorage? = nil,
+        offlineMediaStore: (any APODOfflineMediaStore)? = nil
     ) {
         let defaultLibraryStorage = APODLibraryStoreFactory.makeDefault()
         self.service = URLSessionAPODService(session: session)
@@ -113,6 +117,7 @@ final class NasaCollectionFetcher: ObservableObject {
         self.nowProvider = nowProvider
         self.favoritesStorage = favoritesStorage ?? defaultLibraryStorage
         self.cacheStorage = cacheStorage ?? defaultLibraryStorage
+        self.offlineMediaStore = offlineMediaStore ?? SharedAPODOfflineMediaStore(session: session)
         self.favorites = self.favoritesStorage.loadFavorites()
         sortFavorites()
 
@@ -129,6 +134,10 @@ final class NasaCollectionFetcher: ObservableObject {
                 "api.key.warning.unconfigured",
                 default: "NASA_API_KEY is not configured. DEMO_KEY may be rate-limited."
             )
+        }
+
+        Task { [weak self] in
+            await self?.bootstrapOfflineMediaState()
         }
     }
 

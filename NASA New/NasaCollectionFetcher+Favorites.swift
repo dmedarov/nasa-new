@@ -34,12 +34,14 @@ extension NasaCollectionFetcher {
         }
         sortFavorites()
         persistLibraryState()
+        queueOfflineMediaSynchronization(marking: favorites)
     }
 
     func removeFavorite(_ nasa: NASA) {
         guard let index = favorites.firstIndex(where: { $0.id == nasa.id }) else { return }
         favorites.remove(at: index)
         persistLibraryState()
+        queueOfflineMediaSynchronization(marking: favorites)
     }
 
     func selectArchivedItem(_ nasa: NASA) {
@@ -80,18 +82,22 @@ extension NasaCollectionFetcher {
         guard let index = favorites.firstIndex(where: { $0.id == item.id }) else { return }
         favorites[index] = item
         sortFavorites()
+        queueOfflineMediaSynchronization(marking: [item])
     }
 
     func refreshFavoritesFromData(_ items: [NASA]) {
         var didChange = false
+        var refreshedFavorites = [NASA]()
         for item in items {
             if let index = favorites.firstIndex(where: { $0.id == item.id }) {
                 favorites[index] = item
+                refreshedFavorites.append(item)
                 didChange = true
             }
         }
         if didChange {
             sortFavorites()
+            queueOfflineMediaSynchronization(marking: refreshedFavorites)
         }
     }
 

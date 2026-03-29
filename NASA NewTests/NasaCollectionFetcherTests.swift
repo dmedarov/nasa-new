@@ -379,6 +379,75 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func bootstrapOfflineMediaStateMarksSavedImagesAsAvailableOffline() async {
+        let item = NASA(
+            date: "2025-01-20",
+            explanation: "Favorite test item.",
+            mediaType: .image,
+            title: "Favorite APOD",
+            url: URL(string: "https://example.com/favorite.jpg")
+        )
+        let offlineMediaStore = InMemoryOfflineMediaStore()
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(initialFavorites: [item]),
+            cacheStorage: InMemoryAPODCacheStorage(),
+            offlineMediaStore: offlineMediaStore
+        )
+
+        await fetcher.bootstrapOfflineMediaState()
+
+        #expect(fetcher.offlineMediaAsset(for: item)?.availability == .availableOffline)
+        #expect(fetcher.savedOfflineItemCount == 1)
+        #expect(await offlineMediaStore.lastSynchronizedFavoriteIDs() == [item.id])
+    }
+
+    @Test
+    func bootstrapOfflineMediaStateMarksHostedVideosAsPreviewOnly() async {
+        let item = NASA(
+            date: "2025-01-21",
+            explanation: "Hosted video item.",
+            mediaType: .video,
+            title: "Hosted Video",
+            url: URL(string: "https://www.youtube.com/watch?v=example123")
+        )
+        let offlineMediaStore = InMemoryOfflineMediaStore()
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(initialFavorites: [item]),
+            cacheStorage: InMemoryAPODCacheStorage(),
+            offlineMediaStore: offlineMediaStore
+        )
+
+        await fetcher.bootstrapOfflineMediaState()
+
+        #expect(fetcher.offlineMediaAsset(for: item)?.availability == .previewOffline)
+        #expect(fetcher.savedPreviewItemCount == 1)
+    }
+
+    @Test
     func selectingFavoriteUpdatesCurrentNasaAndCollection() {
         let favorite = NASA(
             date: "2025-01-10",
@@ -646,6 +715,65 @@ struct NasaCollectionFetcherTests {
         #expect(fetcher.apodData.contains(where: { $0.title == "Older Archive" }))
         #expect(fetcher.currentNasa.title == "Today")
         #expect(cacheStorage.cachedItems.count == 3)
+    }
+
+    @Test
+    func archiveItemFetchesContextWindowWhenDateIsMissingFromCache() async {
+        let requestedURL = ThreadSafeBox<URL?>(nil)
+        let payload = """
+        [
+            {
+                "date": "2024-12-15",
+                "explanation": "Earlier archive item",
+                "media_type": "image",
+                "title": "Earlier Archive",
+                "url": "https://example.com/earlier.jpg"
+            },
+            {
+                "date": "2024-12-16",
+                "explanation": "Target archive item",
+                "media_type": "image",
+                "title": "Target Archive",
+                "url": "https://example.com/target.jpg"
+            }
+        ]
+        """.data(using: .utf8)!
+        let session = makeSession { request in
+            requestedURL.set(request.url)
+            let responseURL = request.url ?? URL(string: "https://example.com/fallback")!
+            let response = HTTPURLResponse(url: responseURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, payload)
+        }
+        let fetcher = NasaCollectionFetcher(
+            session: session,
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(),
+            cacheStorage: InMemoryAPODCacheStorage()
+        )
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        let targetDate = formatter.date(from: "2024-12-16")!
+
+        let item = await fetcher.archiveItem(for: targetDate)
+
+        #expect(item?.date == "2024-12-16")
+        #expect(fetcher.currentNasa.date == "2024-12-16")
+        #expect(fetcher.apodData.contains(where: { $0.date == "2024-12-16" }))
+
+        guard let url = requestedURL.get(), let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            Issue.record("Expected a request URL to be captured.")
+            return
+        }
+
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        let expectedWindow = fetcher.archiveWindow(containing: targetDate)
+        #expect(query["start_date"] == formatter.string(from: expectedWindow.startDate))
+        #expect(query["end_date"] == formatter.string(from: expectedWindow.endDate))
     }
 
     @Test
@@ -920,5 +1048,50 @@ private final class InMemoryAPODCacheStorage: APODCacheStorage {
 
     func saveCachedAPODItems(_ items: [NASA]) {
         cachedItems = items
+    }
+}
+
+private actor InMemoryOfflineMediaStore: APODOfflineMediaStore {
+    private var records: [String: APODOfflineMediaAsset] = [:]
+    private var synchronizedFavoriteIDs = [String]()
+
+    func loadRecords() async -> [String: APODOfflineMediaAsset] {
+        records
+    }
+
+    func synchronizeFavorites(
+        _ favorites: [NASA],
+        preferences: APODOfflineMediaPreferences
+    ) async -> [String: APODOfflineMediaAsset] {
+        synchronizedFavoriteIDs = favorites.map(\.id)
+        let favoriteIDs = Set(favorites.map(\.id))
+        records = records.filter { favoriteIDs.contains($0.key) }
+
+        for favorite in favorites {
+            let availability: APODOfflineMediaAvailability
+            if favorite.mediaType == .video,
+               favorite.url?.absoluteString.contains("youtube.com") == true {
+                availability = .previewOffline
+            } else {
+                availability = .availableOffline
+            }
+
+            records[favorite.id] = APODOfflineMediaAsset(
+                apodID: favorite.id,
+                mediaType: favorite.mediaType,
+                remoteSourceURL: favorite.url ?? favorite.hdurl,
+                localAssetRelativePath: availability == .availableOffline ? "\(favorite.id)-asset" : nil,
+                localPreviewRelativePath: availability == .previewOffline ? "\(favorite.id)-preview" : nil,
+                availability: availability,
+                byteCount: 1024,
+                updatedAt: Date()
+            )
+        }
+
+        return records
+    }
+
+    func lastSynchronizedFavoriteIDs() -> [String] {
+        synchronizedFavoriteIDs
     }
 }

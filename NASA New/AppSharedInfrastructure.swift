@@ -11,6 +11,25 @@ enum AppGroupConfiguration {
         UserDefaults(suiteName: identifier) ?? .standard
     }
 
+    static var sharedContainerURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
+    }
+
+    static var sharedOfflineMediaDirectoryURL: URL {
+        if let sharedContainerURL {
+            return sharedContainerURL.appendingPathComponent("OfflineMedia", isDirectory: true)
+        }
+
+        let fallbackBaseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return fallbackBaseURL.appendingPathComponent("NASAOfflineMedia", isDirectory: true)
+    }
+
+    static func sharedFileURL(for relativePath: String?) -> URL? {
+        guard let relativePath, !relativePath.isEmpty else { return nil }
+        return sharedOfflineMediaDirectoryURL.appendingPathComponent(relativePath, isDirectory: false)
+    }
+
     static func resetSharedUserDefaults() {
         guard let sharedDefaults = UserDefaults(suiteName: identifier) else { return }
         sharedDefaults.removePersistentDomain(forName: identifier)

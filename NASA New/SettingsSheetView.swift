@@ -325,7 +325,7 @@ struct SettingsSheetView: View {
                             Text(String(cacheItemLimit))
                         }
                     }
-                    Text(L10n.text("Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media.", default: "Controls how many APOD entries stay available offline while Data Saver continues to favor lower-bandwidth media."))
+                    Text(L10n.text("storage.archive_limit.description", default: "Controls how many APOD records stay on device. Saved images and supported media are downloaded separately for offline use when available."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }

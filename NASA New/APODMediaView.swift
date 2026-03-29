@@ -3,6 +3,7 @@ import AVKit
 import YouTubePlayerKit
 
 struct MediaView: View {
+    @EnvironmentObject private var fetcher: NasaCollectionFetcher
     let nasa: NASA
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
@@ -69,6 +70,31 @@ struct MediaView: View {
             return true
         }
         return isOnWiFiConnection
+    }
+
+    private var isSaved: Bool {
+        fetcher.isFavorite(nasa)
+    }
+
+    private var offlineMediaAsset: APODOfflineMediaAsset? {
+        fetcher.offlineMediaAsset(for: nasa)
+    }
+
+    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
+        APODOfflineMediaStatusPolicy.presentation(
+            for: nasa,
+            asset: offlineMediaAsset,
+            isSaved: isSaved
+        )
+    }
+
+    private var localImage: Image? {
+        APODLocalMediaImageLoader.image(from: offlineMediaAsset?.localAssetURL)
+    }
+
+    private var localVideoURL: URL? {
+        guard offlineMediaAsset?.availability == .availableOffline else { return nil }
+        return offlineMediaAsset?.localAssetURL
     }
 
     private var imagePanGesture: some Gesture {
@@ -153,7 +179,12 @@ struct MediaView: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let preferredImageURL {
+        if let localImage {
+            mediaHero(tone: .accent) {
+                interactiveImageView(localImage)
+                    .frame(maxWidth: .infinity, minHeight: 300)
+            }
+        } else if let preferredImageURL {
             AsyncImage(url: preferredImageURL) { phase in
                 if let image = phase.image {
                     mediaHero(tone: .accent) {
@@ -231,6 +262,8 @@ struct MediaView: View {
                 EmptyView()
             }
             .accessibilityIdentifier(AccessibilityID.videoDisabledMessage)
+        } else if let localVideoURL, supportsInlineDirectVideo(localVideoURL) {
+            directVideoHero(for: localVideoURL, autoplay: true, showsAutoplayBadge: false)
         } else if let videoID = extractYouTubeID(nasa.url) {
             let player = YouTubePlayer(source: .video(id: videoID))
             mediaHero(tone: .accent) {
@@ -254,48 +287,7 @@ struct MediaView: View {
                     }
             }
         } else if let videoURL = nasa.url, supportsInlineDirectVideo(videoURL) {
-            mediaHero(tone: .accent) {
-                ZStack(alignment: .bottomLeading) {
-                    VideoPlayer(player: directVideoPlayer)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .frame(height: 320)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
-                        .padding(AppTheme.Spacing.sm)
-                        .task(id: videoURL) {
-                            configureDirectVideoPlayer(for: videoURL, autoplay: shouldAutoplayVideo)
-                        }
-                        .onDisappear {
-                            directVideoPlayer?.pause()
-                            directVideoPlayer = nil
-                        }
-
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .allowsHitTesting(false)
-                        .accessibilityElement()
-                        .accessibilityIdentifier(AccessibilityID.directVideoPlayer)
-                        .accessibilityLabel(nasa.title ?? L10n.text("Direct video player", default: "Direct video player"))
-                        .accessibilityHint(L10n.text("Plays this APOD video inline in the app.", default: "Plays this APOD video inline in the app."))
-                        .accessibilityValue(
-                            shouldAutoplayVideo
-                                ? (wifiOnlyVideoAutoplay
-                                    ? L10n.text("Autoplay allowed on Wi-Fi", default: "Autoplay allowed on Wi-Fi")
-                                    : L10n.text("Autoplay allowed on any network", default: "Autoplay allowed on any network"))
-                                : L10n.text("Autoplay paused on non-Wi-Fi network.", default: "Autoplay paused on non-Wi-Fi network.")
-                        )
-
-                    if wifiOnlyVideoAutoplay && !isOnWiFiConnection {
-                        MissionBadge(
-                            title: L10n.text("video.autoplay_paused_off_wifi", default: "Autoplay paused on non-Wi-Fi network."),
-                            systemImage: "pause.circle.fill",
-                            tone: .warning
-                        )
-                        .padding(AppTheme.Spacing.md)
-                        .accessibilityIdentifier(AccessibilityID.videoAutoplayPausedBadge)
-                    }
-                }
-            }
+            directVideoHero(for: videoURL, autoplay: shouldAutoplayVideo, showsAutoplayBadge: true)
         } else {
             MediaPlaceholderCard(
                 eyebrow: L10n.text("Video Fallback", default: "Video Fallback"),
@@ -330,6 +322,55 @@ struct MediaView: View {
         }
     }
 
+    @ViewBuilder
+    private func directVideoHero(
+        for videoURL: URL,
+        autoplay: Bool,
+        showsAutoplayBadge: Bool
+    ) -> some View {
+        mediaHero(tone: .accent) {
+            ZStack(alignment: .bottomLeading) {
+                VideoPlayer(player: directVideoPlayer)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(height: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
+                    .padding(AppTheme.Spacing.sm)
+                    .task(id: videoURL) {
+                        configureDirectVideoPlayer(for: videoURL, autoplay: autoplay)
+                    }
+                    .onDisappear {
+                        directVideoPlayer?.pause()
+                        directVideoPlayer = nil
+                    }
+
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(false)
+                    .accessibilityElement()
+                    .accessibilityIdentifier(AccessibilityID.directVideoPlayer)
+                    .accessibilityLabel(nasa.title ?? L10n.text("Direct video player", default: "Direct video player"))
+                    .accessibilityHint(L10n.text("Plays this APOD video inline in the app.", default: "Plays this APOD video inline in the app."))
+                    .accessibilityValue(
+                        autoplay
+                            ? (showsAutoplayBadge && wifiOnlyVideoAutoplay
+                                ? L10n.text("Autoplay allowed on Wi-Fi", default: "Autoplay allowed on Wi-Fi")
+                                : L10n.text("Autoplay allowed on any network", default: "Autoplay allowed on any network"))
+                            : L10n.text("Autoplay paused on non-Wi-Fi network.", default: "Autoplay paused on non-Wi-Fi network.")
+                    )
+
+                if showsAutoplayBadge && wifiOnlyVideoAutoplay && !isOnWiFiConnection {
+                    MissionBadge(
+                        title: L10n.text("video.autoplay_paused_off_wifi", default: "Autoplay paused on non-Wi-Fi network."),
+                        systemImage: "pause.circle.fill",
+                        tone: .warning
+                    )
+                    .padding(AppTheme.Spacing.md)
+                    .accessibilityIdentifier(AccessibilityID.videoAutoplayPausedBadge)
+                }
+            }
+        }
+    }
     @ViewBuilder
     private var unsupportedMediaContent: some View {
         MediaPlaceholderCard(
@@ -392,6 +433,14 @@ struct MediaView: View {
                                 tone: shouldAutoplayVideo ? .neutral : .warning
                             )
                         }
+
+                        if let offlineStatusPresentation {
+                            MissionBadge(
+                                title: offlineStatusPresentation.title,
+                                systemImage: offlineStatusPresentation.systemImage,
+                                tone: offlineStatusPresentation.tone
+                            )
+                        }
                     }
                     .padding(AppTheme.Spacing.md)
                 }
@@ -424,6 +473,13 @@ struct MediaView: View {
                 .font(AppTheme.Typography.subheadline)
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let offlineStatusPresentation {
+                Text(offlineStatusPresentation.detail)
+                    .font(AppTheme.Typography.footnoteStrong)
+                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let mediaInteractionHint {
                 Text(mediaInteractionHint)

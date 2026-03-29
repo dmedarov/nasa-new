@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct APODDetailsView: View {
+    @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
@@ -89,6 +90,14 @@ struct APODDetailsView: View {
 
     private var preferredMediaHostLabel: String? {
         APODSourceLinkPolicy.hostLabel(for: preferredMediaSourceURL)
+    }
+
+    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
+        APODOfflineMediaStatusPolicy.presentation(
+            for: nasa,
+            asset: fetcher.offlineMediaAsset(for: nasa),
+            isSaved: isFavorite
+        )
     }
 
     var body: some View {
@@ -202,6 +211,14 @@ struct APODDetailsView: View {
                         title: L10n.text("Saved", default: "Saved"),
                         systemImage: "bookmark.fill",
                         tone: .favorite
+                    )
+                }
+
+                if let offlineStatusPresentation {
+                    APODMetadataBadge(
+                        title: offlineStatusPresentation.title,
+                        systemImage: offlineStatusPresentation.systemImage,
+                        tone: offlineStatusPresentation.tone
                     )
                 }
 

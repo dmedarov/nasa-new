@@ -40,6 +40,8 @@
 		E10000142F80001400000014 /* APODReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000142F80001400000014 /* APODReaderView.swift */; };
 		E10000152F80001500000015 /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000152F80001500000015 /* AppIntents.swift */; };
 		E10000162F80001600000016 /* AppSharedInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000162F80001600000016 /* AppSharedInfrastructure.swift */; };
+		E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
+		E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
 		E30010012F80010100000001 /* NASA_New_Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30020012F80020100000001 /* NASA_New_Widget.swift */; };
 		E30010022F80010200000002 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DCCE8DE2F77CE82009C8476 /* Localizable.strings */; };
 		E30010032F80010300000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E30020042F80020400000004 /* PrivacyInfo.xcprivacy */; };
@@ -58,6 +60,8 @@
 		F10000112F81001100000011 /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000112F80001100000011 /* AppRouter.swift */; };
 		F10000122F81001200000012 /* AppDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000122F80001200000012 /* AppDiscovery.swift */; };
 		F10000132F81001300000013 /* AppSharedInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000162F80001600000016 /* AppSharedInfrastructure.swift */; };
+		F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
+		F10000152F81001500000015 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -147,6 +151,8 @@
 		E20000142F80001400000014 /* APODReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODReaderView.swift; sourceTree = "<group>"; };
 		E20000152F80001500000015 /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
 		E20000162F80001600000016 /* AppSharedInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSharedInfrastructure.swift; sourceTree = "<group>"; };
+		E20000172F80001700000017 /* APODOfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODOfflineMedia.swift; sourceTree = "<group>"; };
+		E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+OfflineMedia.swift"; sourceTree = "<group>"; };
 		E30020012F80020100000001 /* NASA_New_Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_New_Widget.swift; sourceTree = "<group>"; };
 		E30020022F80020200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E30020042F80020400000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -240,11 +246,13 @@
 				E20000112F80001100000011 /* AppRouter.swift */,
 				E20000122F80001200000012 /* AppDiscovery.swift */,
 				E20000132F80001300000013 /* AppShellView.swift */,
-				E20000142F80001400000014 /* APODReaderView.swift */,
-				E20000152F80001500000015 /* AppIntents.swift */,
-				E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
-				E200000A2F80000A0000000A /* APODService.swift */,
-				E200000B2F80000B0000000B /* APODStores.swift */,
+					E20000142F80001400000014 /* APODReaderView.swift */,
+					E20000152F80001500000015 /* AppIntents.swift */,
+					E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
+					E20000172F80001700000017 /* APODOfflineMedia.swift */,
+					E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */,
+					E200000A2F80000A0000000A /* APODService.swift */,
+					E200000B2F80000B0000000B /* APODStores.swift */,
 				E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */,
 				E20000082F80000800000008 /* NotificationScheduler.swift */,
 				E20000092F80000900000009 /* NetworkStatusMonitor.swift */,
@@ -502,8 +510,10 @@
 				2DE45BE528D5157500B5C13B /* NASA_NewApp.swift in Sources */,
 				E10000092F80000900000009 /* NetworkStatusMonitor.swift in Sources */,
 				E10000082F80000800000008 /* NotificationScheduler.swift in Sources */,
-				E10000132F80001300000013 /* AppShellView.swift in Sources */,
-				E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */,
+					E10000132F80001300000013 /* AppShellView.swift in Sources */,
+					E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */,
+					E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */,
+					E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */,
 				E10000042F80000400000004 /* SettingsSheetView.swift in Sources */,
 				2D97030028D6070D00800A71 /* SplashScreenView.swift in Sources */,
 			);
@@ -531,14 +541,16 @@
 				F10000122F81001200000012 /* AppDiscovery.swift in Sources */,
 				F10000132F81001300000013 /* AppSharedInfrastructure.swift in Sources */,
 				AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */,
-				F10000102F81001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */,
-				F100000D2F81000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */,
-				F100000E2F81000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */,
-				F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
-				AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
-				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
-				AA1000062F00000100000006 /* AppRouterTests.swift in Sources */,
-				AA1000052F00000100000001 /* Localized.swift in Sources */,
+					F10000102F81001000000010 /* NasaCollectionFetcher+Diagnostics.swift in Sources */,
+					F100000D2F81000D0000000D /* NasaCollectionFetcher+Fetching.swift in Sources */,
+					F100000E2F81000E0000000E /* NasaCollectionFetcher+Favorites.swift in Sources */,
+					F10000152F81001500000015 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */,
+					F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
+					AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
+					2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
+					AA1000062F00000100000006 /* AppRouterTests.swift in Sources */,
+					F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */,
+					AA1000052F00000100000001 /* Localized.swift in Sources */,
 				D1A000052F70000500000005 /* APODDateRestoration.swift in Sources */,
 				D1A000082F70000800000008 /* MainViewPolicies.swift in Sources */,
 				AA1000032F00000100000001 /* NasaModel.swift in Sources */,
