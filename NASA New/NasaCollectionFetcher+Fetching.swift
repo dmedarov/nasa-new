@@ -49,6 +49,21 @@ extension NasaCollectionFetcher {
         }
     }
 
+    @available(iOS 15.0, *)
+    func archiveItem(for targetDate: Date, fetchIfNeeded: Bool = true) async -> NASA? {
+        let normalizedTargetDate = normalizedDate(targetDate)
+        let targetDateString = dateFormatter.string(from: normalizedTargetDate)
+
+        if let existingItem = apodItem(forAPODDate: targetDateString) {
+            return existingItem
+        }
+
+        guard fetchIfNeeded else { return nil }
+
+        await fetchArchiveWindow(containing: normalizedTargetDate)
+        return apodItem(forAPODDate: targetDateString)
+    }
+
     func prefetchArchiveIfNeeded(targetItemCount: Int = 180) {
         guard !isUsingFixtureData else { return }
         guard !isFetchingArchive else { return }
@@ -300,9 +315,140 @@ extension NasaCollectionFetcher {
         }
     }
 
+    @available(iOS 15.0, *)
+    func fetchArchiveWindow(containing targetDate: Date) async {
+        let normalizedTargetDate = normalizedDate(targetDate)
+        let targetDateString = dateFormatter.string(from: normalizedTargetDate)
+
+        if handleFixtureFetchIfNeeded(for: normalizedTargetDate) {
+            return
+        }
+
+        guard !isFetchingArchive else { return }
+
+        let window = archiveWindow(containing: normalizedTargetDate)
+        guard let url = buildArchiveRangeURL(startDate: window.startDate, endDate: window.endDate) else {
+            archiveError = .badRequest
+            return
+        }
+
+        isFetchingArchive = true
+        archiveError = nil
+        lastRequestDate = nowProvider()
+        defer { isFetchingArchive = false }
+
+        do {
+            let (data, response) = try await service.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw FetchError.invalidResponse
+            }
+            lastStatusCode = httpResponse.statusCode
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if httpResponse.statusCode == 429 {
+                    rateLimitRetryDate = retryAfterDate(from: httpResponse, referenceDate: nowProvider())
+                }
+                throw FetchError.httpStatus(httpResponse.statusCode)
+            }
+
+            let decoded = try JSONDecoder().decode([NASA].self, from: data)
+                .sorted { ($0.date ?? "") < ($1.date ?? "") }
+            guard !decoded.isEmpty else {
+                throw FetchError.emptyResponse
+            }
+
+            mergeAPODItems(decoded)
+            currentNasa = apodItem(forAPODDate: targetDateString) ?? currentNasa
+            isUsingCachedData = false
+            appendDiagnostic(
+                endpoint: sanitizedEndpoint(from: url),
+                statusCode: httpResponse.statusCode,
+                result: "success",
+                transportError: nil,
+                usedCache: false
+            )
+        } catch let fetchError as FetchError {
+            archiveError = fetchError
+            appendDiagnostic(
+                endpoint: sanitizedEndpoint(from: url),
+                statusCode: lastStatusCode,
+                result: "failure",
+                transportError: fetchError.localizedDescription,
+                usedCache: !apodData.isEmpty
+            )
+        } catch let urlError as URLError {
+            if urlError.code == .cancelled { return }
+            archiveError = .network(urlError)
+            lastTransportError = urlError.localizedDescription
+            appendDiagnostic(
+                endpoint: sanitizedEndpoint(from: url),
+                statusCode: nil,
+                result: "failure",
+                transportError: urlError.localizedDescription,
+                usedCache: !apodData.isEmpty
+            )
+        } catch let decodeError as DecodingError {
+            archiveError = .decoding(decodeError)
+            lastTransportError = L10n.text(
+                "api.payload.decode_failed",
+                default: "Failed to decode NASA API payload."
+            )
+            appendDiagnostic(
+                endpoint: sanitizedEndpoint(from: url),
+                statusCode: lastStatusCode,
+                result: "failure",
+                transportError: L10n.text(
+                    "api.payload.decode_failed",
+                    default: "Failed to decode NASA API payload."
+                ),
+                usedCache: !apodData.isEmpty
+            )
+        } catch {
+            archiveError = .unknown(error.localizedDescription)
+            lastTransportError = error.localizedDescription
+            appendDiagnostic(
+                endpoint: sanitizedEndpoint(from: url),
+                statusCode: lastStatusCode,
+                result: "failure",
+                transportError: error.localizedDescription,
+                usedCache: !apodData.isEmpty
+            )
+        }
+    }
+
     func date(from value: String?) -> Date? {
         guard let value else { return nil }
         return dateFormatter.date(from: value)
+    }
+
+    func archiveWindow(containing targetDate: Date, dayCount: Int = Constants.archiveBatchDayCount) -> (startDate: Date, endDate: Date) {
+        let normalizedTargetDate = normalizedDate(targetDate)
+        let clampedTargetDate = min(max(normalizedTargetDate, minimumSelectableDate), maximumSelectableDate)
+        let safeDayCount = max(1, dayCount)
+        let daysBeforeTarget = max(0, (safeDayCount - 1) / 2)
+        let daysAfterTarget = safeDayCount - 1 - daysBeforeTarget
+
+        var startDate = calendar.date(byAdding: .day, value: -daysBeforeTarget, to: clampedTargetDate) ?? clampedTargetDate
+        var endDate = calendar.date(byAdding: .day, value: daysAfterTarget, to: clampedTargetDate) ?? clampedTargetDate
+
+        startDate = normalizedDate(max(startDate, minimumSelectableDate))
+        endDate = normalizedDate(min(endDate, maximumSelectableDate))
+
+        let currentSpan = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        let missingDays = max(0, safeDayCount - 1 - currentSpan)
+
+        if missingDays > 0 {
+            let expandedStart = calendar.date(byAdding: .day, value: -missingDays, to: startDate) ?? startDate
+            let expandedEnd = calendar.date(byAdding: .day, value: missingDays, to: endDate) ?? endDate
+
+            if startDate == minimumSelectableDate {
+                endDate = normalizedDate(min(expandedEnd, maximumSelectableDate))
+            } else {
+                startDate = normalizedDate(max(expandedStart, minimumSelectableDate))
+            }
+        }
+
+        return (startDate, endDate)
     }
 
     func applyCacheItemLimit(_ limit: Int) {
