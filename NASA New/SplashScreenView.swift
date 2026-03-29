@@ -47,10 +47,7 @@ struct SplashScreenView: View {
                             .multilineTextAlignment(.center)
 
                         Text(
-                            L10n.text(
-                                "brand.independent_notice",
-                                default: "Independent app using NASA's public APOD service. Not affiliated with or endorsed by NASA."
-                            )
+                            AppBrandingPolicy.independentNotice()
                         )
                         .font(AppTheme.Typography.metadata)
                         .foregroundColor(AppTheme.Palette.splashText.opacity(0.78))

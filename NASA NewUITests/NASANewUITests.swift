@@ -19,6 +19,8 @@ final class NASANewUITests: XCTestCase {
         static let settingsCloseButton = "settingsCloseButton"
         static let followSystemAppearanceToggle = "followSystemAppearanceToggle"
         static let darkModeToggle = "darkModeToggle"
+        static let notificationEducationText = "notificationEducationText"
+        static let aboutSourceRightsPanel = "aboutSourceRightsPanel"
         static let favoritesSheetRoot = "favoritesSheetRoot"
         static let favoritesEmptyState = "favoritesEmptyState"
         static let favoritesSearchField = "favoritesSearchField"
@@ -555,6 +557,30 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[UIElementID.lowDataModeValue].label.contains("Yes"))
     }
 
+    func testSettingsShowsNotificationGuidanceAndAboutPanel() {
+        configureLaunchEnvironment()
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        tapElement(UIElementID.openSettingsButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
+
+        let notificationEducation = element(UIElementID.notificationEducationText)
+        revealElement(notificationEducation)
+        XCTAssertTrue(notificationEducation.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(
+            waitForLabelContaining(
+                notificationEducation,
+                substring: "gentle daily reminder",
+                timeout: 5.0
+            )
+        )
+
+        let aboutPanel = element(UIElementID.aboutSourceRightsPanel)
+        revealElement(aboutPanel)
+        XCTAssertTrue(aboutPanel.waitForExistence(timeout: 5.0))
+    }
+
     func testDataSaverDisablesAndClearsHDImagePreference() {
         launchAndWaitForMainView(dataSaverMode: false, preferHDImages: true)
         let controls = openSettingsAndRevealDataSaverControls()
@@ -617,15 +643,19 @@ final class NASANewUITests: XCTestCase {
 
         if let searchField = waitForFavoritesSearchInput(timeout: 2.0) {
             searchField.tap()
-            searchField.typeText("Fixture")
+            searchField.typeText("Fixture\n")
         } else {
             attachDebugMarker("FavoritesSearchUnavailable", details: "Search input was not exposed by the simulator accessibility hierarchy; continuing with row/delete validation.")
         }
 
         let favoriteRow = element(UIElementID.favoriteRow(date: "2025-01-15"))
+        revealElement(favoriteRow)
         XCTAssertTrue(favoriteRow.waitForExistence(timeout: 5.0))
+        scrollElementToHittable(favoriteRow)
+        XCTAssertTrue(waitForElementToBecomeHittable(favoriteRow, timeout: 5.0))
         favoriteRow.swipeLeft()
         let deleteButton = element(UIElementID.favoriteDeleteAction(date: "2025-01-15"))
+        revealElement(deleteButton)
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 3.0))
         deleteButton.tap()
 
@@ -648,10 +678,13 @@ final class NASANewUITests: XCTestCase {
         }
 
         searchField.tap()
-        searchField.typeText("2025-01-14")
+        searchField.typeText("2025-01-14\n")
 
         let archiveRow = element(UIElementID.archiveRow(date: "2025-01-14"))
+        revealElement(archiveRow)
         XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        scrollElementToHittable(archiveRow)
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))

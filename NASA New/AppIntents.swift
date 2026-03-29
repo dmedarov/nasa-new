@@ -6,7 +6,7 @@ import AppIntents
 @available(iOS 16.0, *)
 struct OpenTodayAPODIntent: AppIntent {
     static var title: LocalizedStringResource = "Open Today"
-    static var description = IntentDescription("Open the current APOD briefing.")
+    static var description = IntentDescription("Open today's APOD briefing in Space Briefing.")
     static var openAppWhenRun: Bool { true }
 
     func perform() async throws -> some IntentResult {
@@ -18,7 +18,7 @@ struct OpenTodayAPODIntent: AppIntent {
 @available(iOS 16.0, *)
 struct OpenArchiveIntent: AppIntent {
     static var title: LocalizedStringResource = "Open Archive"
-    static var description = IntentDescription("Open the APOD archive browser.")
+    static var description = IntentDescription("Open the APOD archive browser in Space Briefing.")
     static var openAppWhenRun: Bool { true }
 
     func perform() async throws -> some IntentResult {
@@ -30,7 +30,7 @@ struct OpenArchiveIntent: AppIntent {
 @available(iOS 16.0, *)
 struct OpenSavedIntent: AppIntent {
     static var title: LocalizedStringResource = "Open Saved"
-    static var description = IntentDescription("Open the saved APOD collection.")
+    static var description = IntentDescription("Open the saved APOD collection in Space Briefing.")
     static var openAppWhenRun: Bool { true }
 
     func perform() async throws -> some IntentResult {
@@ -42,7 +42,7 @@ struct OpenSavedIntent: AppIntent {
 @available(iOS 16.0, *)
 struct OpenDateAPODIntent: AppIntent {
     static var title: LocalizedStringResource = "Open APOD by Date"
-    static var description = IntentDescription("Open a specific APOD date in the app.")
+    static var description = IntentDescription("Open a specific APOD date in Space Briefing.")
     static var openAppWhenRun: Bool { true }
 
     @Parameter(title: "Date")

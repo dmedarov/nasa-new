@@ -608,3 +608,90 @@ struct MissionStateCard<Actions: View>: View {
         .accessibilityElement(children: .contain)
     }
 }
+
+struct AboutSourceRightsPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let sourceURL: URL?
+    let sourceTitle: String
+    let sourceSummary: String
+    let tone: AppTheme.SurfaceTone
+
+    init(
+        sourceURL: URL?,
+        sourceTitle: String = AppBrandingPolicy.officialSourceLinkTitle(),
+        sourceSummary: String = AppBrandingPolicy.officialSourceLinkSummary(),
+        tone: AppTheme.SurfaceTone = .neutral
+    ) {
+        self.sourceURL = sourceURL
+        self.sourceTitle = sourceTitle
+        self.sourceSummary = sourceSummary
+        self.tone = tone
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    var body: some View {
+        MissionPanel(tone: tone, padding: AppTheme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                SectionEyebrow(AppBrandingPolicy.compliancePanelEyebrow(), tone: tone)
+
+                Text(AppBrandingPolicy.compliancePanelTitle())
+                    .font(AppTheme.Typography.sectionTitle)
+                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Text(AppBrandingPolicy.independentNotice())
+                    Text(AppBrandingPolicy.dataSourceNotice())
+                    Text(AppBrandingPolicy.rightsGuidance())
+                }
+                .font(AppTheme.Typography.footnote)
+                .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+
+                if let sourceURL {
+                    Link(destination: sourceURL) {
+                        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+                            Image(systemName: "arrow.up.forward.square")
+                                .foregroundStyle(AppTheme.toneColor(tone, isDarkMode: isDarkMode))
+                                .accessibilityHidden(true)
+
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
+                                Text(sourceTitle)
+                                    .font(AppTheme.Typography.actionLabel)
+                                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+
+                                Text(sourceSummary)
+                                    .font(AppTheme.Typography.footnote)
+                                    .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(AppTheme.Spacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
+                                .fill(AppTheme.toneColor(tone, isDarkMode: isDarkMode).opacity(isDarkMode ? 0.14 : 0.1))
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
+                                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+                        }
+                    }
+                    .accessibilityHint(
+                        L10n.text(
+                            "brand.source_link_hint",
+                            default: "Opens the official APOD source in the browser."
+                        )
+                    )
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(AccessibilityID.aboutSourceRightsPanel)
+        }
+    }
+}

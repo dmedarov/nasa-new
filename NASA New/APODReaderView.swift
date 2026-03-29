@@ -188,9 +188,10 @@ struct APODRecordDetailView: View {
     }
 
     private var shareItems: [Any] {
-        let title = nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
-        let explanation = nasa.explanation ?? ""
         let primaryURL = APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url) ?? nasa.url
-        return [title, explanation, primaryURL as Any].compactMap { $0 }
+        return APODSharePolicy.shareItems(
+            for: nasa,
+            sourceURL: primaryURL
+        )
     }
 }

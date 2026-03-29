@@ -18,6 +18,11 @@ final class NotificationScheduler {
     private let center: UNUserNotificationCenter
     private let requestIdentifier = "daily_apod_notification"
 
+    private var isRunningUITests: Bool {
+        ProcessInfo.processInfo.arguments.contains("-ui-testing")
+            || ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] == "1"
+    }
+
     init(center: UNUserNotificationCenter = .current()) {
         self.center = center
     }
@@ -39,6 +44,9 @@ final class NotificationScheduler {
 
     func cancelDailyNotification() {
         center.removePendingNotificationRequests(withIdentifiers: [requestIdentifier])
+        if isRunningUITests {
+            center.removeAllDeliveredNotifications()
+        }
     }
 
     func nextPendingNotificationDate() async -> Date? {
@@ -56,13 +64,17 @@ final class NotificationScheduler {
     func scheduleDailyAPODNotification(settings: NotificationSettings) async {
         cancelDailyNotification()
         guard settings.isEnabled else { return }
+        guard !isRunningUITests else { return }
 
         let granted = await requestAuthorizationIfNeeded()
         guard granted else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = L10n.text("notification.new_apod_title", default: "New APOD available")
-        content.body = L10n.text("A new Astronomy Picture of the Day is available.", default: "A new Astronomy Picture of the Day is available.")
+        content.title = L10n.text("notification.new_apod_title", default: "Daily APOD briefing ready")
+        content.body = L10n.text(
+            "notification.new_apod_body",
+            default: "Open Space Briefing to review today's Astronomy Picture of the Day and source details."
+        )
         content.sound = .default
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: settings.dateComponents, repeats: true)

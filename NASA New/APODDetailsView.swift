@@ -92,6 +92,18 @@ struct APODDetailsView: View {
         APODSourceLinkPolicy.hostLabel(for: preferredMediaSourceURL)
     }
 
+    private var aboutPanelSourceTitle: String {
+        nasaPageURL == nil
+            ? AppBrandingPolicy.officialSourceLinkTitle()
+            : archiveEntryTitle
+    }
+
+    private var aboutPanelSourceSummary: String {
+        nasaPageURL == nil
+            ? AppBrandingPolicy.officialSourceLinkSummary()
+            : AppBrandingPolicy.entrySourceLinkSummary()
+    }
+
     private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
         APODOfflineMediaStatusPolicy.presentation(
             for: nasa,
@@ -118,6 +130,13 @@ struct APODDetailsView: View {
                 if nasaPageURL != nil || showsSeparateMediaAction {
                     sourceSection
                 }
+
+                AboutSourceRightsPanel(
+                    sourceURL: nasaPageURL,
+                    sourceTitle: aboutPanelSourceTitle,
+                    sourceSummary: aboutPanelSourceSummary,
+                    tone: .neutral
+                )
             }
         }
         .padding(.horizontal, AppTheme.Spacing.lg)

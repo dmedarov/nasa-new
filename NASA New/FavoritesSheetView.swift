@@ -83,6 +83,25 @@ struct SavedScreenView: View {
             ?? fetcher.favorites.first(where: { $0.id == preferredID })
     }
 
+    private var savedResultsSummary: String {
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedQuery.isEmpty {
+            return L10n.format(
+                "saved.search.summary.default",
+                default: "Search %d saved APOD stories by title, date, or credit line.",
+                fetcher.favorites.count
+            )
+        }
+
+        return L10n.format(
+            "saved.search.summary.filtered",
+            default: "Showing %d of %d saved stories for \"%@\".",
+            filteredFavorites.count,
+            fetcher.favorites.count,
+            trimmedQuery
+        )
+    }
+
     var body: some View {
         Group {
             if usesSplitLayout {
@@ -151,97 +170,127 @@ struct SavedScreenView: View {
             if fetcher.favorites.isEmpty {
                 favoritesEmptyState
             } else {
-                VStack(spacing: AppTheme.Spacing.md) {
-                    MissionPanel(tone: .favorite, padding: AppTheme.Spacing.lg) {
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            SectionEyebrow(L10n.text("Saved Archive", default: "Saved Archive"), tone: .favorite)
-                            Text(
-                                L10n.format(
-                                    "saved.summary.count",
-                                    default: "%d saved APOD stories ready to revisit",
-                                    fetcher.favorites.count
-                                )
-                            )
-                            .font(AppTheme.Typography.cardTitle)
-                            Text(
-                                L10n.text(
-                                    "saved.summary.body",
-                                    default: "Saved APODs keep their story and credits on device, while images and supported media are downloaded locally when available."
-                                )
-                            )
-                            .font(AppTheme.Typography.subheadline)
-                            .foregroundStyle(.secondary)
-
-                            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
-                                HStack(spacing: AppTheme.Spacing.xs) {
-                                    if fetcher.savedOfflineItemCount > 0 {
-                                        MissionBadge(
-                                            title: L10n.format(
-                                                "saved.summary.offline_count",
-                                                default: "%d offline",
-                                                fetcher.savedOfflineItemCount
-                                            ),
-                                            systemImage: "arrow.down.circle.fill",
-                                            tone: .accent
-                                        )
-                                    }
-
-                                    if fetcher.savedPreviewItemCount > 0 {
-                                        MissionBadge(
-                                            title: L10n.format(
-                                                "saved.summary.preview_count",
-                                                default: "%d preview",
-                                                fetcher.savedPreviewItemCount
-                                            ),
-                                            systemImage: "photo.badge.arrow.down",
-                                            tone: .neutral
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-                    .padding(.top, AppTheme.Spacing.xs)
-
-                    MissionSearchField(
-                        text: $searchQuery,
-                        placeholder: L10n.text("Search favorites", default: "Search favorites"),
-                        accessibilityIdentifier: AccessibilityID.favoritesSearchField
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.lg)
-
-                    List {
-                        ForEach(filteredFavorites) { item in
-                            libraryRow(
-                                item,
-                                isSelected: item.id == selectedItemID,
-                                isSaved: true,
-                                offlineMedia: fetcher.offlineMediaAsset(for: item),
-                                selectionAction: selectionAction
-                            )
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    fetcher.removeFavorite(item)
-                                } label: {
-                                    Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
-                                }
-                                .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: item))
-                            }
-                        }
-                    }
-                    .overlay {
-                        if filteredFavorites.isEmpty {
-                            searchEmptyState
-                                .padding(AppTheme.Spacing.lg)
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                }
+                savedListContent(
+                    selectedItemID: selectedItemID,
+                    selectionAction: selectionAction
+                )
             }
         }
         .background(SpaceBackdropView())
         .navigationTitle(L10n.text("Favorites", default: "Favorites"))
+    }
+
+    private func savedListContent(
+        selectedItemID: String?,
+        selectionAction: @escaping (NASA) -> Void
+    ) -> some View {
+        List {
+            savedHeaderPanels
+                .libraryHeaderRowStyle()
+
+            if filteredFavorites.isEmpty {
+                searchEmptyState
+                    .libraryStateRowStyle()
+            } else {
+                ForEach(filteredFavorites) { item in
+                    libraryRow(
+                        item,
+                        isSelected: item.id == selectedItemID,
+                        isSaved: true,
+                        offlineMedia: fetcher.offlineMediaAsset(for: item),
+                        selectionAction: selectionAction
+                    )
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            fetcher.removeFavorite(item)
+                        } label: {
+                            Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
+                        }
+                        .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: item))
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private var savedHeaderPanels: some View {
+        VStack(spacing: AppTheme.Spacing.md) {
+            savedOverviewPanel
+            savedSearchPanel
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.top, AppTheme.Spacing.xs)
+        .padding(.bottom, AppTheme.Spacing.xs)
+    }
+
+    private var savedOverviewPanel: some View {
+        MissionPanel(tone: .favorite, padding: AppTheme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                SectionEyebrow(L10n.text("Saved Archive", default: "Saved Archive"), tone: .favorite)
+                Text(
+                    L10n.format(
+                        "saved.summary.count",
+                        default: "%d saved APOD stories ready to revisit",
+                        fetcher.favorites.count
+                    )
+                )
+                .font(AppTheme.Typography.cardTitle)
+                Text(
+                    L10n.text(
+                        "saved.summary.body",
+                        default: "Saved APODs keep their story and credits on device, while images and supported media are downloaded locally when available."
+                    )
+                )
+                .font(AppTheme.Typography.subheadline)
+                .foregroundStyle(.secondary)
+
+                if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        if fetcher.savedOfflineItemCount > 0 {
+                            MissionBadge(
+                                title: L10n.format(
+                                    "saved.summary.offline_count",
+                                    default: "%d offline",
+                                    fetcher.savedOfflineItemCount
+                                ),
+                                systemImage: "arrow.down.circle.fill",
+                                tone: .accent
+                            )
+                        }
+
+                        if fetcher.savedPreviewItemCount > 0 {
+                            MissionBadge(
+                                title: L10n.format(
+                                    "saved.summary.preview_count",
+                                    default: "%d preview",
+                                    fetcher.savedPreviewItemCount
+                                ),
+                                systemImage: "photo.badge.arrow.down",
+                                tone: .neutral
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var savedSearchPanel: some View {
+        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                SectionEyebrow(L10n.text("Saved Search", default: "Saved Search"), tone: .neutral)
+                Text(savedResultsSummary)
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(.secondary)
+
+                MissionSearchField(
+                    text: $searchQuery,
+                    placeholder: L10n.text("Search favorites", default: "Search favorites"),
+                    accessibilityIdentifier: AccessibilityID.favoritesSearchField
+                )
+            }
+        }
     }
 
     private func selectFavorite(_ item: NASA) {
@@ -410,6 +459,34 @@ struct ArchiveScreenView: View {
         )
     }
 
+    private var archiveControlsSummary: String {
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !trimmedQuery.isEmpty {
+            return L10n.format(
+                "archive.controls.summary.search",
+                default: "Showing %d results for \"%@\".",
+                filteredItems.count,
+                trimmedQuery
+            )
+        }
+
+        if filter != .all {
+            return L10n.format(
+                "archive.controls.summary.filter",
+                default: "Showing %d entries in %@.",
+                filteredItems.count,
+                filter.localizedTitle
+            )
+        }
+
+        return L10n.format(
+            "archive.controls.summary.default",
+            default: "Search %d archived APOD entries by title, date, or credit line.",
+            filteredItems.count
+        )
+    }
+
     private var archiveJumpSummary: String {
         L10n.text(
             "archive.jump.summary",
@@ -487,21 +564,52 @@ struct ArchiveScreenView: View {
         selectedItemID: String?,
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
-        VStack(spacing: AppTheme.Spacing.md) {
-            MissionPanel(tone: .accent, padding: AppTheme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    SectionEyebrow(L10n.text("Editorial Archive", default: "Editorial Archive"), tone: .accent)
-                    Text(archiveSummaryTitle)
-                        .font(AppTheme.Typography.cardTitle)
-                    Text(archiveSummaryMessage)
-                        .font(AppTheme.Typography.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        Group {
+            if fetcher.archiveItems.isEmpty {
+                archiveEmptyContent
+            } else if usesGridPresentation {
+                archiveGridContent(selectionAction: selectionAction)
+            } else {
+                archiveListContent(selectedItemID: selectedItemID, selectionAction: selectionAction)
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.top, AppTheme.Spacing.xs)
+        }
+        .background(SpaceBackdropView())
+        .navigationTitle(L10n.text("Archive", default: "Archive"))
+    }
 
-            VStack(spacing: AppTheme.Spacing.md) {
+    private var archiveHeaderPanels: some View {
+        VStack(spacing: AppTheme.Spacing.md) {
+            archiveOverviewPanel
+            archiveControlsPanel
+            archiveJumpPanel
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.top, AppTheme.Spacing.xs)
+        .padding(.bottom, AppTheme.Spacing.xs)
+    }
+
+    private var archiveOverviewPanel: some View {
+        MissionPanel(tone: .accent, padding: AppTheme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                SectionEyebrow(L10n.text("Editorial Archive", default: "Editorial Archive"), tone: .accent)
+                Text(archiveSummaryTitle)
+                    .font(AppTheme.Typography.cardTitle)
+                Text(archiveSummaryMessage)
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var archiveControlsPanel: some View {
+        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                SectionEyebrow(L10n.text("Browse & Filter", default: "Browse & Filter"), tone: .neutral)
+
+                Text(archiveControlsSummary)
+                    .font(AppTheme.Typography.subheadline)
+                    .foregroundStyle(.secondary)
+
                 MissionSearchField(
                     text: $searchQuery,
                     placeholder: L10n.text("Search archive", default: "Search archive"),
@@ -524,21 +632,19 @@ struct ArchiveScreenView: View {
                         }
                     }
                 }
-
-                archiveJumpPanel
-            }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-
-            if fetcher.archiveItems.isEmpty {
-                archiveEmptyState
-            } else if usesGridPresentation {
-                archiveGridContent(selectionAction: selectionAction)
-            } else {
-                archiveListContent(selectedItemID: selectedItemID, selectionAction: selectionAction)
             }
         }
-        .background(SpaceBackdropView())
-        .navigationTitle(L10n.text("Archive", default: "Archive"))
+    }
+
+    private var archiveEmptyContent: some View {
+        ScrollView {
+            VStack(spacing: AppTheme.Spacing.md) {
+                archiveHeaderPanels
+                archiveEmptyState
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+            }
+            .padding(.bottom, AppTheme.Spacing.xxl)
+        }
     }
 
     private func selectArchiveItem(_ item: NASA) {
@@ -697,94 +803,42 @@ struct ArchiveScreenView: View {
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
         List {
-            ForEach(sections) { section in
-                Section(section.title) {
-                    ForEach(section.items) { item in
-                        libraryRow(
-                            item,
-                            isSelected: item.id == selectedItemID,
-                            isSaved: fetcher.isFavorite(item),
-                            offlineMedia: fetcher.offlineMediaAsset(for: item),
-                            selectionAction: selectionAction
-                        )
-                        .swipeActions(edge: .trailing) {
-                            Button {
-                                fetcher.toggleFavorite(item)
-                            } label: {
-                                Label(
-                                    fetcher.isFavorite(item)
-                                        ? L10n.text("Remove Favorite", default: "Remove Favorite")
-                                        : L10n.text("Save Favorite", default: "Save Favorite"),
-                                    systemImage: fetcher.isFavorite(item) ? "bookmark.slash" : "bookmark"
-                                )
-                            }
-                            .tint(fetcher.isFavorite(item) ? .gray : AppTheme.Palette.favorite)
-                        }
-                    }
-                }
-            }
+            archiveHeaderPanels
+                .libraryHeaderRowStyle()
 
-            if let loadError = fetcher.archiveError {
-                Section {
-                    MissionStateCard(
-                        eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
-                        title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
-                        message: loadError.localizedDescription,
-                        systemImage: "exclamationmark.triangle",
-                        tone: .warning,
-                        minHeight: 180
-                    ) {
-                        Button(L10n.text("Retry", default: "Retry")) {
-                            fetcher.loadOlderArchiveBatch()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-                .listRowBackground(Color.clear)
-            }
-
-            if fetcher.canLoadMoreArchiveHistory {
-                Section {
-                    archiveLoadMoreButton
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .overlay {
-            if !fetcher.archiveItems.isEmpty && sections.isEmpty {
+            if sections.isEmpty {
                 archiveSearchEmptyState
-                    .padding(AppTheme.Spacing.lg)
-            }
-        }
-    }
-
-    private func archiveGridContent(selectionAction: @escaping (NASA) -> Void) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                    ForEach(sections) { section in
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                            Text(section.title)
-                                .font(AppTheme.Typography.sectionTitle)
-                                .padding(.horizontal, AppTheme.Spacing.lg)
-
-                            LazyVGrid(columns: archiveGridColumns, spacing: AppTheme.Spacing.md) {
-                                ForEach(section.items) { item in
-                                    ArchiveGridCard(
-                                        item: item,
-                                        isSelected: item.id == selectedArchiveItemID,
-                                        isSaved: fetcher.isFavorite(item),
-                                        offlineMedia: fetcher.offlineMediaAsset(for: item),
-                                        action: { selectionAction(item) }
+                    .libraryStateRowStyle()
+            } else {
+                ForEach(sections) { section in
+                    Section(section.title) {
+                        ForEach(section.items) { item in
+                            libraryRow(
+                                item,
+                                isSelected: item.id == selectedItemID,
+                                isSaved: fetcher.isFavorite(item),
+                                offlineMedia: fetcher.offlineMediaAsset(for: item),
+                                selectionAction: selectionAction
+                            )
+                            .swipeActions(edge: .trailing) {
+                                Button {
+                                    fetcher.toggleFavorite(item)
+                                } label: {
+                                    Label(
+                                        fetcher.isFavorite(item)
+                                            ? L10n.text("Remove Favorite", default: "Remove Favorite")
+                                            : L10n.text("Save Favorite", default: "Save Favorite"),
+                                        systemImage: fetcher.isFavorite(item) ? "bookmark.slash" : "bookmark"
                                     )
-                                    .id(item.id)
                                 }
+                                .tint(fetcher.isFavorite(item) ? .gray : AppTheme.Palette.favorite)
                             }
-                            .padding(.horizontal, AppTheme.Spacing.lg)
                         }
                     }
+                }
 
-                    if let loadError = fetcher.archiveError {
+                if let loadError = fetcher.archiveError {
+                    Section {
                         MissionStateCard(
                             eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
                             title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
@@ -798,21 +852,76 @@ struct ArchiveScreenView: View {
                             }
                             .buttonStyle(.borderedProminent)
                         }
-                        .padding(.horizontal, AppTheme.Spacing.lg)
                     }
+                    .listRowBackground(Color.clear)
+                }
 
-                    if fetcher.canLoadMoreArchiveHistory {
+                if fetcher.canLoadMoreArchiveHistory {
+                    Section {
                         archiveLoadMoreButton
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private func archiveGridContent(selectionAction: @escaping (NASA) -> Void) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
+                    archiveHeaderPanels
+
+                    if sections.isEmpty {
+                        archiveSearchEmptyState
                             .padding(.horizontal, AppTheme.Spacing.lg)
+                    } else {
+                        ForEach(sections) { section in
+                            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                                Text(section.title)
+                                    .font(AppTheme.Typography.sectionTitle)
+                                    .padding(.horizontal, AppTheme.Spacing.lg)
+
+                                LazyVGrid(columns: archiveGridColumns, spacing: AppTheme.Spacing.md) {
+                                    ForEach(section.items) { item in
+                                        ArchiveGridCard(
+                                            item: item,
+                                            isSelected: item.id == selectedArchiveItemID,
+                                            isSaved: fetcher.isFavorite(item),
+                                            offlineMedia: fetcher.offlineMediaAsset(for: item),
+                                            action: { selectionAction(item) }
+                                        )
+                                        .id(item.id)
+                                    }
+                                }
+                                .padding(.horizontal, AppTheme.Spacing.lg)
+                            }
+                        }
+
+                        if let loadError = fetcher.archiveError {
+                            MissionStateCard(
+                                eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
+                                title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
+                                message: loadError.localizedDescription,
+                                systemImage: "exclamationmark.triangle",
+                                tone: .warning,
+                                minHeight: 180
+                            ) {
+                                Button(L10n.text("Retry", default: "Retry")) {
+                                    fetcher.loadOlderArchiveBatch()
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .padding(.horizontal, AppTheme.Spacing.lg)
+                        }
+
+                        if fetcher.canLoadMoreArchiveHistory {
+                            archiveLoadMoreButton
+                                .padding(.horizontal, AppTheme.Spacing.lg)
+                        }
                     }
                 }
                 .padding(.bottom, AppTheme.Spacing.xxl)
-            }
-            .overlay {
-                if !fetcher.archiveItems.isEmpty && sections.isEmpty {
-                    archiveSearchEmptyState
-                        .padding(AppTheme.Spacing.lg)
-                }
             }
             .onChange(of: selectedArchiveItemID) { newValue in
                 guard let newValue else { return }
@@ -1068,6 +1177,25 @@ private struct ArchiveGridThumbnailView: View {
 }
 
 private extension View {
+    func libraryHeaderRowStyle() -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+
+    func libraryStateRowStyle() -> some View {
+        listRowInsets(
+            EdgeInsets(
+                top: AppTheme.Spacing.sm,
+                leading: AppTheme.Spacing.lg,
+                bottom: AppTheme.Spacing.sm,
+                trailing: AppTheme.Spacing.lg
+            )
+        )
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
     func libraryRowBackground(isSelected: Bool) -> some View {
         listRowBackground(
             isSelected

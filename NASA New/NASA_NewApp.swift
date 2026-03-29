@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 #if canImport(AppIntents)
 import AppIntents
 #endif
@@ -98,6 +99,12 @@ private enum AppRuntimeConfiguration {
 
         if environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1" {
             UserDefaults.standard.removeObject(forKey: "MainView.selectedAPODDate")
+        }
+
+        if environment["UITEST_USE_FIXTURE"] == "1" || ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            let notificationCenter = UNUserNotificationCenter.current()
+            notificationCenter.removeAllPendingNotificationRequests()
+            notificationCenter.removeAllDeliveredNotifications()
         }
 
         // Apple recommendation: prefer URLCache for repeatable, efficient network loading of media-heavy screens.

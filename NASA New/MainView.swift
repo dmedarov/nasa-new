@@ -133,19 +133,6 @@ struct MainView: View {
         URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
     }
     
-    private func truncateToWords(_ text: String, maxLength: Int) -> String {
-        let words = text.split(separator: " ")
-        var result = ""
-        for word in words {
-            if (result + " " + word).count <= maxLength {
-                result += (result.isEmpty ? "" : " ") + word
-            } else {
-                break
-            }
-        }
-        return result + (result.count < text.count ? "..." : "")
-    }
-
     private func syncSelectedDateWithCurrentItem() {
         guard let dateString = fetcher.currentNasa.date, let modelDate = fetcher.date(from: dateString) else { return }
         guard !fetcher.isSameAPODDay(selectedDate, modelDate) else { return }
@@ -516,9 +503,6 @@ struct MainView: View {
     }
     
     private var shareItems: [Any] {
-        let title = shareTitle
-        let explanation = shareExplanation
-        let url = shareURL
         let media: Any? = {
             if fetcher.currentNasa.mediaType == .video,
                let id = extractYouTubeID(from: fetcher.currentNasa.url),
@@ -527,17 +511,11 @@ struct MainView: View {
             }
             return fetcher.currentNasa.hdurl ?? fetcher.currentNasa.url
         }()
-        return [title, explanation, url, media].compactMap { $0 }
-    }
-
-    private var shareTitle: String {
-        fetcher.currentNasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
-    }
-
-    private var shareExplanation: String {
-        truncateToWords(
-            fetcher.currentNasa.explanation ?? "",
-            maxLength: ViewConstants.shareExplanationMaxLength
+        return APODSharePolicy.shareItems(
+            for: fetcher.currentNasa,
+            sourceURL: shareURL,
+            mediaItem: media,
+            explanationMaxLength: ViewConstants.shareExplanationMaxLength
         )
     }
 

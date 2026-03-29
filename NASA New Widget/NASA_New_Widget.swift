@@ -27,7 +27,7 @@ private struct APODWidgetEntry: TimelineEntry {
         title: WidgetLocalization.text("widget.placeholder.title", default: "Astronomy Picture of the Day"),
         summary: WidgetLocalization.text(
             "widget.placeholder.summary",
-            default: "A daily editorial briefing built from NASA's APOD archive."
+            default: "An independent daily briefing built from NASA's public APOD archive."
         ),
         credit: WidgetLocalization.text("credit.nasa", default: "NASA"),
         apodDate: "",
@@ -103,7 +103,7 @@ private enum APODWidgetAPI {
             title: WidgetLocalization.text("widget.unavailable.title", default: "Latest APOD unavailable"),
             message: WidgetLocalization.text(
                 "widget.unavailable.message",
-                default: "The widget could not prepare today's APOD briefing."
+                default: "The widget could not prepare today's APOD briefing from NASA's public archive."
             )
         )
     }
@@ -220,7 +220,7 @@ private enum APODWidgetAPI {
         guard let explanation = explanation?.trimmingCharacters(in: .whitespacesAndNewlines), !explanation.isEmpty else {
             return WidgetLocalization.text(
                 "widget.placeholder.summary",
-                default: "A daily editorial briefing built from NASA's APOD archive."
+                default: "An independent daily briefing built from NASA's public APOD archive."
             )
         }
 
@@ -316,7 +316,7 @@ private enum APODWidgetAPI {
             title: WidgetLocalization.text("widget.placeholder.title", default: "Astronomy Picture of the Day"),
             summary: WidgetLocalization.text(
                 "widget.placeholder.summary",
-                default: "A daily editorial briefing built from NASA's APOD archive."
+                default: "An independent daily briefing built from NASA's public APOD archive."
             ),
             credit: WidgetLocalization.text("credit.nasa", default: "NASA"),
             apodDate: "",
@@ -363,12 +363,12 @@ struct NASA_New_Widget: Widget {
             APODWidgetEntryView(entry: entry)
         }
         .configurationDisplayName(
-            WidgetLocalization.text("widget.configuration.title", default: "APOD Today")
+            WidgetLocalization.text("widget.configuration.title", default: "Space Briefing Today")
         )
         .description(
             WidgetLocalization.text(
                 "widget.configuration.description",
-                default: "Open today's Astronomy Picture of the Day from your Home Screen."
+                default: "Open today's independent APOD briefing from your Home Screen."
             )
         )
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
@@ -516,7 +516,7 @@ private struct APODWidgetEntryView: View {
 
             Spacer(minLength: 0)
 
-            Text(WidgetLocalization.text("widget.open_today", default: "Open in app"))
+            Text(WidgetLocalization.text("widget.open_today", default: "Open briefing"))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white)
         }

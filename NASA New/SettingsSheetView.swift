@@ -39,6 +39,32 @@ private struct SettingsToggleRow: View {
     }
 }
 
+private struct SettingsSupportingTextRow: View {
+    let text: String
+    let accessibilityIdentifier: String?
+
+    var body: some View {
+        Group {
+            if let accessibilityIdentifier {
+                supportingText
+                    .accessibilityIdentifier(accessibilityIdentifier)
+            } else {
+                supportingText
+            }
+        }
+    }
+
+    private var supportingText: some View {
+        Text(text)
+            .font(AppTheme.Typography.footnote)
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement()
+            .accessibilityLabel(text)
+            .accessibilityAddTraits(.isStaticText)
+    }
+}
+
 struct SettingsSheetView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Binding var appearancePreference: AppAppearancePreference
@@ -105,6 +131,38 @@ struct SettingsSheetView: View {
         case .denied: return L10n.text("notification.denied", default: "Denied")
         case .notDetermined: return L10n.text("notification.not_determined", default: "Not Determined")
         @unknown default: return L10n.text("notification.unknown", default: "Unknown")
+        }
+    }
+
+    private var notificationEducationMessage: String {
+        L10n.text(
+            "notification.education",
+            default: "A gentle daily reminder to open today's APOD briefing. Space Briefing only asks for standard notification delivery after you turn this on."
+        )
+    }
+
+    private var notificationStatusGuidance: String {
+        switch notificationPermissionStatus {
+        case .denied:
+            return L10n.text(
+                "notification.permission_denied_help",
+                default: "Notifications are currently off in iOS Settings for Space Briefing."
+            )
+        case .authorized, .provisional, .ephemeral:
+            return L10n.text(
+                "notification.permission_granted_help",
+                default: "These reminders use standard delivery and can be changed or turned off anytime."
+            )
+        case .notDetermined:
+            return L10n.text(
+                "notification.permission_pending_help",
+                default: "Turn this on to request permission for a once-a-day reminder."
+            )
+        @unknown default:
+            return L10n.text(
+                "notification.permission_unknown_help",
+                default: "Check notification permission in iOS Settings if reminders do not appear."
+            )
         }
     }
 
@@ -285,6 +343,11 @@ struct SettingsSheetView: View {
                 }
 
                 Section(L10n.text("Daily Notifications", default: "Daily Notifications")) {
+                    SettingsSupportingTextRow(
+                        text: notificationEducationMessage,
+                        accessibilityIdentifier: AccessibilityID.notificationEducationText
+                    )
+
                     Toggle(L10n.text("Enable Daily APOD Alerts", default: "Enable Daily APOD Alerts"), isOn: $dailyNotificationsEnabled)
                     DatePicker(
                         L10n.text("Alert Time", default: "Alert Time"),
@@ -299,6 +362,11 @@ struct SettingsSheetView: View {
                         Text(formattedRequestDate(nextScheduledNotificationDate))
                             .multilineTextAlignment(.trailing)
                     }
+
+                    SettingsSupportingTextRow(
+                        text: notificationStatusGuidance,
+                        accessibilityIdentifier: nil
+                    )
                 }
 
                 Section(L10n.text("Data Saver", default: "Data Saver")) {
@@ -381,23 +449,15 @@ struct SettingsSheetView: View {
                     }
                 }
 
-                Section(L10n.text("About & Attribution", default: "About & Attribution")) {
-                    Text(
-                        L10n.text(
-                            "brand.independent_notice",
-                            default: "Independent app using NASA's public APOD service. Not affiliated with or endorsed by NASA."
-                        )
+                Section(L10n.text("About, Source & Rights", default: "About, Source & Rights")) {
+                    AboutSourceRightsPanel(
+                        sourceURL: AppBrandingPolicy.officialAPODHomeURL(),
+                        sourceTitle: AppBrandingPolicy.officialSourceLinkTitle(),
+                        sourceSummary: AppBrandingPolicy.officialSourceLinkSummary(),
+                        tone: .neutral
                     )
-                    .font(AppTheme.Typography.footnote)
-
-                    Text(
-                        L10n.text(
-                            "brand.data_source_notice",
-                            default: "APOD imagery, captions, and metadata come from NASA's Astronomy Picture of the Day service. Rights for non-NASA material stay with the credited creator."
-                        )
-                    )
-                    .font(AppTheme.Typography.footnote)
-                    .foregroundColor(.secondary)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowBackground(Color.clear)
                 }
             }
             .navigationTitle(L10n.text("Settings", default: "Settings"))

@@ -248,4 +248,54 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(APODAttributionPolicy.rightsStatus(for: nasa), .nasaContentLikely)
         XCTAssertEqual(APODAttributionPolicy.rightsBadgeTitle(for: nasa), "NASA source likely")
     }
+
+    func testAPODAttributionPolicyRequestsReviewWhenMediaAndCreditAreMissing() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            explanation: "No linked media yet.",
+            mediaType: .other,
+            title: "Pending Source"
+        )
+
+        XCTAssertEqual(APODAttributionPolicy.rightsStatus(for: nasa), .reviewOriginalCredit)
+        XCTAssertEqual(APODAttributionPolicy.rightsBadgeTitle(for: nasa), "Verify original credit")
+    }
+
+    func testAppBrandingPolicyUsesOfficialAPODArchiveHomeURL() {
+        XCTAssertEqual(
+            AppBrandingPolicy.officialAPODHomeURL()?.absoluteString,
+            "https://apod.nasa.gov/apod/astropix.html"
+        )
+    }
+
+    func testAPODSharePolicyIncludesIndependentAppAndSourceContext() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            explanation: "A bright nebula over a quiet horizon photographed with a long exposure.",
+            mediaType: .image,
+            title: "Nebula Horizon",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+        let sourceURL = URL(string: "https://apod.nasa.gov/apod/ap250115.html")!
+
+        let message = APODSharePolicy.shareMessage(for: nasa, sourceURL: sourceURL, explanationMaxLength: 80)
+
+        XCTAssertTrue(message.contains("Space Briefing"))
+        XCTAssertTrue(message.contains("Official APOD source"))
+        XCTAssertTrue(message.contains(sourceURL.absoluteString))
+    }
+
+    func testAPODSharePolicyOmitsSourceLineWhenSourceURLMissing() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            explanation: "A short APOD summary.",
+            mediaType: .image,
+            title: "Source Missing",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        let message = APODSharePolicy.shareMessage(for: nasa, sourceURL: nil, explanationMaxLength: 80)
+
+        XCTAssertFalse(message.contains("Official APOD source"))
+    }
 }

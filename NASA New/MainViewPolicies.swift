@@ -36,16 +36,16 @@ enum AppTheme {
         static let orbLightSecondary = Color(red: 0.98, green: 0.78, blue: 0.35).opacity(0.16)
         static let glassDarkFallback = Color(red: 0.08, green: 0.1, blue: 0.16).opacity(0.94)
         static let glassLightFallback = Color.white.opacity(0.92)
-        static let cardDarkFallback = Color(red: 0.07, green: 0.1, blue: 0.16).opacity(0.96)
-        static let cardLightFallback = Color(red: 0.98, green: 0.99, blue: 1.0).opacity(0.9)
-        static let overlayDark = Color.white.opacity(0.12)
-        static let overlayLight = Color.white.opacity(0.5)
-        static let strokeDark = Color.white.opacity(0.16)
-        static let strokeLight = Color.black.opacity(0.08)
+        static let cardDarkFallback = Color(red: 0.07, green: 0.1, blue: 0.16).opacity(0.98)
+        static let cardLightFallback = Color(red: 0.98, green: 0.99, blue: 1.0).opacity(0.95)
+        static let overlayDark = Color.white.opacity(0.16)
+        static let overlayLight = Color.white.opacity(0.62)
+        static let strokeDark = Color.white.opacity(0.24)
+        static let strokeLight = Color.black.opacity(0.14)
         static let inkDark = Color.white.opacity(0.95)
         static let inkLight = Color(red: 0.08, green: 0.11, blue: 0.2)
-        static let secondaryInkDark = Color.white.opacity(0.7)
-        static let secondaryInkLight = Color(red: 0.26, green: 0.31, blue: 0.43)
+        static let secondaryInkDark = Color.white.opacity(0.82)
+        static let secondaryInkLight = Color(red: 0.2, green: 0.24, blue: 0.34)
         static let warning = Color.orange
         static let favorite = Color(red: 0.95, green: 0.29, blue: 0.39)
         static let subtleFill = Color.secondary.opacity(0.08)
@@ -312,6 +312,150 @@ struct AppAppearancePolicy {
 struct DataSaverPreferencePolicy {
     static func resolvedPreferHDImages(dataSaverMode: Bool, preferHDImages: Bool) -> Bool {
         dataSaverMode ? false : preferHDImages
+    }
+}
+
+struct AppBrandingPolicy {
+    private static let officialAPODHomeURLString = "https://apod.nasa.gov/apod/astropix.html"
+
+    static func independentNotice() -> String {
+        L10n.text(
+            "brand.independent_notice",
+            default: "Independent app using NASA's public APOD service. Not affiliated with or endorsed by NASA."
+        )
+    }
+
+    static func dataSourceNotice() -> String {
+        L10n.text(
+            "brand.data_source_notice",
+            default: "APOD imagery, captions, and metadata come from NASA's Astronomy Picture of the Day service. Rights for non-NASA material stay with the credited creator."
+        )
+    }
+
+    static func rightsGuidance() -> String {
+        L10n.text(
+            "brand.rights_notice",
+            default: "Some APOD entries credit third-party creators. Review the original APOD page before reuse, and contact the named rights holder when one is listed."
+        )
+    }
+
+    static func compliancePanelTitle() -> String {
+        L10n.text("brand.panel_title", default: "Independent APOD companion")
+    }
+
+    static func compliancePanelEyebrow() -> String {
+        L10n.text("brand.panel_eyebrow", default: "About, Source & Rights")
+    }
+
+    static func officialSourceLinkTitle() -> String {
+        L10n.text("brand.source_link_title", default: "Open official APOD source")
+    }
+
+    static func officialSourceLinkSummary() -> String {
+        L10n.text(
+            "brand.source_link_summary",
+            default: "Review the original APOD story, caption, and credit context in NASA's Astronomy Picture of the Day archive."
+        )
+    }
+
+    static func entrySourceLinkSummary() -> String {
+        L10n.text(
+            "brand.entry_source_link_summary",
+            default: "Open this APOD's original archive page to verify the full story, source credit, and reuse context."
+        )
+    }
+
+    static func shareSourceNotice() -> String {
+        L10n.text(
+            "share.source_notice",
+            default: "Shared from Space Briefing, an independent app using NASA's public APOD service."
+        )
+    }
+
+    static func shareRightsNotice() -> String {
+        L10n.text(
+            "share.rights_notice",
+            default: "Review the official APOD page for credit and reuse context before redistributing any media."
+        )
+    }
+
+    static func officialAPODHomeURL() -> URL? {
+        URL(string: officialAPODHomeURLString)
+    }
+}
+
+struct APODSharePolicy {
+    static func shareItems(
+        for nasa: NASA,
+        sourceURL: URL?,
+        mediaItem: Any? = nil,
+        explanationMaxLength: Int = 140
+    ) -> [Any] {
+        let items: [Any?] = [
+            shareTitle(for: nasa),
+            shareMessage(for: nasa, sourceURL: sourceURL, explanationMaxLength: explanationMaxLength),
+            sourceURL,
+            mediaItem
+        ]
+        return items.compactMap { $0 }
+    }
+
+    static func shareTitle(for nasa: NASA) -> String {
+        nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture")
+    }
+
+    static func shareMessage(
+        for nasa: NASA,
+        sourceURL: URL?,
+        explanationMaxLength: Int = 140
+    ) -> String {
+        let explanationSnippet = summarizedExplanation(
+            nasa.explanation,
+            maxLength: explanationMaxLength
+        )
+
+        var sections = [String]()
+
+        if let explanationSnippet {
+            sections.append(explanationSnippet)
+        }
+
+        sections.append(AppBrandingPolicy.shareSourceNotice())
+        sections.append(AppBrandingPolicy.shareRightsNotice())
+
+        if let sourceURL {
+            sections.append(
+                L10n.format(
+                    "share.source_url_line",
+                    default: "Official APOD source: %@",
+                    sourceURL.absoluteString
+                )
+            )
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static func summarizedExplanation(_ text: String?, maxLength: Int) -> String? {
+        guard let text else { return nil }
+
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return nil }
+
+        let words = trimmedText.split(separator: " ")
+        var result = ""
+
+        for word in words {
+            let candidate = result.isEmpty ? String(word) : "\(result) \(word)"
+            if candidate.count <= maxLength {
+                result = candidate
+            } else {
+                break
+            }
+        }
+
+        guard !result.isEmpty else { return String(trimmedText.prefix(maxLength)) }
+        return result.count < trimmedText.count ? "\(result)..." : result
     }
 }
 
