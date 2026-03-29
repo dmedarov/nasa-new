@@ -139,6 +139,8 @@
 "notification.permission_granted_help" = "Estos recordatorios usan entrega estandar y se pueden cambiar o desactivar en cualquier momento.";
 "notification.permission_pending_help" = "Activa esto para solicitar permiso para un recordatorio una vez al dia.";
 "notification.permission_unknown_help" = "Revisa el permiso de notificaciones en iOS Settings si los recordatorios no aparecen.";
+"header.today_summary" = "Abre la historia APOD de hoy, recorre la cronologia y guarda favoritos para mas tarde.";
+"header.archive_summary" = "Revisa una fecha APOD anterior, compara entradas y abre el archivo completo cuando quieras mas contexto.";
 "share.source_notice" = "Compartido desde Resumen espacial, una app independiente que usa el servicio publico APOD de la NASA.";
 "share.rights_notice" = "Revisa la pagina oficial de APOD para ver el credito y el contexto de reutilizacion antes de redistribuir cualquier medio.";
 "share.source_url_line" = "Fuente oficial de APOD: %@";

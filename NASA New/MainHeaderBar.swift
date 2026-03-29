@@ -36,6 +36,20 @@ struct MainHeaderBar: View {
         L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
     }
 
+    private var editorialSummary: String {
+        if isShowingLatestDate {
+            return L10n.text(
+                "header.today_summary",
+                default: "Open today's APOD story, jump across the timeline, and save favorites for later."
+            )
+        }
+
+        return L10n.text(
+            "header.archive_summary",
+            default: "Review an earlier APOD date, compare entries, and open the wider archive whenever you want more context."
+        )
+    }
+
     private var dateContextLabel: String {
         isShowingLatestDate
             ? L10n.text("header.live_briefing", default: "Today")
@@ -52,7 +66,14 @@ struct MainHeaderBar: View {
     var body: some View {
         MissionPanel(tone: .accent, padding: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                editorialHeaderSection
+                MissionPanelHeader(
+                    eyebrow: L10n.text("Space Briefing", default: "Space Briefing"),
+                    title: editorialTitle,
+                    summary: editorialSummary,
+                    tone: .accent
+                ) {
+                    headerIconControlRow
+                }
 
                 datePickerControl
 
@@ -92,34 +113,6 @@ struct MainHeaderBar: View {
                 randomButton
             }
             .padding(.vertical, 2)
-        }
-    }
-
-    private var editorialHeaderSection: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                editorialHeading
-                Spacer(minLength: 0)
-                headerIconControlRow
-            }
-
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                editorialHeading
-                headerIconControlRow
-            }
-        }
-    }
-
-    private var editorialHeading: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xxs) {
-            SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
-
-            Text(editorialTitle)
-                .font(AppTheme.Typography.cardTitle)
-                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: effectiveIsDarkMode))
-                .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(2)
-                .accessibilityAddTraits(.isHeader)
         }
     }
 

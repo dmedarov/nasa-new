@@ -225,51 +225,28 @@ struct SavedScreenView: View {
     }
 
     private var savedOverviewPanel: some View {
-        MissionPanel(tone: .favorite, padding: AppTheme.Spacing.lg) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                SectionEyebrow(L10n.text("Saved Archive", default: "Saved Archive"), tone: .favorite)
-                Text(
-                    L10n.format(
-                        "saved.summary.count",
-                        default: "%d saved APOD stories ready to revisit",
-                        fetcher.favorites.count
-                    )
-                )
-                .font(AppTheme.Typography.cardTitle)
-                Text(
-                    L10n.text(
-                        "saved.summary.body",
-                        default: "Saved APODs keep their story and credits on device, while images and supported media are downloaded locally when available."
-                    )
-                )
-                .font(AppTheme.Typography.subheadline)
-                .foregroundStyle(.secondary)
-
-                if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+        MissionSupportPanel(
+            eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
+            title: L10n.format(
+                "saved.summary.count",
+                default: "%d saved APOD stories ready to revisit",
+                fetcher.favorites.count
+            ),
+            summary: L10n.text(
+                "saved.summary.body",
+                default: "Saved APODs keep their story and credits on device, while images and supported media are downloaded locally when available."
+            ),
+            tone: .favorite,
+            padding: AppTheme.Spacing.lg
+        ) {
+            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+                ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.xs) {
-                        if fetcher.savedOfflineItemCount > 0 {
-                            MissionBadge(
-                                title: L10n.format(
-                                    "saved.summary.offline_count",
-                                    default: "%d offline",
-                                    fetcher.savedOfflineItemCount
-                                ),
-                                systemImage: "arrow.down.circle.fill",
-                                tone: .accent
-                            )
-                        }
+                        savedStatusBadges
+                    }
 
-                        if fetcher.savedPreviewItemCount > 0 {
-                            MissionBadge(
-                                title: L10n.format(
-                                    "saved.summary.preview_count",
-                                    default: "%d preview",
-                                    fetcher.savedPreviewItemCount
-                                ),
-                                systemImage: "photo.badge.arrow.down",
-                                tone: .neutral
-                            )
-                        }
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        savedStatusBadges
                     }
                 }
             }
@@ -277,19 +254,43 @@ struct SavedScreenView: View {
     }
 
     private var savedSearchPanel: some View {
-        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                SectionEyebrow(L10n.text("Saved Search", default: "Saved Search"), tone: .neutral)
-                Text(savedResultsSummary)
-                    .font(AppTheme.Typography.subheadline)
-                    .foregroundStyle(.secondary)
+        MissionSupportPanel(
+            eyebrow: L10n.text("Saved Search", default: "Saved Search"),
+            summary: savedResultsSummary,
+            tone: .neutral
+        ) {
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search favorites", default: "Search favorites"),
+                accessibilityIdentifier: AccessibilityID.favoritesSearchField
+            )
+        }
+    }
 
-                MissionSearchField(
-                    text: $searchQuery,
-                    placeholder: L10n.text("Search favorites", default: "Search favorites"),
-                    accessibilityIdentifier: AccessibilityID.favoritesSearchField
-                )
-            }
+    @ViewBuilder
+    private var savedStatusBadges: some View {
+        if fetcher.savedOfflineItemCount > 0 {
+            MissionBadge(
+                title: L10n.format(
+                    "saved.summary.offline_count",
+                    default: "%d offline",
+                    fetcher.savedOfflineItemCount
+                ),
+                systemImage: "arrow.down.circle.fill",
+                tone: .accent
+            )
+        }
+
+        if fetcher.savedPreviewItemCount > 0 {
+            MissionBadge(
+                title: L10n.format(
+                    "saved.summary.preview_count",
+                    default: "%d preview",
+                    fetcher.savedPreviewItemCount
+                ),
+                systemImage: "photo.badge.arrow.down",
+                tone: .neutral
+            )
         }
     }
 
@@ -589,47 +590,42 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveOverviewPanel: some View {
-        MissionPanel(tone: .accent, padding: AppTheme.Spacing.lg) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                SectionEyebrow(L10n.text("Editorial Archive", default: "Editorial Archive"), tone: .accent)
-                Text(archiveSummaryTitle)
-                    .font(AppTheme.Typography.cardTitle)
-                Text(archiveSummaryMessage)
-                    .font(AppTheme.Typography.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+        MissionSupportPanel(
+            eyebrow: L10n.text("Editorial Archive", default: "Editorial Archive"),
+            title: archiveSummaryTitle,
+            summary: archiveSummaryMessage,
+            tone: .accent,
+            padding: AppTheme.Spacing.lg
+        ) {
+            EmptyView()
         }
     }
 
     private var archiveControlsPanel: some View {
-        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                SectionEyebrow(L10n.text("Browse & Filter", default: "Browse & Filter"), tone: .neutral)
+        MissionSupportPanel(
+            eyebrow: L10n.text("Browse & Filter", default: "Browse & Filter"),
+            summary: archiveControlsSummary,
+            tone: .neutral
+        ) {
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search archive", default: "Search archive"),
+                accessibilityIdentifier: AccessibilityID.archiveSearchField
+            )
 
-                Text(archiveControlsSummary)
-                    .font(AppTheme.Typography.subheadline)
-                    .foregroundStyle(.secondary)
-
-                MissionSearchField(
-                    text: $searchQuery,
-                    placeholder: L10n.text("Search archive", default: "Search archive"),
-                    accessibilityIdentifier: AccessibilityID.archiveSearchField
-                )
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                        archiveFilterPicker
-                        Spacer(minLength: 0)
-                        if supportsGridPresentation {
-                            archiveLayoutPicker
-                        }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                    archiveFilterPicker
+                    Spacer(minLength: 0)
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
                     }
+                }
 
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                        archiveFilterPicker
-                        if supportsGridPresentation {
-                            archiveLayoutPicker
-                        }
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                    archiveFilterPicker
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
                     }
                 }
             }
@@ -732,27 +728,21 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveJumpPanel: some View {
-        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                SectionEyebrow(L10n.text("Timeline Focus", default: "Timeline Focus"), tone: .neutral)
+        MissionSupportPanel(
+            eyebrow: L10n.text("Timeline Focus", default: "Timeline Focus"),
+            title: L10n.text("Jump to APOD date", default: "Jump to APOD date"),
+            summary: archiveJumpSummary,
+            tone: .neutral
+        ) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
+                    archiveJumpDatePicker
+                    archiveJumpButton(compactNavigation: !usesSplitLayout)
+                }
 
-                Text(L10n.text("Jump to APOD date", default: "Jump to APOD date"))
-                    .font(AppTheme.Typography.sectionTitle)
-
-                Text(archiveJumpSummary)
-                    .font(AppTheme.Typography.subheadline)
-                    .foregroundStyle(.secondary)
-
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
-                        archiveJumpDatePicker
-                        archiveJumpButton(compactNavigation: !usesSplitLayout)
-                    }
-
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                        archiveJumpDatePicker
-                        archiveJumpButton(compactNavigation: !usesSplitLayout)
-                    }
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    archiveJumpDatePicker
+                    archiveJumpButton(compactNavigation: !usesSplitLayout)
                 }
             }
         }

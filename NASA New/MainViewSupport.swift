@@ -518,6 +518,131 @@ struct SectionEyebrow: View {
     }
 }
 
+struct MissionPanelHeader<Accessory: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let eyebrow: String
+    let title: String
+    let summary: String
+    let tone: AppTheme.SurfaceTone
+    private let accessory: Accessory
+
+    init(
+        eyebrow: String,
+        title: String,
+        summary: String,
+        tone: AppTheme.SurfaceTone = .accent,
+        @ViewBuilder accessory: () -> Accessory = { EmptyView() }
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.summary = summary
+        self.tone = tone
+        self.accessory = accessory()
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    private var hasAccessory: Bool {
+        !(Accessory.self == EmptyView.self)
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
+                textContent
+                if hasAccessory {
+                    Spacer(minLength: 0)
+                    accessory
+                }
+            }
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                textContent
+                if hasAccessory {
+                    accessory
+                }
+            }
+        }
+    }
+
+    private var textContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            SectionEyebrow(eyebrow, tone: tone)
+
+            Text(title)
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(summary)
+                .font(AppTheme.Typography.subheadline)
+                .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct MissionSupportPanel<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let eyebrow: String
+    let title: String?
+    let summary: String?
+    let tone: AppTheme.SurfaceTone
+    let padding: CGFloat
+    private let content: Content
+
+    init(
+        eyebrow: String,
+        title: String? = nil,
+        summary: String? = nil,
+        tone: AppTheme.SurfaceTone = .neutral,
+        padding: CGFloat = AppTheme.Spacing.md,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.summary = summary
+        self.tone = tone
+        self.padding = padding
+        self.content = content()
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    var body: some View {
+        MissionPanel(tone: tone, padding: padding) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+                SectionEyebrow(eyebrow, tone: tone)
+
+                if let title {
+                    Text(title)
+                        .font(AppTheme.Typography.sectionTitle)
+                        .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let summary {
+                    Text(summary)
+                        .font(AppTheme.Typography.subheadline)
+                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                content
+            }
+        }
+    }
+}
+
 struct MissionStateCard<Actions: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

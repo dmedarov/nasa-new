@@ -382,6 +382,8 @@
 "notification.permission_granted_help" = "These reminders use standard delivery and can be changed or turned off anytime.";
 "notification.permission_pending_help" = "Turn this on to request permission for a once-a-day reminder.";
 "notification.permission_unknown_help" = "Check notification permission in iOS Settings if reminders do not appear.";
+"header.today_summary" = "Open today's APOD story, jump across the timeline, and save favorites for later.";
+"header.archive_summary" = "Review an earlier APOD date, compare entries, and open the wider archive whenever you want more context.";
 "share.source_notice" = "Shared from Space Briefing, an independent app using NASA's public APOD service.";
 "share.rights_notice" = "Review the official APOD page for credit and reuse context before redistributing any media.";
 "share.source_url_line" = "Official APOD source: %@";
