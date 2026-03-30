@@ -9,6 +9,7 @@ import AppIntents
 struct NASA_NewApp: App {
     @StateObject private var fetcher: NasaCollectionFetcher
     @StateObject private var router = AppRouter()
+    @StateObject private var purchaseManager: PurchaseManager
     @AppStorage(AppAppearancePolicy.storageKey) private var appearancePreferenceRawValue: String = AppAppearancePreference.system.rawValue
 
     init() {
@@ -23,6 +24,7 @@ struct NASA_NewApp: App {
         let configuredFetcher = NasaCollectionFetcher()
         configuredFetcher.configureFixtureModeIfNeeded()
         _fetcher = StateObject(wrappedValue: configuredFetcher)
+        _purchaseManager = StateObject(wrappedValue: PurchaseManager())
     }
 
     private var appearancePreference: AppAppearancePreference {
@@ -40,20 +42,24 @@ struct NASA_NewApp: App {
                 }
                 .environmentObject(fetcher)
                 .environmentObject(router)
+                .environmentObject(purchaseManager)
+                .task {
+                    purchaseManager.start()
+                }
                 .onOpenURL { url in
-                    router.handle(url: url, fetcher: fetcher)
+                    router.handle(url: url, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
                 .onContinueUserActivity(AppUserActivityType.today) { activity in
-                    router.handle(userActivity: activity, fetcher: fetcher)
+                    router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
                 .onContinueUserActivity(AppUserActivityType.archive) { activity in
-                    router.handle(userActivity: activity, fetcher: fetcher)
+                    router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
                 .onContinueUserActivity(AppUserActivityType.saved) { activity in
-                    router.handle(userActivity: activity, fetcher: fetcher)
+                    router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
                 .onContinueUserActivity(AppUserActivityType.apod) { activity in
-                    router.handle(userActivity: activity, fetcher: fetcher)
+                    router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
             }
         }
@@ -95,6 +101,13 @@ private enum AppRuntimeConfiguration {
 
         if let wifiOnlyAutoplay = environment["UITEST_DEFAULT_WIFI_ONLY_AUTOPLAY"] {
             UserDefaults.standard.set(wifiOnlyAutoplay == "1", forKey: "wifiOnlyVideoAutoplay")
+        }
+
+        if let pendingRouteDestination = environment["UITEST_PENDING_ROUTE_DESTINATION"],
+           let destination = AppDestination(rawValue: pendingRouteDestination) {
+            PendingAppRouteStore.save(
+                AppRoute(destination: destination, apodDate: environment["UITEST_PENDING_ROUTE_DATE"])
+            )
         }
 
         if environment["UITEST_DISABLE_SCENE_RESTORATION"] == "1" {

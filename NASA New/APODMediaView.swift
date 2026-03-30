@@ -27,12 +27,16 @@ struct MediaView: View {
         colorScheme == .dark
     }
 
-    private var preferredImageURL: URL? {
+    private var preferredMediaURL: URL? {
         APODSourceLinkPolicy.preferredMediaURL(
             for: nasa,
             dataSaverMode: dataSaverMode,
             preferHDImages: preferHDImages
         )
+    }
+
+    private var preferredImageURL: URL? {
+        preferredMediaURL
     }
 
     private var archiveEntryURL: URL? {
@@ -44,13 +48,7 @@ struct MediaView: View {
     }
 
     private var preferredMediaHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(
-            for: APODSourceLinkPolicy.preferredMediaURL(
-                for: nasa,
-                dataSaverMode: dataSaverMode,
-                preferHDImages: preferHDImages
-            )
-        )
+        APODSourceLinkPolicy.hostLabel(for: preferredMediaURL)
     }
 
     private var mediaIntegritySummary: String {

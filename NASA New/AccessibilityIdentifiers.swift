@@ -1,6 +1,9 @@
 import Foundation
 
 enum AccessibilityID {
+    static let appShellSplitRoot = "appShellSplitRoot"
+    static let appShellSidebar = "appShellSidebar"
+    static let appShellDetail = "appShellDetail"
     static let mainViewRoot = "mainViewRoot"
     static let mainContentScrollView = "mainContentScrollView"
     static let apodMediaSection = "apodMediaSection"
@@ -46,6 +49,11 @@ enum AccessibilityID {
     static let archiveJumpDateButton = "archiveJumpDateButton"
     static let archiveGridLayoutButton = "archiveGridLayoutButton"
     static let archiveListLayoutButton = "archiveListLayoutButton"
+    static let paywallRoot = "paywallRoot"
+    static let paywallUnlockButton = "paywallUnlockButton"
+    static let paywallRestoreButton = "paywallRestoreButton"
+    static let paywallContinueButton = "paywallContinueButton"
+    static let paywallPriceText = "paywallPriceText"
     static let settingsSheetRoot = "settingsSheetRoot"
     static let settingsCloseButton = "settingsCloseButton"
     static let followSystemAppearanceToggle = "followSystemAppearanceToggle"
@@ -62,6 +70,8 @@ enum AccessibilityID {
     static let aboutSourceRightsPanel = "aboutSourceRightsPanel"
     static let apodImageView = "apodImageView"
     static let apodImageUnavailableMessage = "apodImageUnavailableMessage"
+    static let saveToPhotosButton = "saveToPhotosButton"
+    static let saveToPhotosStatusText = "saveToPhotosStatusText"
     static let videoDisabledMessage = "videoDisabledMessage"
     static let directVideoPlayer = "directVideoPlayer"
     static let playVideoInAppButton = "playVideoInAppButton"
@@ -79,5 +89,9 @@ enum AccessibilityID {
 
     static func archiveRowIdentifier(for nasa: NASA) -> String {
         "archiveAPODRow-\(nasa.date ?? "unknown")"
+    }
+
+    static func appShellSidebarDestinationIdentifier(for destination: AppDestination) -> String {
+        "appShellSidebarDestination-\(destination.rawValue)"
     }
 }

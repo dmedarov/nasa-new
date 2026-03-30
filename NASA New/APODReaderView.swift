@@ -134,6 +134,7 @@ struct APODReaderView: View {
 
 struct APODRecordDetailView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     let nasa: NASA
     let destination: AppDestination
 
@@ -155,7 +156,7 @@ struct APODRecordDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    fetcher.toggleFavorite(nasa)
+                    toggleFavorite()
                 } label: {
                     Image(systemName: fetcher.isFavorite(nasa) ? "bookmark.fill" : "bookmark")
                 }
@@ -193,5 +194,17 @@ struct APODRecordDetailView: View {
             for: nasa,
             sourceURL: primaryURL
         )
+    }
+
+    private func toggleFavorite() {
+        guard purchaseManager.canAddFavorite(
+            currentCount: fetcher.favorites.count,
+            isAlreadyFavorite: fetcher.isFavorite(nasa)
+        ) else {
+            purchaseManager.presentPaywall(trigger: .favoriteLimit, feature: .unlimitedFavorites)
+            return
+        }
+
+        fetcher.toggleFavorite(nasa)
     }
 }

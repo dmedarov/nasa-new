@@ -42,6 +42,7 @@
 		E10000162F80001600000016 /* AppSharedInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000162F80001600000016 /* AppSharedInfrastructure.swift */; };
 		E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
 		E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
+		E10000192F80001900000019 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
 		E30010012F80010100000001 /* NASA_New_Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30020012F80020100000001 /* NASA_New_Widget.swift */; };
 		E30010022F80010200000002 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DCCE8DE2F77CE82009C8476 /* Localizable.strings */; };
 		E30010032F80010300000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E30020042F80020400000004 /* PrivacyInfo.xcprivacy */; };
@@ -62,6 +63,7 @@
 		F10000132F81001300000013 /* AppSharedInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000162F80001600000016 /* AppSharedInfrastructure.swift */; };
 		F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
 		F10000152F81001500000015 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
+		F10000162F81001600000016 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -153,6 +155,7 @@
 		E20000162F80001600000016 /* AppSharedInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSharedInfrastructure.swift; sourceTree = "<group>"; };
 		E20000172F80001700000017 /* APODOfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODOfflineMedia.swift; sourceTree = "<group>"; };
 		E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+OfflineMedia.swift"; sourceTree = "<group>"; };
+		E20000192F80001900000019 /* APODDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDownloadService.swift; sourceTree = "<group>"; };
 		E30020012F80020100000001 /* NASA_New_Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_New_Widget.swift; sourceTree = "<group>"; };
 		E30020022F80020200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E30020042F80020400000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -250,6 +253,7 @@
 					E20000152F80001500000015 /* AppIntents.swift */,
 					E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
 					E20000172F80001700000017 /* APODOfflineMedia.swift */,
+					E20000192F80001900000019 /* APODDownloadService.swift */,
 					E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */,
 					E200000A2F80000A0000000A /* APODService.swift */,
 					E200000B2F80000B0000000B /* APODStores.swift */,
@@ -512,6 +516,7 @@
 				E10000082F80000800000008 /* NotificationScheduler.swift in Sources */,
 					E10000132F80001300000013 /* AppShellView.swift in Sources */,
 					E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */,
+					E10000192F80001900000019 /* APODDownloadService.swift in Sources */,
 					E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */,
 					E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */,
 				E10000042F80000400000004 /* SettingsSheetView.swift in Sources */,
@@ -547,6 +552,7 @@
 					F10000152F81001500000015 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */,
 					F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
 					AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
+					F10000162F81001600000016 /* APODDownloadService.swift in Sources */,
 					2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
 					AA1000062F00000100000006 /* AppRouterTests.swift in Sources */,
 					F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */,

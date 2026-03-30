@@ -396,6 +396,9 @@ struct SettingsSheetView: View {
                     Text(L10n.text("storage.archive_limit.description", default: "Controls how many APOD records stay on device. Saved images and supported media are downloaded separately for offline use when available."))
                         .font(.footnote)
                         .foregroundColor(.secondary)
+                    Text(L10n.text("storage.video_policy.description", default: "Saved videos stay linked to their original source by default. When possible, the app keeps a lightweight preview image offline instead of downloading the full video file."))
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
 
                 Section(L10n.text("Storage Diagnostics", default: "Storage Diagnostics")) {

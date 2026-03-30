@@ -21,6 +21,7 @@ struct MainView: View {
     }
 
     @EnvironmentObject var fetcher: NasaCollectionFetcher
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -154,6 +155,10 @@ struct MainView: View {
         )
     }
 
+    private var premiumReferenceDate: Date {
+        fetcher.maximumSelectableDate
+    }
+
     private var hasLoadedContent: Bool {
         !fetcher.apodData.isEmpty
     }
@@ -188,7 +193,7 @@ struct MainView: View {
             maximumDate: fetcher.maximumSelectableDate
         )
         guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
-        selectedDate = clampedDate
+        attemptDateSelection(clampedDate, trigger: .todayDateSelection)
     }
 
     private func applyCurrentSelectionState(syncSelectedDate: Bool) {
@@ -202,6 +207,10 @@ struct MainView: View {
     private func restoreSceneSelectionIfNeeded() {
         guard !UITestPolicy.isSceneRestorationDisabled else { return }
         guard let restoredSelectedDate else { return }
+        guard canAccessArchiveDate(restoredSelectedDate) else {
+            storedSelectedDateValue = fetcher.apodDateString(from: premiumReferenceDate)
+            return
+        }
         guard !fetcher.isSameAPODDay(selectedDate, restoredSelectedDate) else { return }
         isSyncingSelectedDateFromModel = false
         selectedDate = restoredSelectedDate
@@ -221,11 +230,40 @@ struct MainView: View {
         }
 
         if let restoredSelectedDate,
+           canAccessArchiveDate(restoredSelectedDate),
            !fetcher.isSameAPODDay(restoredSelectedDate, fetcher.maximumSelectableDate) {
             requestAPOD(for: restoredSelectedDate)
         } else {
             fetcher.startLatestFetch()
         }
+    }
+
+    private var gatedSelectedDateBinding: Binding<Date> {
+        Binding(
+            get: { selectedDate },
+            set: { proposedDate in
+                attemptDateSelection(proposedDate, trigger: .todayDateSelection)
+            }
+        )
+    }
+
+    private func canAccessArchiveDate(_ date: Date) -> Bool {
+        purchaseManager.canAccessArchive(
+            date: fetcher.normalizedDate(date),
+            referenceDate: premiumReferenceDate,
+            calendar: fetcher.calendar
+        )
+    }
+
+    private func attemptDateSelection(_ proposedDate: Date, trigger: PaywallTrigger) {
+        let normalizedDate = fetcher.normalizedDate(proposedDate)
+
+        guard canAccessArchiveDate(normalizedDate) else {
+            purchaseManager.presentPaywall(trigger: trigger, feature: .fullArchive)
+            return
+        }
+
+        selectedDate = normalizedDate
     }
     
     var body: some View {
@@ -327,7 +365,7 @@ struct MainView: View {
     private var headerSection: some View {
         MainHeaderBar(
             showSettingsSheet: $showSettingsSheet,
-            selectedDate: $selectedDate,
+            selectedDate: gatedSelectedDateBinding,
             minimumDate: fetcher.minimumSelectableDate,
             maximumDate: fetcher.maximumSelectableDate,
             isFetching: fetcher.isFetching,
@@ -468,6 +506,14 @@ struct MainView: View {
     }
 
     private func toggleFavorite() {
+        guard purchaseManager.canAddFavorite(
+            currentCount: fetcher.favorites.count,
+            isAlreadyFavorite: fetcher.isFavorite(fetcher.currentNasa)
+        ) else {
+            purchaseManager.presentPaywall(trigger: .favoriteLimit, feature: .unlimitedFavorites)
+            return
+        }
+
         fetcher.toggleFavorite(fetcher.currentNasa)
         favoriteFeedbackToken += 1
     }

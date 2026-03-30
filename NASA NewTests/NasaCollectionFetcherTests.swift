@@ -556,6 +556,41 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func bootstrapOfflineMediaStateLeavesDirectVideosRemoteOnlyByDefault() async {
+        let item = NASA(
+            date: "2025-01-22",
+            explanation: "Direct video item.",
+            mediaType: .video,
+            title: "Direct Video",
+            url: URL(string: "https://example.com/video.mp4")
+        )
+        let offlineMediaStore = InMemoryOfflineMediaStore()
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(initialFavorites: [item]),
+            cacheStorage: InMemoryAPODCacheStorage(),
+            offlineMediaStore: offlineMediaStore
+        )
+
+        await fetcher.bootstrapOfflineMediaState()
+
+        #expect(fetcher.offlineMediaAsset(for: item)?.availability == .remoteOnly)
+        #expect(fetcher.savedOfflineItemCount == 0)
+        #expect(fetcher.savedPreviewItemCount == 0)
+    }
+
+    @Test
     func selectingFavoriteUpdatesCurrentNasaAndCollection() {
         let favorite = NASA(
             date: "2025-01-10",
@@ -1192,6 +1227,8 @@ private actor InMemoryOfflineMediaStore: APODOfflineMediaStore {
             if favorite.mediaType == .video,
                favorite.url?.absoluteString.contains("youtube.com") == true {
                 availability = .previewOffline
+            } else if favorite.mediaType == .video {
+                availability = .remoteOnly
             } else {
                 availability = .availableOffline
             }

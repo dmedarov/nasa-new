@@ -820,3 +820,163 @@ struct AboutSourceRightsPanel: View {
         }
     }
 }
+
+struct MonetizationPaywallView: View {
+    @EnvironmentObject private var purchaseManager: PurchaseManager
+    let context: PaywallPresentation
+
+    private var priceLine: String {
+        purchaseManager.proLifetimeProduct?.displayPrice
+            ?? L10n.text("paywall.price_fallback", default: "One-time purchase")
+    }
+
+    private var productName: String {
+        purchaseManager.proLifetimeProduct?.displayName ?? AppProduct.proLifetime.fallbackDisplayName
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                MissionPanel(tone: .accent, padding: AppTheme.Spacing.xl) {
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                        MissionPanelHeader(
+                            eyebrow: L10n.text("paywall.eyebrow", default: "Space Briefing Pro"),
+                            title: L10n.text("paywall.title", default: "Unlock the full space experience"),
+                            summary: L10n.text(
+                                "paywall.subtitle",
+                                default: "Get the full NASA archive, HD saves, beautiful widgets, favorites, and an ad-free experience."
+                            ),
+                            tone: .accent
+                        ) {
+                            MissionBadge(
+                                title: productName,
+                                systemImage: "sparkles",
+                                tone: .accent
+                            )
+                        }
+
+                        MissionBadge(
+                            title: priceLine,
+                            systemImage: "creditcard.fill",
+                            tone: .favorite
+                        )
+                        .accessibilityIdentifier(AccessibilityID.paywallPriceText)
+
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                            paywallBullet(
+                                title: L10n.text("paywall.bullet.archive", default: "Full archive by date"),
+                                systemImage: "books.vertical.fill"
+                            )
+                            paywallBullet(
+                                title: L10n.text("paywall.bullet.hd_save", default: "Save in HD"),
+                                systemImage: "arrow.down.circle.fill"
+                            )
+                            paywallBullet(
+                                title: L10n.text("paywall.bullet.widgets", default: "All widgets unlocked"),
+                                systemImage: "rectangle.3.group.fill"
+                            )
+                            paywallBullet(
+                                title: L10n.text("paywall.bullet.favorites", default: "Unlimited favorites"),
+                                systemImage: "bookmark.fill"
+                            )
+                            paywallBullet(
+                                title: L10n.text("paywall.bullet.ads", default: "No ads"),
+                                systemImage: "nosign"
+                            )
+                        }
+
+                        if let paywallMessage = purchaseManager.paywallMessage, !paywallMessage.isEmpty {
+                            Text(paywallMessage)
+                                .font(AppTheme.Typography.footnote)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                            Button {
+                                Task {
+                                    await purchaseManager.purchaseLifetimeUnlock()
+                                }
+                            } label: {
+                                HStack(spacing: AppTheme.Spacing.sm) {
+                                    if purchaseManager.isPurchasing {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: "sparkles")
+                                            .accessibilityHidden(true)
+                                    }
+                                    Text(L10n.text("paywall.cta.unlock", default: "Unlock Lifetime"))
+                                        .font(AppTheme.Typography.buttonLabel)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.Palette.accentHighlight)
+                            .disabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
+                            .accessibilityIdentifier(AccessibilityID.paywallUnlockButton)
+
+                            Button {
+                                Task {
+                                    await purchaseManager.restorePurchases()
+                                }
+                            } label: {
+                                HStack(spacing: AppTheme.Spacing.sm) {
+                                    if purchaseManager.isRestoring {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                            .accessibilityHidden(true)
+                                    }
+                                    Text(L10n.text("paywall.cta.restore", default: "Restore Purchases"))
+                                        .font(AppTheme.Typography.buttonLabel)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
+                            .accessibilityIdentifier(AccessibilityID.paywallRestoreButton)
+
+                            Button(L10n.text("paywall.cta.continue_free", default: "Continue with Free")) {
+                                purchaseManager.dismissPaywall()
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
+                            .accessibilityIdentifier(AccessibilityID.paywallContinueButton)
+                        }
+
+                        Text(
+                            L10n.text(
+                                "paywall.footer",
+                                default: "Images and metadata courtesy of NASA/APOD. This app is not affiliated with or endorsed by NASA."
+                            )
+                        )
+                        .font(AppTheme.Typography.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.top, AppTheme.Spacing.lg)
+            .padding(.bottom, AppTheme.Spacing.xxl)
+        }
+        .background(SpaceBackdropView())
+        .accessibilityIdentifier(AccessibilityID.paywallRoot)
+        .interactiveDismissDisabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func paywallBullet(title: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+            Image(systemName: systemImage)
+                .foregroundStyle(AppTheme.Palette.accentHighlight)
+                .frame(width: 18)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(AppTheme.Typography.actionLabel)
+                .foregroundStyle(.primary)
+        }
+    }
+}

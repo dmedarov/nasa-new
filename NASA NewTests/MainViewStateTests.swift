@@ -1,6 +1,5 @@
 import XCTest
 import SwiftUI
-@testable import NASA_New
 
 final class MainViewStateTests: XCTestCase {
     private var calendar: Calendar {
@@ -261,6 +260,380 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(APODAttributionPolicy.rightsBadgeTitle(for: nasa), "Verify original credit")
     }
 
+    func testPremiumAccessPolicyFreeArchiveWindowCoversLatestSevenDaysExactly() {
+        let referenceDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 15))!
+        let earliestFreeDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 9))!
+        let lockedDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 8))!
+
+        XCTAssertEqual(
+            PremiumAccessPolicy.earliestFreeArchiveDate(referenceDate: referenceDate, calendar: calendar),
+            earliestFreeDate
+        )
+        XCTAssertTrue(
+            PremiumAccessPolicy.canAccessArchive(
+                date: earliestFreeDate,
+                hasPro: false,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        )
+        XCTAssertFalse(
+            PremiumAccessPolicy.canAccessArchive(
+                date: lockedDate,
+                hasPro: false,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        )
+    }
+
+    func testPremiumAccessPolicyAllowsOlderArchiveDatesForProUsers() {
+        let referenceDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 15))!
+        let oldestDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1))!
+
+        XCTAssertTrue(
+            PremiumAccessPolicy.canAccessArchive(
+                date: oldestDate,
+                hasPro: true,
+                referenceDate: referenceDate,
+                calendar: calendar
+            )
+        )
+    }
+
+    @MainActor
+    func testPurchaseManagerBlocksEleventhFavoriteButAllowsExistingFavoriteToRemainAccessible() {
+        let userDefaults = isolatedUserDefaults(name: "favoriteLimit")
+        let manager = PurchaseManager(
+            backend: MockPurchaseBackend(),
+            userDefaults: userDefaults,
+            environment: [:]
+        )
+
+        XCTAssertFalse(manager.canAddFavorite(currentCount: 10, isAlreadyFavorite: false))
+        XCTAssertTrue(manager.canAddFavorite(currentCount: 10, isAlreadyFavorite: true))
+    }
+
+    @MainActor
+    func testPurchaseManagerShowsArchiveVisitNudgeOnlyOnce() {
+        let userDefaults = isolatedUserDefaults(name: "archiveVisitNudge")
+        let manager = PurchaseManager(
+            backend: MockPurchaseBackend(),
+            userDefaults: userDefaults,
+            environment: [:]
+        )
+
+        manager.registerArchiveVisitIfNeeded()
+        XCTAssertNil(manager.activePaywall)
+
+        manager.registerArchiveVisitIfNeeded()
+        XCTAssertNil(manager.activePaywall)
+
+        manager.registerArchiveVisitIfNeeded()
+        XCTAssertEqual(manager.activePaywall?.trigger, .archiveVisitNudge)
+        XCTAssertEqual(manager.activePaywall?.feature, .fullArchive)
+
+        manager.dismissPaywall()
+        XCTAssertNil(manager.activePaywall)
+
+        manager.registerArchiveVisitIfNeeded()
+        XCTAssertNil(manager.activePaywall)
+    }
+
+    @MainActor
+    func testPurchaseManagerRefreshEntitlementsAppliesMockedBackendState() async {
+        let userDefaults = isolatedUserDefaults(name: "refreshEntitlements")
+        let backend = MockPurchaseBackend()
+        let manager = PurchaseManager(
+            backend: backend,
+            userDefaults: userDefaults,
+            environment: [:]
+        )
+
+        await backend.setEntitlementProductIDs([AppProduct.proLifetime.rawValue])
+        await manager.refreshEntitlements()
+
+        XCTAssertTrue(manager.hasPro)
+    }
+
+    @MainActor
+    func testPurchaseManagerRestorePurchasesUpdatesEntitlementsAndDismissesPaywall() async {
+        let userDefaults = isolatedUserDefaults(name: "restorePurchases")
+        let backend = MockPurchaseBackend()
+        let manager = PurchaseManager(
+            backend: backend,
+            userDefaults: userDefaults,
+            environment: [:]
+        )
+
+        manager.presentPaywall(trigger: .favoriteLimit, feature: .unlimitedFavorites)
+        await backend.setEntitlementProductIDs([AppProduct.proLifetime.rawValue])
+
+        await manager.restorePurchases()
+
+        XCTAssertTrue(manager.hasPro)
+        XCTAssertNil(manager.activePaywall)
+        let syncCallCount = await backend.syncCallCount()
+        XCTAssertEqual(syncCallCount, 1)
+        XCTAssertFalse(manager.paywallMessage?.isEmpty ?? true)
+    }
+
+    @MainActor
+    func testPurchaseManagerListensForMockedTransactionUpdates() async {
+        let userDefaults = isolatedUserDefaults(name: "transactionUpdates")
+        let backend = MockPurchaseBackend(
+            productSnapshots: [
+                StoreProductSnapshot(
+                    id: AppProduct.proLifetime.rawValue,
+                    displayName: "Pro Lifetime",
+                    description: "Unlock the full space experience.",
+                    displayPrice: "9.99 lv"
+                )
+            ]
+        )
+        let manager = PurchaseManager(
+            backend: backend,
+            userDefaults: userDefaults,
+            environment: [:]
+        )
+
+        manager.start()
+        let didSubscribe = await backend.waitUntilSubscribed()
+        XCTAssertTrue(didSubscribe)
+
+        await backend.setEntitlementProductIDs([AppProduct.proLifetime.rawValue])
+        await backend.emitTransactionUpdate()
+
+        await assertEventually {
+            await MainActor.run { manager.hasPro }
+        }
+        XCTAssertNotNil(manager.proLifetimeProduct)
+    }
+
+    func testPremiumAccessPolicyAllowsOriginalMediaSaveOnlyForProImageEntriesWithSource() {
+        let hdImage = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "HD Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+        let standardImage = NASA(
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Standard Test",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+        let missingSource = NASA(
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Missing Source"
+        )
+        let video = NASA(
+            date: "2025-01-15",
+            mediaType: .video,
+            title: "Video Test",
+            url: URL(string: "https://example.com/video.mp4")
+        )
+
+        XCTAssertTrue(PremiumAccessPolicy.canSaveOriginalMedia(apod: hdImage, hasPro: true))
+        XCTAssertTrue(PremiumAccessPolicy.canSaveOriginalMedia(apod: standardImage, hasPro: true))
+        XCTAssertFalse(PremiumAccessPolicy.canSaveOriginalMedia(apod: missingSource, hasPro: true))
+        XCTAssertFalse(PremiumAccessPolicy.canSaveOriginalMedia(apod: video, hasPro: true))
+        XCTAssertFalse(PremiumAccessPolicy.canSaveOriginalMedia(apod: hdImage, hasPro: false))
+    }
+
+    func testAPODDownloadServiceDownloadsSupportedImageToFile() async throws {
+        let sourceURL = try temporaryFileURL(
+            named: "download-service-image.jpg",
+            data: Data([0xFF, 0xD8, 0xFF, 0xD9])
+        )
+        let destinationDirectoryURL = temporaryDirectoryURL(named: "download-service-destination")
+        let service = APODDownloadService()
+
+        let downloadedFile = try await service.download(
+            from: sourceURL,
+            to: destinationDirectoryURL,
+            fileStem: "apod-image",
+            validation: .offlineImageAsset
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: downloadedFile.fileURL.path))
+        XCTAssertEqual(downloadedFile.byteCount, 4)
+        XCTAssertEqual(downloadedFile.fileExtension, "jpg")
+    }
+
+    func testAPODDownloadServiceRejectsUnsupportedContentTypes() async throws {
+        let sourceURL = try temporaryFileURL(
+            named: "download-service-invalid.html",
+            data: Data("<html></html>".utf8)
+        )
+        let destinationDirectoryURL = temporaryDirectoryURL(named: "download-service-invalid-destination")
+        let service = APODDownloadService()
+
+        do {
+            _ = try await service.download(
+                from: sourceURL,
+                to: destinationDirectoryURL,
+                fileStem: "invalid-image",
+                validation: .offlineImageAsset
+            )
+            XCTFail("Expected unsupported content type error")
+        } catch let error as APODDownloadService.DownloadError {
+            guard case .unsupportedContentType(let expected, _) = error else {
+                XCTFail("Expected unsupported content type error, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(expected, "offline image")
+        }
+    }
+
+    func testAPODDownloadServiceRejectsOversizedFiles() async throws {
+        let sourceURL = try temporaryFileURL(
+            named: "download-service-oversized.jpg",
+            data: Data(repeating: 0xAB, count: 64)
+        )
+        let destinationDirectoryURL = temporaryDirectoryURL(named: "download-service-oversized-destination")
+        let service = APODDownloadService()
+        let strictValidation = APODDownloadValidation(
+            expectedContentLabel: "tiny image",
+            allowedExactMIMETypes: APODDownloadValidation.offlineImageAsset.allowedExactMIMETypes,
+            allowedMIMETypePrefixes: APODDownloadValidation.offlineImageAsset.allowedMIMETypePrefixes,
+            allowedPathExtensions: APODDownloadValidation.offlineImageAsset.allowedPathExtensions,
+            fallbackExtension: "jpg",
+            maxByteCount: 8
+        )
+
+        do {
+            _ = try await service.download(
+                from: sourceURL,
+                to: destinationDirectoryURL,
+                fileStem: "oversized-image",
+                validation: strictValidation
+            )
+            XCTFail("Expected oversized download error")
+        } catch let error as APODDownloadService.DownloadError {
+            guard case .fileTooLarge(let maxBytes, let actualBytes) = error else {
+                XCTFail("Expected file too large error, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(maxBytes, 8)
+            XCTAssertEqual(actualBytes, 64)
+        }
+    }
+
+    func testSharedOfflineMediaStoreDownloadsFavoriteImageToLocalFile() async throws {
+        let sourceURL = try temporaryFileURL(
+            named: "offline-store-image.jpg",
+            data: Data(repeating: 0xCD, count: 1_024)
+        )
+        let rootDirectoryURL = temporaryDirectoryURL(named: "offline-store-root")
+        let userDefaults = isolatedUserDefaults(name: "offlineMediaStoreDownload")
+        let store = SharedAPODOfflineMediaStore(
+            userDefaults: userDefaults,
+            rootDirectoryURL: rootDirectoryURL
+        )
+        let favorite = NASA(
+            date: "2025-01-15",
+            explanation: "Offline image fixture.",
+            mediaType: .image,
+            title: "Offline Favorite",
+            url: sourceURL
+        )
+
+        let records = await store.synchronizeFavorites(
+            [favorite],
+            preferences: APODOfflineMediaPreferences(dataSaverMode: false, preferHDImages: false)
+        )
+
+        guard let record = records[favorite.id] else {
+            XCTFail("Expected offline record for favorite")
+            return
+        }
+
+        guard let relativePath = record.localAssetRelativePath else {
+            XCTFail("Expected a local asset path for the downloaded favorite")
+            return
+        }
+
+        XCTAssertEqual(record.availability, .availableOffline)
+        XCTAssertEqual(record.byteCount, 1_024)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: rootDirectoryURL.appendingPathComponent(relativePath, isDirectory: false).path
+            )
+        )
+    }
+
+    func testSharedOfflineMediaStoreKeepsDirectVideosRemoteOnlyByDefault() async {
+        let rootDirectoryURL = temporaryDirectoryURL(named: "offline-store-direct-video-root")
+        let userDefaults = isolatedUserDefaults(name: "offlineMediaStoreDirectVideo")
+        let store = SharedAPODOfflineMediaStore(
+            userDefaults: userDefaults,
+            rootDirectoryURL: rootDirectoryURL
+        )
+        let favorite = NASA(
+            date: "2025-01-16",
+            explanation: "Direct video fixture.",
+            mediaType: .video,
+            title: "Direct Video",
+            url: URL(string: "https://example.com/direct-video.mp4")
+        )
+
+        let records = await store.synchronizeFavorites(
+            [favorite],
+            preferences: APODOfflineMediaPreferences(dataSaverMode: false, preferHDImages: false)
+        )
+
+        guard let record = records[favorite.id] else {
+            XCTFail("Expected offline record for direct video favorite")
+            return
+        }
+
+        XCTAssertEqual(record.availability, .remoteOnly)
+        XCTAssertNil(record.localAssetRelativePath)
+        XCTAssertNil(record.localPreviewRelativePath)
+    }
+
+    func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
+        let service = PhotoExportService()
+        let nasa = NASA(
+            date: "2025-01-15",
+            mediaType: .video,
+            title: "Video Entry",
+            url: URL(string: "https://example.com/video.mp4")
+        )
+
+        do {
+            try await service.exportOriginalImage(for: nasa)
+            XCTFail("Expected unsupported media error")
+        } catch let error as PhotoExportService.ExportError {
+            XCTAssertEqual(error, .unsupportedMedia)
+        } catch {
+            XCTFail("Expected PhotoExportService.ExportError, got \(error)")
+        }
+    }
+
+    func testPhotoExportServiceRejectsMissingImageSourceBeforePhotoAuthorization() async {
+        let service = PhotoExportService()
+        let nasa = NASA(
+            date: "2025-01-15",
+            mediaType: .image,
+            title: "Missing Source"
+        )
+
+        do {
+            try await service.exportOriginalImage(for: nasa)
+            XCTFail("Expected missing source error")
+        } catch let error as PhotoExportService.ExportError {
+            XCTAssertEqual(error, .missingSource)
+        } catch {
+            XCTFail("Expected PhotoExportService.ExportError, got \(error)")
+        }
+    }
+
     func testAppBrandingPolicyUsesOfficialAPODArchiveHomeURL() {
         XCTAssertEqual(
             AppBrandingPolicy.officialAPODHomeURL()?.absoluteString,
@@ -297,5 +670,120 @@ final class MainViewStateTests: XCTestCase {
         let message = APODSharePolicy.shareMessage(for: nasa, sourceURL: nil, explanationMaxLength: 80)
 
         XCTAssertFalse(message.contains("Official APOD source"))
+    }
+
+    private func isolatedUserDefaults(name: String) -> UserDefaults {
+        let suiteName = "MainViewStateTests.\(name).\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Unable to create isolated user defaults suite: \(suiteName)")
+        }
+
+        userDefaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+        return userDefaults
+    }
+
+    private func assertEventually(
+        timeout: TimeInterval = 1.0,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: @escaping @Sendable () async -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if await condition() {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        let finalResult = await condition()
+        XCTAssertTrue(finalResult, file: file, line: line)
+    }
+
+    private func temporaryDirectoryURL(named name: String) -> URL {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(name)-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        return directoryURL
+    }
+
+    private func temporaryFileURL(named name: String, data: Data) throws -> URL {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString)-\(name)", isDirectory: false)
+        try data.write(to: fileURL, options: .atomic)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        return fileURL
+    }
+}
+
+private actor MockPurchaseBackend: PurchaseBackend {
+    private let productSnapshots: [StoreProductSnapshot]
+    private var entitlementProductIDs: Set<String>
+    private var updatesContinuation: AsyncStream<Set<String>>.Continuation?
+    private var isSubscribed = false
+    private var syncCount = 0
+
+    init(
+        productSnapshots: [StoreProductSnapshot] = [],
+        entitlementProductIDs: Set<String> = []
+    ) {
+        self.productSnapshots = productSnapshots
+        self.entitlementProductIDs = entitlementProductIDs
+    }
+
+    func loadProducts(productIDs: [String]) async throws -> [StoreProductSnapshot] {
+        productSnapshots
+    }
+
+    func currentEntitlementProductIDs() async -> Set<String> {
+        entitlementProductIDs
+    }
+
+    func purchase(productID: String) async throws -> PurchaseBackendResult {
+        .purchased
+    }
+
+    func sync() async throws {
+        syncCount += 1
+    }
+
+    func transactionUpdates() async -> AsyncStream<Set<String>> {
+        isSubscribed = true
+        return AsyncStream { continuation in
+            updatesContinuation = continuation
+        }
+    }
+
+    func setEntitlementProductIDs(_ productIDs: Set<String>) {
+        entitlementProductIDs = productIDs
+    }
+
+    func emitTransactionUpdate() {
+        updatesContinuation?.yield(entitlementProductIDs)
+    }
+
+    func syncCallCount() -> Int {
+        syncCount
+    }
+
+    func waitUntilSubscribed(timeoutNanoseconds: UInt64 = 1_000_000_000) async -> Bool {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            if isSubscribed {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        return isSubscribed
     }
 }

@@ -44,6 +44,8 @@
 		<string>eu.medarov.nasa-new.saved</string>
 		<string>eu.medarov.nasa-new.apod</string>
 	</array>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save original APOD images to your photo library.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

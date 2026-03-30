@@ -2,6 +2,9 @@ import XCTest
 
 final class NASANewUITests: XCTestCase {
     private enum UIElementID {
+        static let appShellSplitRoot = "appShellSplitRoot"
+        static let appShellSidebar = "appShellSidebar"
+        static let appShellDetail = "appShellDetail"
         static let mainViewRoot = "mainViewRoot"
         static let mainContentScrollView = "mainContentScrollView"
         static let splashScreenRoot = "splashScreenRoot"
@@ -30,6 +33,10 @@ final class NASANewUITests: XCTestCase {
         static let jumpToLatestAPODDateButton = "jumpToLatestAPODDateButton"
         static let previousAPODDateButton = "previousAPODDateButton"
         static let nextAPODDateButton = "nextAPODDateButton"
+        static let paywallRoot = "paywallRoot"
+        static let paywallContinueButton = "paywallContinueButton"
+        static let paywallUnlockButton = "paywallUnlockButton"
+        static let saveToPhotosButton = "saveToPhotosButton"
         static let apodTitleText = "apodTitleText"
         static let apodDateText = "apodDateText"
         static let apodExplanationToggleButton = "apodExplanationToggleButton"
@@ -57,6 +64,10 @@ final class NASANewUITests: XCTestCase {
 
         static func archiveRow(date: String) -> String {
             "archiveAPODRow-\(date)"
+        }
+
+        static func appShellSidebarDestination(_ destination: String) -> String {
+            "appShellSidebarDestination-\(destination)"
         }
     }
 
@@ -91,11 +102,17 @@ final class NASANewUITests: XCTestCase {
         reduceMotion: Bool? = nil,
         reduceTransparency: Bool? = nil,
         differentiateWithoutColor: Bool? = nil,
-        resetUserDefaults: Bool = true
+        resetUserDefaults: Bool = true,
+        pendingRouteDestination: String? = nil,
+        pendingRouteDate: String? = nil,
+        hasPro: Bool = false,
+        preloadedFavoriteDates: [String]? = nil,
+        forcePhotoExportSuccess: Bool = false
     ) {
         app.launchArguments += ["-ui-testing"]
         app.launchEnvironment["UITEST_USE_FIXTURE"] = "1"
         app.launchEnvironment["UITEST_FIXTURE_MODE"] = fixtureMode
+        app.launchEnvironment["UITEST_LIBRARY_STORAGE"] = "userdefaults"
         app.launchEnvironment["UITEST_LOCALE"] = locale
         app.launchEnvironment["UITEST_TIMEZONE"] = "UTC"
         app.launchEnvironment["UITEST_DISABLE_ANIMATIONS"] = "1"
@@ -139,6 +156,21 @@ final class NASANewUITests: XCTestCase {
         }
         if let differentiateWithoutColor {
             app.launchEnvironment["UITEST_DIFFERENTIATE_WITHOUT_COLOR"] = differentiateWithoutColor ? "1" : "0"
+        }
+        if let pendingRouteDestination {
+            app.launchEnvironment["UITEST_PENDING_ROUTE_DESTINATION"] = pendingRouteDestination
+        }
+        if let pendingRouteDate {
+            app.launchEnvironment["UITEST_PENDING_ROUTE_DATE"] = pendingRouteDate
+        }
+        if hasPro {
+            app.launchEnvironment["UITEST_HAS_PRO"] = "1"
+        }
+        if let preloadedFavoriteDates, !preloadedFavoriteDates.isEmpty {
+            app.launchEnvironment["UITEST_PRELOAD_FAVORITE_DATES"] = preloadedFavoriteDates.joined(separator: ",")
+        }
+        if forcePhotoExportSuccess {
+            app.launchEnvironment["UITEST_FORCE_PHOTO_EXPORT_SUCCESS"] = "1"
         }
     }
 
@@ -301,6 +333,23 @@ final class NASANewUITests: XCTestCase {
         target.tap()
     }
 
+    private func tapSidebarDestination(_ destination: String, timeout: TimeInterval = 5.0) {
+        let target = element(UIElementID.appShellSidebarDestination(destination))
+        XCTAssertTrue(target.waitForExistence(timeout: timeout))
+        XCTAssertTrue(waitForElementToBecomeHittable(target, timeout: timeout))
+        target.tap()
+    }
+
+    private func requireSplitShell(timeout: TimeInterval = 5.0) throws {
+        if waitForElement(identifier: UIElementID.appShellSplitRoot, timeout: timeout) {
+            XCTAssertTrue(waitForElement(identifier: UIElementID.appShellSidebar, timeout: timeout))
+            XCTAssertTrue(waitForElement(identifier: UIElementID.appShellDetail, timeout: timeout))
+            return
+        }
+
+        throw XCTSkip("Requires the regular-width iPad split shell.")
+    }
+
     private func waitForSwitchValue(_ element: XCUIElement, equals expectedValue: String, timeout: TimeInterval) -> Bool {
         let predicate = NSPredicate(format: "value == %@", expectedValue)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
@@ -357,6 +406,17 @@ final class NASANewUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func monetizationFavoriteSeedDates() -> [String] {
+        (5...14).map { String(format: "2025-01-%02d", $0) }
+    }
+
+    private func dismissPaywall() {
+        let continueButton = element(UIElementID.paywallContinueButton)
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5.0))
+        continueButton.tap()
+        XCTAssertTrue(waitForElementToDisappear(element(UIElementID.paywallRoot), timeout: 5.0))
     }
 
     private func launchAndWaitForMainView(fixtureMode: String = "default", dataSaverMode: Bool? = nil, preferHDImages: Bool? = nil) {
@@ -706,6 +766,169 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
     }
 
+    func testFreeUserOpeningLockedArchiveEntryShowsPaywall() {
+        configureLaunchEnvironment(fixtureMode: "monetization")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+
+        tapElement(UIElementID.openArchiveButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-04\n")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-04"))
+        revealElement(archiveRow)
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        scrollElementToHittable(archiveRow)
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
+        archiveRow.tap()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        dismissPaywall()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+    }
+
+    func testFreeUserPendingLockedArchiveRouteShowsPaywallOnLaunch() {
+        configureLaunchEnvironment(
+            fixtureMode: "monetization",
+            pendingRouteDestination: "archive",
+            pendingRouteDate: "2025-01-04"
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+
+        dismissPaywall()
+        XCTAssertFalse(element(UIElementID.archiveSheetRoot).exists)
+    }
+
+    func testFreeUserAddingEleventhFavoriteShowsPaywall() {
+        configureLaunchEnvironment(
+            fixtureMode: "monetization",
+            preloadedFavoriteDates: monetizationFavoriteSeedDates()
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+
+        guard let favoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button to become available")
+            return
+        }
+
+        scrollElementToHittable(favoriteButton)
+        XCTAssertTrue(waitForElementToBecomeHittable(favoriteButton, timeout: 5.0))
+        favoriteButton.tap()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        dismissPaywall()
+
+        guard let refreshedFavoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button after dismissing the paywall")
+            return
+        }
+
+        XCTAssertTrue(refreshedFavoriteButton.label.contains("Add"))
+    }
+
+    func testFreeUserSaveToPhotosShowsPaywall() {
+        configureLaunchEnvironment(fixtureMode: "monetization")
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+
+        tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        dismissPaywall()
+    }
+
+    func testProUserCanAddEleventhFavoriteWithoutPaywall() {
+        configureLaunchEnvironment(
+            fixtureMode: "monetization",
+            hasPro: true,
+            preloadedFavoriteDates: monetizationFavoriteSeedDates(),
+            forcePhotoExportSuccess: true
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+
+        guard let mainFavoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button on the main screen")
+            return
+        }
+
+        scrollElementToHittable(mainFavoriteButton)
+        XCTAssertTrue(waitForElementToBecomeHittable(mainFavoriteButton, timeout: 5.0))
+        mainFavoriteButton.tap()
+
+        guard let refreshedMainFavoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a refreshed favorite button after adding a Pro favorite")
+            return
+        }
+
+        XCTAssertTrue(refreshedMainFavoriteButton.label.contains("Remove"))
+        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+    }
+
+    func testProUserCanOpenLockedArchiveAndSavePhotoWithoutPaywall() {
+        configureLaunchEnvironment(
+            fixtureMode: "monetization",
+            hasPro: true,
+            preloadedFavoriteDates: monetizationFavoriteSeedDates(),
+            forcePhotoExportSuccess: true
+        )
+        app.launch()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
+        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+
+        tapElement(UIElementID.openArchiveButton)
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-04\n")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-04"))
+        revealElement(archiveRow)
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        scrollElementToHittable(archiveRow)
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
+        archiveRow.tap()
+
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-04"))
+        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+
+        tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
+        XCTAssertTrue(waitForAnyLabel(containing: "Saved to Photos", timeout: 5.0))
+        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+
+        if app.buttons["OK"].waitForExistence(timeout: 1.0) {
+            app.buttons["OK"].tap()
+        }
+    }
+
     func testArchiveFilterPersistsAcrossRelaunch() {
         configureLaunchEnvironment(fixtureMode: "date_navigation")
         app.launch()
@@ -727,8 +950,6 @@ final class NASANewUITests: XCTestCase {
         configureLaunchEnvironment(fixtureMode: "date_navigation", resetUserDefaults: false)
         app.launch()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
-        tapElement(UIElementID.openArchiveButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
 
         guard let persistedImagesFilter = waitForFilterOption("Images") else {
@@ -769,17 +990,9 @@ final class NASANewUITests: XCTestCase {
         configureLaunchEnvironment(resetUserDefaults: false)
         app.launch()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
-        guard let relaunchedFavoriteButton = waitForFavoriteButton() else {
-            XCTFail("Expected a favorite button to be available after relaunch")
-            return
-        }
-
-        scrollElementToHittable(relaunchedFavoriteButton)
-        XCTAssertTrue(waitForElementToBecomeHittable(relaunchedFavoriteButton, timeout: 5.0))
-        relaunchedFavoriteButton.tap()
-        tapElement(UIElementID.openFavoritesButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.favoritesSheetRoot, timeout: 5.0))
+        let persistedFavoriteRow = element(UIElementID.favoriteRow(date: "2025-01-15"))
+        XCTAssertTrue(persistedFavoriteRow.waitForExistence(timeout: 5.0))
 
         guard let persistedSourceFilter = waitForFilterOption("Source") else {
             XCTFail("Expected saved Source filter to be available after relaunch")
@@ -787,6 +1000,113 @@ final class NASANewUITests: XCTestCase {
         }
 
         XCTAssertTrue(persistedSourceFilter.isSelected)
+    }
+
+    func testIPadSplitShellArchiveSelectionFlow() throws {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        try requireSplitShell()
+
+        tapSidebarDestination("archive")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available in split shell.")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-14\n")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-14"))
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
+        archiveRow.tap()
+
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
+    }
+
+    func testIPadSavedSelectionUpdatesDetail() throws {
+        configureLaunchEnvironment()
+        app.launch()
+
+        try requireSplitShell()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+
+        guard let favoriteButton = waitForFavoriteButton() else {
+            XCTFail("Expected a favorite button to become available in the split shell.")
+            return
+        }
+
+        scrollElementToHittable(favoriteButton)
+        XCTAssertTrue(waitForElementToBecomeHittable(favoriteButton, timeout: 5.0))
+        favoriteButton.tap()
+
+        tapSidebarDestination("saved")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.favoritesSheetRoot, timeout: 5.0))
+
+        let favoriteRow = element(UIElementID.favoriteRow(date: "2025-01-15"))
+        XCTAssertTrue(favoriteRow.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(favoriteRow, timeout: 5.0))
+        favoriteRow.tap()
+
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD"))
+    }
+
+    func testIPadPendingArchiveRouteFocusesExactDate() throws {
+        configureLaunchEnvironment(
+            fixtureMode: "date_navigation",
+            pendingRouteDestination: "archive",
+            pendingRouteDate: "2025-01-13"
+        )
+        app.launch()
+
+        try requireSplitShell()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-13"))
+    }
+
+    func testIPadSidebarDestinationPersistsAcrossRelaunch() throws {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        try requireSplitShell()
+        tapSidebarDestination("archive")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        app.terminate()
+        app = XCUIApplication()
+        configureLaunchEnvironment(fixtureMode: "date_navigation", resetUserDefaults: false)
+        app.launch()
+
+        try requireSplitShell()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+    }
+
+    func testIPadSplitShellSupportsAccessibilityOverrides() throws {
+        configureLaunchEnvironment(
+            fixtureMode: "date_navigation",
+            locale: "bg_BG",
+            dynamicTypeSize: "accessibility3",
+            reduceMotion: true,
+            reduceTransparency: true,
+            differentiateWithoutColor: true
+        )
+        app.launch()
+
+        try requireSplitShell()
+        tapSidebarDestination("archive")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to remain available with accessibility overrides.")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-13\n")
+        XCTAssertTrue(waitForValueContaining(searchField, substring: "2025-01-13", timeout: 5.0))
     }
 
     func testLongExplanationAtAccessibilitySizePreservesShareAction() {

@@ -28,9 +28,19 @@ struct AppRouterTests {
         let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
         let publicBaseURL = URL(string: "https://example.com/space-briefing")!
 
-        let generatedURL = AppDeepLink.url(for: route, publicBaseURL: publicBaseURL)
+        let generatedURL = AppDeepLink.publicWebURL(for: route, publicBaseURL: publicBaseURL)
 
         #expect(generatedURL == URL(string: "https://example.com/space-briefing/archive?date=2025-01-07"))
+    }
+
+    @Test
+    func appDeepLinkUsesCustomSchemeForInternalNavigationEvenWhenPublicWebURLIsConfigured() {
+        let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
+        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
+
+        let generatedURL = AppDeepLink.url(for: route, publicBaseURL: publicBaseURL)
+
+        #expect(generatedURL == URL(string: "nasanew://archive?date=2025-01-07"))
     }
 
     @Test
@@ -163,6 +173,93 @@ struct AppRouterTests {
         #expect(query["date"] == "2025-01-13")
     }
 
+    @Test
+    func appRouterPresentsDeepLinkPaywallForLockedArchiveDate() {
+        let lockedItem = makeAPOD(date: "2025-01-04", title: "Locked Archive Story")
+        let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Archive Story")
+        let fetcher = makeFetcher(cachedItems: [lockedItem, latestItem])
+        let router = AppRouter()
+        let purchaseManager = makePurchaseManager(name: "deepLinkLockedDate")
+
+        router.handle(
+            url: URL(string: "nasanew://archive?date=2025-01-04")!,
+            fetcher: fetcher,
+            purchaseManager: purchaseManager
+        )
+
+        #expect(purchaseManager.activePaywall?.trigger == .deepLinkLockedDate)
+        #expect(purchaseManager.activePaywall?.feature == .fullArchive)
+        #expect(router.destination == .today)
+        #expect(fetcher.currentNasa.date == "2025-01-15")
+    }
+
+    @Test
+    func appRouterPresentsAppIntentPaywallForLockedArchiveDate() {
+        let lockedItem = makeAPOD(date: "2025-01-04", title: "Locked Archive Story")
+        let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Archive Story")
+        let fetcher = makeFetcher(cachedItems: [lockedItem, latestItem])
+        let router = AppRouter()
+        let purchaseManager = makePurchaseManager(name: "appIntentLockedDate")
+
+        router.handle(
+            AppRoute(destination: .archive, apodDate: "2025-01-04"),
+            fetcher: fetcher,
+            purchaseManager: purchaseManager,
+            lockedDateTrigger: .appIntentLockedDate
+        )
+
+        #expect(purchaseManager.activePaywall?.trigger == .appIntentLockedDate)
+        #expect(purchaseManager.activePaywall?.feature == .fullArchive)
+        #expect(router.selectedArchiveItemID == nil)
+    }
+
+    @Test
+    func appRouterAllowsOlderSavedFavoriteRouteWithoutPro() {
+        let favorite = makeAPOD(date: "2025-01-04", title: "Saved Older Story")
+        let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Archive Story")
+        let fetcher = makeFetcher(
+            cachedItems: [favorite, latestItem],
+            favorites: [favorite]
+        )
+        let router = AppRouter()
+        let purchaseManager = makePurchaseManager(name: "savedFavoriteBypass")
+
+        router.handle(
+            AppRoute(destination: .saved, apodDate: "2025-01-04"),
+            fetcher: fetcher,
+            purchaseManager: purchaseManager
+        )
+
+        #expect(purchaseManager.activePaywall == nil)
+        #expect(router.destination == .saved)
+        #expect(router.selectedSavedItemID == favorite.id)
+        #expect(fetcher.currentNasa.id == favorite.id)
+    }
+
+    @Test
+    func appRouterAllowsProUserToOpenLockedArchiveDate() {
+        let lockedItem = makeAPOD(date: "2025-01-04", title: "Locked Archive Story")
+        let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Archive Story")
+        let fetcher = makeFetcher(cachedItems: [lockedItem, latestItem])
+        let router = AppRouter()
+        let purchaseManager = makePurchaseManager(
+            name: "proLockedDate",
+            environment: ["UITEST_HAS_PRO": "1"]
+        )
+
+        router.handle(
+            AppRoute(destination: .archive, apodDate: "2025-01-04"),
+            fetcher: fetcher,
+            purchaseManager: purchaseManager,
+            lockedDateTrigger: .appIntentLockedDate
+        )
+
+        #expect(purchaseManager.activePaywall == nil)
+        #expect(router.destination == .archive)
+        #expect(router.selectedArchiveItemID == lockedItem.id)
+        #expect(fetcher.currentNasa.id == lockedItem.id)
+    }
+
     private func makeSession(
         handler: @escaping @Sendable (URLRequest) throws -> (URLResponse, Data)
     ) -> URLSession {
@@ -170,6 +267,57 @@ struct AppRouterTests {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AppRouterMockURLProtocol.self]
         return URLSession(configuration: configuration)
+    }
+
+    private func makeFetcher(
+        cachedItems: [NASA],
+        favorites: [NASA] = [],
+        referenceDate: Date = Date(timeIntervalSince1970: 1_736_899_200)
+    ) -> NasaCollectionFetcher {
+        let calendar = Calendar(identifier: .gregorian)
+        return NasaCollectionFetcher(
+            session: makeSession { request in
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: calendar,
+            nowProvider: { referenceDate },
+            favoritesStorage: AppRouterInMemoryFavoritesStorage(initialFavorites: favorites),
+            cacheStorage: AppRouterInMemoryCacheStorage(initialItems: cachedItems)
+        )
+    }
+
+    private func makePurchaseManager(
+        name: String,
+        environment: [String: String] = [:]
+    ) -> PurchaseManager {
+        let suiteName = "AppRouterTests.\(name).\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Expected isolated test defaults suite.")
+            return PurchaseManager(environment: environment)
+        }
+
+        userDefaults.removePersistentDomain(forName: suiteName)
+        return PurchaseManager(
+            userDefaults: userDefaults,
+            environment: environment
+        )
+    }
+
+    private func makeAPOD(date: String, title: String) -> NASA {
+        NASA(
+            date: date,
+            explanation: "App router test fixture for \(title).",
+            mediaType: .image,
+            title: title,
+            url: URL(string: "https://example.com/\(date).jpg")
+        )
     }
 }
 

@@ -43,6 +43,15 @@ struct CompositeAPODLibraryStorage: APODLibraryStorage {
 
 enum APODLibraryStoreFactory {
     static func makeDefault() -> any APODLibraryStorage {
+        switch runtimeMode {
+        case .volatile:
+            return VolatileAPODLibraryStorage()
+        case .userDefaults:
+            return UserDefaultsAPODLibraryStorage()
+        case .automatic:
+            break
+        }
+
         if usesVolatileStoreForCurrentRuntime {
             return VolatileAPODLibraryStorage()
         }
@@ -57,6 +66,17 @@ enum APODLibraryStoreFactory {
 #endif
 
         return UserDefaultsAPODLibraryStorage()
+    }
+
+    private enum RuntimeMode: String {
+        case automatic
+        case volatile
+        case userDefaults = "userdefaults"
+    }
+
+    private static var runtimeMode: RuntimeMode {
+        let environment = ProcessInfo.processInfo.environment
+        return RuntimeMode(rawValue: environment["UITEST_LIBRARY_STORAGE"] ?? "") ?? .automatic
     }
 
     private static var usesVolatileStoreForCurrentRuntime: Bool {

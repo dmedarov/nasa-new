@@ -1,3 +1,13 @@
+// Leave these blank in source control and define them in LocalSecrets.xcconfig
+// or in CI/release configuration overrides.
+//
+// NASA_API_KEY:
+// - Local development may fall back to DEMO_KEY when unset.
+// - Release/TestFlight/App Store builds should override with a real personal key.
+//
+// APOD_PUBLIC_WEB_BASE_URL:
+// - Leave empty unless you have associated domains + AASA configured for universal links.
+// - Share/discovery links may use it, but widget and in-app routing should keep using nasanew://.
 NASA_API_KEY =
 APOD_PUBLIC_WEB_BASE_URL =
 #include? "LocalSecrets.xcconfig"

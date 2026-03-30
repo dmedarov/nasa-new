@@ -2,11 +2,14 @@ import SwiftUI
 
 struct APODDetailsView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var isExplanationExpanded = false
+    @State private var isSavingToPhotos = false
+    @State private var photoExportNotice: PhotoExportNotice?
     let nasa: NASA
     let isFavorite: Bool
     let nasaPageURL: URL?
@@ -80,6 +83,8 @@ struct APODDetailsView: View {
         APODAttributionPolicy.rightsTone(for: nasa)
     }
 
+    private let photoExportService = PhotoExportService()
+
     private var archiveEntryTitle: String {
         APODSourceLinkPolicy.archiveEntryTitle(for: nasa.date)
     }
@@ -112,6 +117,10 @@ struct APODDetailsView: View {
         )
     }
 
+    private var canOfferPhotoExport: Bool {
+        PhotoExportService.exportSourceURL(for: nasa) != nil
+    }
+
     var body: some View {
         MissionPanel(tone: .neutral, padding: AppTheme.Spacing.xl) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
@@ -142,6 +151,13 @@ struct APODDetailsView: View {
         .padding(.horizontal, AppTheme.Spacing.lg)
         .onChange(of: nasa.id) { _ in
             isExplanationExpanded = false
+        }
+        .alert(item: $photoExportNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text(L10n.text("OK", default: "OK")))
+            )
         }
     }
 
@@ -331,6 +347,11 @@ struct APODDetailsView: View {
             .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
             .fixedSize(horizontal: false, vertical: true)
 
+            if canOfferPhotoExport {
+                saveToPhotosCard
+                    .accessibilityIdentifier(AccessibilityID.saveToPhotosButton)
+            }
+
             if let nasaPageURL {
                 APODSourceCard(
                     title: archiveEntryTitle,
@@ -359,6 +380,66 @@ struct APODDetailsView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.apodSourceSection)
+    }
+
+    private var saveToPhotosCard: some View {
+        Button {
+            Task {
+                await handleSaveToPhotos()
+            }
+        } label: {
+            APODActionCard(
+                title: L10n.text("media.save_to_photos", default: "Save to Photos"),
+                subtitle: L10n.text(
+                    "media.save_to_photos_summary",
+                    default: "Download the original APOD image in the best available quality and save it to your photo library."
+                ),
+                systemImage: isSavingToPhotos ? "arrow.down.circle.fill" : "square.and.arrow.down",
+                tone: .favorite,
+                trailingContent: {
+                    if isSavingToPhotos {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.forward.square")
+                            .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                            .accessibilityHidden(true)
+                    }
+                }
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isSavingToPhotos)
+    }
+
+    private func handleSaveToPhotos() async {
+        guard purchaseManager.canSaveOriginalMedia(apod: nasa) else {
+            purchaseManager.presentPaywall(trigger: .hdSave, feature: .hdSave)
+            return
+        }
+
+        isSavingToPhotos = true
+        defer { isSavingToPhotos = false }
+
+        do {
+            try await photoExportService.exportOriginalImage(for: nasa)
+            photoExportNotice = PhotoExportNotice(
+                title: L10n.text("media.save_success_title", default: "Saved to Photos"),
+                message: L10n.text(
+                    "media.save_success_message",
+                    default: "The original APOD image is now available in your photo library."
+                )
+            )
+        } catch let error as PhotoExportService.ExportError {
+            photoExportNotice = PhotoExportNotice(
+                title: error.errorTitle,
+                message: error.localizedDescription
+            )
+        } catch {
+            photoExportNotice = PhotoExportNotice(
+                title: L10n.text("media.save_failed_title", default: "Could not save image"),
+                message: error.localizedDescription
+            )
+        }
     }
 }
 
@@ -479,6 +560,66 @@ private struct APODSourceCard: View {
     }
 }
 
+private struct APODActionCard<TrailingContent: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tone: AppTheme.SurfaceTone
+    private let trailingContent: TrailingContent
+
+    init(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        tone: AppTheme.SurfaceTone,
+        @ViewBuilder trailingContent: () -> TrailingContent = { EmptyView() }
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.tone = tone
+        self.trailingContent = trailingContent()
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
+            Image(systemName: systemImage)
+                .foregroundStyle(AppTheme.toneColor(tone, isDarkMode: isDarkMode))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                Text(title)
+                    .font(AppTheme.Typography.sectionTitle)
+                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+
+                Text(subtitle)
+                    .font(AppTheme.Typography.footnote)
+                    .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier(AccessibilityID.saveToPhotosStatusText)
+            }
+
+            Spacer(minLength: AppTheme.Spacing.sm)
+
+            trailingContent
+        }
+        .padding(AppTheme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.toneColor(tone, isDarkMode: isDarkMode).opacity(isDarkMode ? 0.12 : 0.08))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
+                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct APODAttributionNotice: View {
     @Environment(\.colorScheme) private var colorScheme
     let title: String
@@ -517,4 +658,10 @@ private struct APODAttributionNotice: View {
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
+}
+
+private struct PhotoExportNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }

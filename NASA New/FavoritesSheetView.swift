@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 private enum ArchiveFilter: String, CaseIterable, Identifiable {
@@ -158,6 +159,8 @@ struct SavedScreenView: View {
     @State private var pushedFavorite: NASA?
     @State private var selectedFavoriteID: String?
     @State private var searchQuery = ""
+    @State private var savedDisplayItems = [APODLibraryDisplayItem]()
+    @State private var filteredFavoriteItems = [APODLibraryDisplayItem]()
 
     private var usesSplitLayout: Bool {
         horizontalSizeClass == .regular
@@ -179,26 +182,9 @@ struct SavedScreenView: View {
         SavedFilter(rawValue: savedFilterRawValue) ?? .all
     }
 
-    private var savedDisplayItems: [APODLibraryDisplayItem] {
-        fetcher.favorites.map {
-            APODLibraryDisplayItem(
-                item: $0,
-                isSaved: true,
-                offlineMedia: fetcher.offlineMediaAsset(for: $0),
-                locale: locale
-            )
-        }
-    }
-
-    private var filteredFavorites: [APODLibraryDisplayItem] {
-        savedDisplayItems.filter { item in
-            item.matchesSavedFilter(savedFilter) && item.matchesSearch(searchQuery)
-        }
-    }
-
     private var selectedFavorite: NASA? {
         let preferredID = selectedFavoriteID ?? router.selectedSavedItemID
-        return filteredFavorites.first(where: { $0.id == preferredID })?.item
+        return filteredFavoriteItems.first(where: { $0.id == preferredID })?.item
             ?? savedDisplayItems.first(where: { $0.id == preferredID })?.item
     }
 
@@ -209,7 +195,7 @@ struct SavedScreenView: View {
                 return L10n.format(
                     "saved.search.summary.filtered_by_mode",
                     default: "Showing %d saved stories in %@.",
-                    filteredFavorites.count,
+                    filteredFavoriteItems.count,
                     savedFilter.localizedTitle
                 )
             }
@@ -217,15 +203,15 @@ struct SavedScreenView: View {
             return L10n.format(
                 "saved.search.summary.default",
                 default: "Search %d saved APOD stories by title, date, or credit line.",
-                fetcher.favorites.count
+                savedDisplayItems.count
             )
         }
 
         return L10n.format(
             "saved.search.summary.filtered",
             default: "Showing %d of %d saved stories for \"%@\".",
-            filteredFavorites.count,
-            fetcher.favorites.count,
+            filteredFavoriteItems.count,
+            savedDisplayItems.count,
             trimmedQuery
         )
     }
@@ -275,11 +261,24 @@ struct SavedScreenView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
         }
-        .onAppear {
+        .task {
+            rebuildSavedLibrarySnapshot()
             syncSavedSelectionFromRouter()
+        }
+        .onReceive(fetcher.$favorites.combineLatest(fetcher.$offlineMediaAssetsByID)) { _, _ in
+            rebuildSavedLibrarySnapshot()
         }
         .onChange(of: router.selectedSavedItemID) { _ in
             syncSavedSelectionFromRouter()
+        }
+        .onChange(of: searchQuery) { _ in
+            rebuildSavedFiltering()
+        }
+        .onChange(of: savedFilterRawValue) { _ in
+            rebuildSavedFiltering()
+        }
+        .onChange(of: locale.identifier) { _ in
+            rebuildSavedLibrarySnapshot()
         }
         .onChange(of: fetcher.favorites.map(\.id)) { _ in
             if let selectedFavoriteID,
@@ -318,11 +317,11 @@ struct SavedScreenView: View {
             savedHeaderPanels
                 .libraryHeaderRowStyle()
 
-            if filteredFavorites.isEmpty {
+            if filteredFavoriteItems.isEmpty {
                 searchEmptyState
                     .libraryStateRowStyle()
             } else {
-                ForEach(filteredFavorites) { displayItem in
+                ForEach(filteredFavoriteItems) { displayItem in
                     libraryRow(
                         displayItem,
                         isSelected: displayItem.id == selectedItemID,
@@ -492,15 +491,16 @@ struct SavedScreenView: View {
                 LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                     savedHeaderPanels
 
-                    if filteredFavorites.isEmpty {
+                    if filteredFavoriteItems.isEmpty {
                         searchEmptyState
                             .padding(.horizontal, AppTheme.Spacing.lg)
                     } else {
                         LazyVGrid(columns: savedGridColumns, spacing: AppTheme.Spacing.md) {
-                            ForEach(filteredFavorites) { displayItem in
+                            ForEach(filteredFavoriteItems) { displayItem in
                                 ArchiveGridCard(
                                     displayItem: displayItem,
                                     isSelected: displayItem.id == selectedFavoriteID,
+                                    isLocked: false,
                                     action: { selectionAction(displayItem.item) }
                                 )
                                 .id(displayItem.id)
@@ -537,6 +537,24 @@ struct SavedScreenView: View {
         selectedFavoriteID = selectedID
         if let favorite = fetcher.favorites.first(where: { $0.id == selectedID }) {
             fetcher.selectFavorite(favorite)
+        }
+    }
+
+    private func rebuildSavedLibrarySnapshot() {
+        savedDisplayItems = fetcher.favorites.map {
+            APODLibraryDisplayItem(
+                item: $0,
+                isSaved: true,
+                offlineMedia: fetcher.offlineMediaAsset(for: $0),
+                locale: locale
+            )
+        }
+        rebuildSavedFiltering()
+    }
+
+    private func rebuildSavedFiltering() {
+        filteredFavoriteItems = savedDisplayItems.filter { item in
+            item.matchesSavedFilter(savedFilter) && item.matchesSearch(searchQuery)
         }
     }
 
@@ -590,6 +608,7 @@ struct SavedScreenView: View {
 struct ArchiveScreenView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
 
@@ -599,6 +618,9 @@ struct ArchiveScreenView: View {
     @State private var selectedArchiveItemID: String?
     @State private var searchQuery = ""
     @State private var archiveJumpDate = Date()
+    @State private var archiveDisplayItems = [APODLibraryDisplayItem]()
+    @State private var filteredArchiveItems = [APODLibraryDisplayItem]()
+    @State private var archiveSections = [ArchiveSection]()
 
     private var usesSplitLayout: Bool {
         horizontalSizeClass == .regular
@@ -620,45 +642,9 @@ struct ArchiveScreenView: View {
         supportsGridPresentation && archivePresentationMode == .grid
     }
 
-    private var archiveDisplayItems: [APODLibraryDisplayItem] {
-        fetcher.archiveItems.map {
-            APODLibraryDisplayItem(
-                item: $0,
-                isSaved: fetcher.isFavorite($0),
-                offlineMedia: fetcher.offlineMediaAsset(for: $0),
-                locale: locale
-            )
-        }
-    }
-
-    private var filteredItems: [APODLibraryDisplayItem] {
-        archiveDisplayItems.filter { item in
-            item.matchesArchiveFilter(archiveFilter) && item.matchesSearch(searchQuery)
-        }
-    }
-
-    private var sections: [ArchiveSection] {
-        var grouped = [String: [APODLibraryDisplayItem]]()
-
-        for item in filteredItems {
-            let key = archiveSectionKey(for: item.item.date)
-            grouped[key, default: []].append(item)
-        }
-
-        return grouped.keys
-            .sorted(by: >)
-            .map { key in
-                ArchiveSection(
-                    id: key,
-                    title: archiveSectionTitle(for: key),
-                    items: grouped[key, default: []].sorted { ($0.item.date ?? "") > ($1.item.date ?? "") }
-                )
-            }
-    }
-
     private var selectedArchiveItem: NASA? {
         let preferredID = selectedArchiveItemID ?? router.selectedArchiveItemID
-        return filteredItems.first(where: { $0.id == preferredID })?.item
+        return filteredArchiveItems.first(where: { $0.id == preferredID })?.item
             ?? archiveDisplayItems.first(where: { $0.id == preferredID })?.item
     }
 
@@ -694,7 +680,7 @@ struct ArchiveScreenView: View {
             return L10n.format(
                 "archive.controls.summary.search",
                 default: "Showing %d results for \"%@\".",
-                filteredItems.count,
+                filteredArchiveItems.count,
                 trimmedQuery
             )
         }
@@ -703,7 +689,7 @@ struct ArchiveScreenView: View {
             return L10n.format(
                 "archive.controls.summary.filter",
                 default: "Showing %d entries in %@.",
-                filteredItems.count,
+                filteredArchiveItems.count,
                 archiveFilter.localizedTitle
             )
         }
@@ -711,7 +697,7 @@ struct ArchiveScreenView: View {
         return L10n.format(
             "archive.controls.summary.default",
             default: "Search %d archived APOD entries by title, date, or credit line.",
-            filteredItems.count
+            filteredArchiveItems.count
         )
     }
 
@@ -734,7 +720,9 @@ struct ArchiveScreenView: View {
                 NavigationSplitView {
                     archiveCollectionContent(
                         selectedItemID: selectedArchiveItemID ?? router.selectedArchiveItemID,
-                        selectionAction: selectArchiveItem
+                        selectionAction: { item in
+                            handleArchiveSelection(item)
+                        }
                     )
                 } detail: {
                     if let selectedArchiveItem {
@@ -749,8 +737,7 @@ struct ArchiveScreenView: View {
                     archiveCollectionContent(
                         selectedItemID: nil,
                         selectionAction: { item in
-                            selectArchiveItem(item)
-                            pushedArchiveItem = item
+                            handleArchiveSelection(item, compactNavigation: true)
                         }
                     )
                     .navigationDestination(
@@ -774,9 +761,15 @@ struct ArchiveScreenView: View {
             AccessibilityMarker(identifier: AccessibilityID.archiveSheetRoot)
         }
         .task {
-            fetcher.prefetchArchiveIfNeeded()
+            rebuildArchiveLibrarySnapshot()
+            if purchaseManager.hasPro {
+                fetcher.prefetchArchiveIfNeeded()
+            }
             syncArchiveSelectionFromRouter()
             syncArchiveJumpDate()
+        }
+        .onReceive(fetcher.$archiveItemsByNewestFirst.combineLatest(fetcher.$favorites, fetcher.$offlineMediaAssetsByID)) { _, _, _ in
+            rebuildArchiveLibrarySnapshot()
         }
         .onChange(of: router.selectedArchiveItemID) { _ in
             syncArchiveSelectionFromRouter()
@@ -784,6 +777,19 @@ struct ArchiveScreenView: View {
         }
         .onChange(of: selectedArchiveItemID) { _ in
             syncArchiveJumpDate()
+        }
+        .onChange(of: searchQuery) { _ in
+            rebuildArchiveFiltering()
+        }
+        .onChange(of: archiveFilterRawValue) { _ in
+            rebuildArchiveFiltering()
+        }
+        .onChange(of: locale.identifier) { _ in
+            rebuildArchiveLibrarySnapshot()
+        }
+        .onChange(of: purchaseManager.hasPro) { hasPro in
+            guard hasPro else { return }
+            fetcher.prefetchArchiveIfNeeded()
         }
     }
 
@@ -879,6 +885,18 @@ struct ArchiveScreenView: View {
         }
     }
 
+    private func handleArchiveSelection(_ item: NASA, compactNavigation: Bool = false) {
+        guard canOpenArchiveItem(item) else {
+            purchaseManager.presentPaywall(trigger: .archiveLockedItem, feature: .fullArchive)
+            return
+        }
+
+        selectArchiveItem(item)
+        if compactNavigation {
+            pushedArchiveItem = item
+        }
+    }
+
     private func syncArchiveSelectionFromRouter() {
         guard let selectedID = router.selectedArchiveItemID else { return }
         selectedArchiveItemID = selectedID
@@ -902,8 +920,46 @@ struct ArchiveScreenView: View {
         archiveJumpDate = fetcher.maximumSelectableDate
     }
 
+    private func rebuildArchiveLibrarySnapshot() {
+        let favoriteIDs = Set(fetcher.favorites.map(\.id))
+        archiveDisplayItems = fetcher.archiveItems.map { item in
+            APODLibraryDisplayItem(
+                item: item,
+                isSaved: favoriteIDs.contains(item.id),
+                offlineMedia: fetcher.offlineMediaAsset(for: item),
+                locale: locale
+            )
+        }
+        rebuildArchiveFiltering()
+    }
+
+    private func rebuildArchiveFiltering() {
+        filteredArchiveItems = archiveDisplayItems.filter { item in
+            item.matchesArchiveFilter(archiveFilter) && item.matchesSearch(searchQuery)
+        }
+
+        let groupedItems = Dictionary(grouping: filteredArchiveItems) { item in
+            archiveSectionKey(for: item.item.date)
+        }
+
+        archiveSections = groupedItems.keys
+            .sorted(by: >)
+            .map { key in
+                ArchiveSection(
+                    id: key,
+                    title: archiveSectionTitle(for: key),
+                    items: groupedItems[key, default: []].sorted { ($0.item.date ?? "") > ($1.item.date ?? "") }
+                )
+            }
+    }
+
     private func jumpToArchiveDate(compactNavigation: Bool) {
         let targetDate = archiveJumpDate
+        guard canOpenArchiveDate(targetDate) else {
+            purchaseManager.presentPaywall(trigger: .archiveJump, feature: .fullArchive)
+            return
+        }
+
         Task {
             guard let archiveItem = await fetcher.archiveItem(for: targetDate) else { return }
             selectArchiveItem(archiveItem)
@@ -911,6 +967,45 @@ struct ArchiveScreenView: View {
                 pushedArchiveItem = archiveItem
             }
         }
+    }
+
+    private func canOpenArchiveItem(_ item: NASA) -> Bool {
+        guard let itemDate = fetcher.date(from: item.date) else { return true }
+        return canOpenArchiveDate(itemDate)
+    }
+
+    private func canOpenArchiveDate(_ date: Date) -> Bool {
+        purchaseManager.canAccessArchive(
+            date: fetcher.normalizedDate(date),
+            referenceDate: fetcher.maximumSelectableDate,
+            calendar: fetcher.calendar
+        )
+    }
+
+    private func isLockedArchiveItem(_ displayItem: APODLibraryDisplayItem) -> Bool {
+        !canOpenArchiveItem(displayItem.item)
+    }
+
+    private func toggleArchiveFavorite(_ item: NASA) {
+        if fetcher.isFavorite(item) {
+            fetcher.toggleFavorite(item)
+            return
+        }
+
+        guard canOpenArchiveItem(item) else {
+            purchaseManager.presentPaywall(trigger: .archiveLockedItem, feature: .fullArchive)
+            return
+        }
+
+        guard purchaseManager.canAddFavorite(
+            currentCount: fetcher.favorites.count,
+            isAlreadyFavorite: false
+        ) else {
+            purchaseManager.presentPaywall(trigger: .favoriteLimit, feature: .unlimitedFavorites)
+            return
+        }
+
+        fetcher.toggleFavorite(item)
     }
 
     private var archiveFilterPicker: some View {
@@ -1029,21 +1124,22 @@ struct ArchiveScreenView: View {
             archiveHeaderPanels
                 .libraryHeaderRowStyle()
 
-            if sections.isEmpty {
+            if archiveSections.isEmpty {
                 archiveSearchEmptyState
                     .libraryStateRowStyle()
             } else {
-                ForEach(sections) { section in
+                ForEach(archiveSections) { section in
                     Section(section.title) {
                         ForEach(section.items) { displayItem in
                             libraryRow(
                                 displayItem,
                                 isSelected: displayItem.id == selectedItemID,
+                                isLocked: isLockedArchiveItem(displayItem),
                                 selectionAction: selectionAction
                             )
                             .swipeActions(edge: .trailing) {
                                 Button {
-                                    fetcher.toggleFavorite(displayItem.item)
+                                    toggleArchiveFavorite(displayItem.item)
                                 } label: {
                                     Label(
                                         displayItem.isSaved
@@ -1093,11 +1189,11 @@ struct ArchiveScreenView: View {
                 LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                     archiveHeaderPanels
 
-                    if sections.isEmpty {
+                    if archiveSections.isEmpty {
                         archiveSearchEmptyState
                             .padding(.horizontal, AppTheme.Spacing.lg)
                     } else {
-                        ForEach(sections) { section in
+                        ForEach(archiveSections) { section in
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                                 Text(section.title)
                                     .font(AppTheme.Typography.sectionTitle)
@@ -1108,6 +1204,7 @@ struct ArchiveScreenView: View {
                                         ArchiveGridCard(
                                             displayItem: displayItem,
                                             isSelected: displayItem.id == selectedArchiveItemID,
+                                            isLocked: isLockedArchiveItem(displayItem),
                                             action: { selectionAction(displayItem.item) }
                                         )
                                         .id(displayItem.id)
@@ -1158,7 +1255,14 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveLoadMoreButton: some View {
-        Button(action: fetcher.loadOlderArchiveBatch) {
+        Button {
+            guard purchaseManager.hasPro else {
+                purchaseManager.presentPaywall(trigger: .archiveLoadMore, feature: .fullArchive)
+                return
+            }
+
+            fetcher.loadOlderArchiveBatch()
+        } label: {
             HStack(spacing: AppTheme.Spacing.sm) {
                 if fetcher.isFetchingArchive {
                     ProgressView()
@@ -1254,6 +1358,7 @@ struct ArchiveScreenView: View {
 private struct ArchiveGridCard: View {
     let displayItem: APODLibraryDisplayItem
     let isSelected: Bool
+    let isLocked: Bool
     let action: () -> Void
 
     var body: some View {
@@ -1270,6 +1375,16 @@ private struct ArchiveGridCard: View {
                                 tone: .favorite
                             )
                             .padding(AppTheme.Spacing.sm)
+                        }
+
+                        if isLocked {
+                            MissionBadge(
+                                title: L10n.text("paywall.locked_badge", default: "Pro"),
+                                systemImage: "lock.fill",
+                                tone: .warning
+                            )
+                            .padding(AppTheme.Spacing.sm)
+                            .padding(.top, displayItem.isSaved ? 34 : 0)
                         }
                     }
 
@@ -1305,6 +1420,7 @@ private struct ArchiveGridCard: View {
                     }
                 }
             }
+            .opacity(isLocked ? 0.78 : 1)
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
                     .strokeBorder(
@@ -1424,6 +1540,7 @@ private extension View {
 private func libraryRow(
     _ displayItem: APODLibraryDisplayItem,
     isSelected: Bool,
+    isLocked: Bool = false,
     selectionAction: @escaping (NASA) -> Void
 ) -> some View {
     Button {
@@ -1455,6 +1572,14 @@ private func libraryRow(
                         tone: .neutral
                     )
 
+                    if isLocked {
+                        MissionBadge(
+                            title: L10n.text("paywall.locked_badge", default: "Pro"),
+                            systemImage: "lock.fill",
+                            tone: .warning
+                        )
+                    }
+
                     if displayItem.isSaved {
                         MissionBadge(
                             title: L10n.text("Saved", default: "Saved"),
@@ -1476,6 +1601,7 @@ private func libraryRow(
             Spacer(minLength: AppTheme.Spacing.sm)
         }
         .padding(.vertical, AppTheme.Spacing.xxs)
+        .opacity(isLocked ? 0.78 : 1)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -1486,9 +1612,11 @@ private func libraryRow(
             : AccessibilityID.archiveRowIdentifier(for: displayItem.item)
     )
     .accessibilityHint(
-        displayItem.isSaved
-            ? L10n.text("Open this saved APOD", default: "Open this saved APOD")
-            : L10n.text("Open this APOD from the archive", default: "Open this APOD from the archive")
+        isLocked
+            ? L10n.text("paywall.locked_hint", default: "Unlock Pro to open older APOD archive entries.")
+            : (displayItem.isSaved
+                ? L10n.text("Open this saved APOD", default: "Open this saved APOD")
+                : L10n.text("Open this APOD from the archive", default: "Open this APOD from the archive"))
     )
 }
 

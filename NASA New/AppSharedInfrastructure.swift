@@ -152,10 +152,6 @@ enum AppDeepLink {
     }
 
     static func url(for route: AppRoute, publicBaseURL: URL? = configuredPublicBaseURL()) -> URL? {
-        if let publicWebURL = publicWebURL(for: route, publicBaseURL: publicBaseURL) {
-            return publicWebURL
-        }
-
         var components = URLComponents()
         components.scheme = scheme
 

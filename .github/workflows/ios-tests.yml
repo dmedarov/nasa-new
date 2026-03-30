@@ -28,3 +28,32 @@ jobs:
           -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest'
           -derivedDataPath "$RUNNER_TEMP/DerivedData"
           CODE_SIGNING_ALLOWED=NO
+
+  ipad-smoke:
+    name: iPad Smoke Tests
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode Version
+        run: xcodebuild -version
+
+      - name: Run iPad Split-Shell Smoke Tests
+        run: >
+          xcodebuild test
+          -project 'NASA New.xcodeproj'
+          -scheme 'NASA New'
+          -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4),OS=latest'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData-iPad"
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadSplitShellArchiveSelectionFlow'
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadSavedSelectionUpdatesDetail'
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadPendingArchiveRouteFocusesExactDate'
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadSidebarDestinationPersistsAcrossRelaunch'
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadSplitShellSupportsAccessibilityOverrides'
+          CODE_SIGNING_ALLOWED=NO

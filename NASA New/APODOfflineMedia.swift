@@ -101,7 +101,7 @@ protocol APODOfflineMediaStore: Sendable {
 actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
     private static let recordsKey = "nasa.apod.offline-media.records.v1"
 
-    private let session: URLSession
+    private let downloadService: APODDownloadService
     private let userDefaults: UserDefaults
     private let fileManager: FileManager
     private let rootDirectoryURL: URL
@@ -112,7 +112,7 @@ actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
         fileManager: FileManager = .default,
         rootDirectoryURL: URL? = nil
     ) {
-        self.session = session
+        downloadService = APODDownloadService(session: session, fileManager: fileManager)
         self.userDefaults = userDefaults
         self.fileManager = fileManager
         self.rootDirectoryURL = rootDirectoryURL ?? AppGroupConfiguration.sharedOfflineMediaDirectoryURL
@@ -196,7 +196,7 @@ actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
                 let download = try await downloadAsset(
                     from: remoteSourceURL,
                     fileStem: sanitizedStem(for: nasa.id, suffix: plan.fileStemSuffix),
-                    fallbackExtension: plan.fallbackExtension
+                    validation: plan.validation
                 )
 
                 return APODOfflineMediaAsset(
@@ -313,56 +313,20 @@ actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
     private func downloadAsset(
         from remoteURL: URL,
         fileStem: String,
-        fallbackExtension: String
+        validation: APODDownloadValidation?
     ) async throws -> (relativePath: String, byteCount: Int64) {
-        let (data, response) = try await session.data(from: remoteURL)
-
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200...299).contains(httpResponse.statusCode) {
-            throw URLError(.badServerResponse)
+        guard let validation else {
+            throw APODDownloadService.DownloadError.invalidResponse
         }
 
-        let fileExtension = resolvedFileExtension(
-            response: response,
-            remoteURL: remoteURL,
-            fallbackExtension: fallbackExtension
+        let downloadedFile = try await downloadService.download(
+            from: remoteURL,
+            to: rootDirectoryURL,
+            fileStem: fileStem,
+            validation: validation
         )
-        let relativePath = "\(fileStem).\(fileExtension)"
-        let destinationURL = rootDirectoryURL.appendingPathComponent(relativePath, isDirectory: false)
 
-        try data.write(to: destinationURL, options: .atomic)
-        return (relativePath, Int64(data.count))
-    }
-
-    private func resolvedFileExtension(
-        response: URLResponse,
-        remoteURL: URL,
-        fallbackExtension: String
-    ) -> String {
-        let trimmedRemoteExtension = remoteURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedRemoteExtension.isEmpty {
-            return trimmedRemoteExtension.lowercased()
-        }
-
-        let mimeType = response.mimeType?.lowercased() ?? ""
-        switch mimeType {
-        case "image/jpeg":
-            return "jpg"
-        case "image/png":
-            return "png"
-        case "image/gif":
-            return "gif"
-        case "image/webp":
-            return "webp"
-        case "video/mp4":
-            return "mp4"
-        case "video/quicktime":
-            return "mov"
-        case "application/vnd.apple.mpegurl":
-            return "m3u8"
-        default:
-            return fallbackExtension
-        }
+        return (downloadedFile.fileURL.lastPathComponent, downloadedFile.byteCount)
     }
 }
 
@@ -375,7 +339,7 @@ private enum APODOfflineMediaDownloadMode {
 private struct APODOfflineMediaDownloadPlan {
     let mode: APODOfflineMediaDownloadMode
     let remoteSourceURL: URL?
-    let fallbackExtension: String
+    let validation: APODDownloadValidation?
     let fileStemSuffix: String
 
     var resultingAvailability: APODOfflineMediaAvailability {
@@ -402,25 +366,16 @@ private enum APODOfflineMediaPlanningPolicy {
             return APODOfflineMediaDownloadPlan(
                 mode: preferredURL == nil ? .remoteOnly : .fullAsset,
                 remoteSourceURL: preferredURL,
-                fallbackExtension: "jpg",
+                validation: .offlineImageAsset,
                 fileStemSuffix: "asset"
             )
 
         case .video:
-            if let directVideoURL = nasa.url, supportsDirectVideoOffline(directVideoURL) {
-                return APODOfflineMediaDownloadPlan(
-                    mode: .fullAsset,
-                    remoteSourceURL: directVideoURL,
-                    fallbackExtension: "mp4",
-                    fileStemSuffix: "asset"
-                )
-            }
-
             if let previewURL = youtubeThumbnailURL(for: nasa.url) {
                 return APODOfflineMediaDownloadPlan(
                     mode: .previewOnly,
                     remoteSourceURL: previewURL,
-                    fallbackExtension: "jpg",
+                    validation: .offlinePreviewImage,
                     fileStemSuffix: "preview"
                 )
             }
@@ -428,7 +383,7 @@ private enum APODOfflineMediaPlanningPolicy {
             return APODOfflineMediaDownloadPlan(
                 mode: .remoteOnly,
                 remoteSourceURL: nasa.url,
-                fallbackExtension: "bin",
+                validation: nil,
                 fileStemSuffix: "asset"
             )
 
@@ -436,21 +391,10 @@ private enum APODOfflineMediaPlanningPolicy {
             return APODOfflineMediaDownloadPlan(
                 mode: .remoteOnly,
                 remoteSourceURL: nasa.url ?? nasa.hdurl,
-                fallbackExtension: "bin",
+                validation: nil,
                 fileStemSuffix: "asset"
             )
         }
-    }
-
-    private static func supportsDirectVideoOffline(_ url: URL) -> Bool {
-        let supportedExtensions: Set<String> = ["mp4", "m4v", "mov", "m3u8"]
-        let fileExtension = url.pathExtension.lowercased()
-        if supportedExtensions.contains(fileExtension) {
-            return true
-        }
-
-        let urlString = url.absoluteString.lowercased()
-        return supportedExtensions.contains(where: { urlString.contains(".\($0)") })
     }
 
     private static func youtubeThumbnailURL(for url: URL?) -> URL? {

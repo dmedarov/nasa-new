@@ -315,6 +315,63 @@ struct DataSaverPreferencePolicy {
     }
 }
 
+enum PremiumFeature: String, Equatable {
+    case fullArchive
+    case unlimitedFavorites
+    case hdSave
+}
+
+enum PaywallTrigger: String, Equatable {
+    case todayDateSelection
+    case archiveLockedItem
+    case archiveLoadMore
+    case archiveJump
+    case favoriteLimit
+    case hdSave
+    case archiveVisitNudge
+    case deepLinkLockedDate
+    case appIntentLockedDate
+}
+
+struct PremiumAccessPolicy {
+    static let freeArchiveDayCount = 7
+    static let freeFavoritesLimit = 10
+
+    static func earliestFreeArchiveDate(
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Date {
+        let startOfReferenceDate = calendar.startOfDay(for: referenceDate)
+        return calendar.date(
+            byAdding: .day,
+            value: -(freeArchiveDayCount - 1),
+            to: startOfReferenceDate
+        ) ?? startOfReferenceDate
+    }
+
+    static func canAccessArchive(
+        date: Date,
+        hasPro: Bool,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard !hasPro else { return true }
+        return calendar.startOfDay(for: date) >= earliestFreeArchiveDate(
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    static func canAddFavorite(count: Int, hasPro: Bool) -> Bool {
+        hasPro || count < freeFavoritesLimit
+    }
+
+    static func canSaveOriginalMedia(apod: NASA, hasPro: Bool) -> Bool {
+        guard hasPro else { return false }
+        return APODSourceLinkPolicy.originalImageURL(for: apod) != nil
+    }
+}
+
 struct AppBrandingPolicy {
     private static let officialAPODHomeURLString = "https://apod.nasa.gov/apod/astropix.html"
 
@@ -608,6 +665,11 @@ struct APODSourceLinkPolicy {
         case .video, .other:
             return nasa.url ?? nasa.hdurl
         }
+    }
+
+    static func originalImageURL(for nasa: NASA) -> URL? {
+        guard nasa.mediaType == .image else { return nil }
+        return nasa.hdurl ?? nasa.url
     }
 
     static func preferredMediaTitle(for nasa: NASA, dataSaverMode: Bool, preferHDImages: Bool) -> String {

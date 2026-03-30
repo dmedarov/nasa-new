@@ -1,0 +1,30 @@
+{
+  "identifier" : "SpaceBriefing",
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "SBPRO001",
+      "localizations" : [
+        {
+          "description" : "Unlock the full archive, HD saves, unlimited favorites, all widgets, and an ad-free space experience.",
+          "displayName" : "Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "eu.medarov.spacebriefing.pro.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "locale" : "en_US",
+    "storefront" : "USA"
+  },
+  "subscriptionGroups" : [
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}

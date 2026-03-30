@@ -2,7 +2,7 @@ import Foundation
 
 extension NasaCollectionFetcher {
     var archiveItems: [NASA] {
-        apodData.sorted { ($0.date ?? "") > ($1.date ?? "") }
+        archiveItemsByNewestFirst
     }
 
     func apodItem(forAPODDate dateString: String) -> NASA? {
@@ -73,7 +73,6 @@ extension NasaCollectionFetcher {
             cacheStorage.saveCachedAPODItems(apodData)
         }
 
-        cachedItemCount = apodData.count
         AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
         AppWidgetRefreshCoordinator.reloadSharedTimelines()
     }
@@ -132,7 +131,6 @@ extension NasaCollectionFetcher {
             favoritesStorage.saveFavorites(favorites)
         }
 
-        cachedItemCount = apodData.count
         AppDiscoveryCoordinator.refreshSearchIndex(archive: archiveItems, favorites: favorites)
         AppWidgetRefreshCoordinator.reloadSharedTimelines()
     }

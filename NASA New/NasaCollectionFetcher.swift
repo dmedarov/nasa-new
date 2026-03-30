@@ -8,7 +8,11 @@ final class NasaCollectionFetcher: ObservableObject {
         static let archiveBatchDayCount = 60
     }
 
-    @Published var apodData = [NASA]()
+    @Published var apodData = [NASA]() {
+        didSet {
+            refreshArchiveItemsCache()
+        }
+    }
     @Published var currentNasa = NASA.default
     @Published var error: FetchError?
     @Published var isFetching = false
@@ -27,6 +31,7 @@ final class NasaCollectionFetcher: ObservableObject {
     @Published var isFetchingArchive = false
     @Published var archiveError: FetchError?
     @Published var offlineMediaAssetsByID = [String: APODOfflineMediaAsset]()
+    @Published private(set) var archiveItemsByNewestFirst = [NASA]()
 
     let service: APODService
     let apiKey: String
@@ -110,7 +115,7 @@ final class NasaCollectionFetcher: ObservableObject {
             self.currentNasa = self.apodData.last ?? .default
             self.isUsingCachedData = true
         }
-        self.cachedItemCount = self.apodData.count
+        refreshArchiveItemsCache()
 
         if !isAPIKeyConfigured, ProcessInfo.processInfo.environment["UITEST_USE_FIXTURE"] != "1" {
             apiKeyWarning = L10n.text(
@@ -180,5 +185,10 @@ final class NasaCollectionFetcher: ObservableObject {
                 return L10n.format("error.unknown", default: "Unexpected error: %@", message)
             }
         }
+    }
+
+    func refreshArchiveItemsCache() {
+        archiveItemsByNewestFirst = Array(apodData.reversed())
+        cachedItemCount = apodData.count
     }
 }

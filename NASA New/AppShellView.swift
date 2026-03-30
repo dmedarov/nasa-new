@@ -3,8 +3,11 @@ import SwiftUI
 struct AppShellView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("app.shell.destination") private var persistedDestinationRawValue = AppDestination.today.rawValue
+    @State private var lastTrackedDestination: AppDestination?
 
     private var usesSplitShell: Bool {
         horizontalSizeClass == .regular
@@ -19,16 +22,29 @@ struct AppShellView: View {
             }
         }
         .task {
-            router.consumePendingRouteIfNeeded(fetcher: fetcher)
+            restorePersistedDestinationIfNeeded()
+            router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            trackArchiveVisitIfNeeded(for: router.destination)
         }
         .onChange(of: scenePhase) { newPhase in
             guard newPhase == .active else { return }
-            router.consumePendingRouteIfNeeded(fetcher: fetcher)
+            router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            Task {
+                await purchaseManager.refreshEntitlements()
+            }
+        }
+        .onChange(of: router.destination) { newValue in
+            persistedDestinationRawValue = newValue.rawValue
+            trackArchiveVisitIfNeeded(for: newValue)
+        }
+        .sheet(item: activePaywallBinding) { context in
+            MonetizationPaywallView(context: context)
+                .environmentObject(purchaseManager)
         }
     }
 
     private var tabShell: some View {
-        TabView(selection: $router.destination) {
+        TabView(selection: destinationBinding) {
             todayRoot
                 .tag(AppDestination.today)
                 .tabItem {
@@ -57,10 +73,19 @@ struct AppShellView: View {
                 }
             }
             .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
+            .overlay(alignment: .topLeading) {
+                AccessibilityMarker(identifier: AccessibilityID.appShellSidebar)
+            }
         } detail: {
             activeDetailRoot
+                .overlay(alignment: .topLeading) {
+                    AccessibilityMarker(identifier: AccessibilityID.appShellDetail)
+                }
         }
         .navigationSplitViewStyle(.balanced)
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker(identifier: AccessibilityID.appShellSplitRoot)
+        }
     }
 
     private var activeDetailRoot: some View {
@@ -128,13 +153,61 @@ struct AppShellView: View {
         let isSelected = router.destination == destination
 
         return Button {
-            router.destination = destination
+            updateDestination(destination)
         } label: {
             AppShellSidebarRow(destination: destination, isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .listRowBackground(isSelected ? AppTheme.Palette.accentLight.opacity(0.16) : Color.clear)
+        .accessibilityIdentifier(AccessibilityID.appShellSidebarDestinationIdentifier(for: destination))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var destinationBinding: Binding<AppDestination> {
+        Binding(
+            get: { router.destination },
+            set: { updateDestination($0) }
+        )
+    }
+
+    private func updateDestination(_ destination: AppDestination) {
+        router.destination = destination
+        persistedDestinationRawValue = destination.rawValue
+    }
+
+    private func restorePersistedDestinationIfNeeded() {
+        guard router.destination == .today else {
+            persistedDestinationRawValue = router.destination.rawValue
+            return
+        }
+
+        guard let persistedDestination = AppDestination(rawValue: persistedDestinationRawValue) else {
+            persistedDestinationRawValue = AppDestination.today.rawValue
+            return
+        }
+
+        router.destination = persistedDestination
+    }
+
+    private var activePaywallBinding: Binding<PaywallPresentation?> {
+        Binding(
+            get: { purchaseManager.activePaywall },
+            set: { newValue in
+                if let newValue {
+                    purchaseManager.activePaywall = newValue
+                } else {
+                    purchaseManager.dismissPaywall()
+                }
+            }
+        )
+    }
+
+    private func trackArchiveVisitIfNeeded(for destination: AppDestination) {
+        guard lastTrackedDestination != destination else { return }
+        lastTrackedDestination = destination
+
+        guard destination == .archive else { return }
+        purchaseManager.registerArchiveVisitIfNeeded()
     }
 }
 

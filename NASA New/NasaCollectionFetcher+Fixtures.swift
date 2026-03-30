@@ -6,6 +6,7 @@ enum FixtureScenario: String {
     case directVideo = "direct_video"
     case diagnosticsCycle = "diagnostics_cycle"
     case dateNavigation = "date_navigation"
+    case monetization = "monetization"
     case longExplanation = "long_explanation"
     case offlineCached = "offline_cached"
     case rateLimited = "rate_limited"
@@ -34,49 +35,35 @@ extension NasaCollectionFetcher {
         requestDiagnostics = []
         fixtureScenario = scenario
 
-        if scenario == .dateNavigation {
-            let fixtures = [
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-13",
-                    explanation: "Date navigation fixture for January 13.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-13-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-13",
-                    url: URL(string: "https://example.com/apod-2025-01-13.jpg")
-                ),
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-14",
-                    explanation: "Date navigation fixture for January 14.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-14-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-14",
-                    url: URL(string: "https://example.com/apod-2025-01-14.jpg")
-                ),
-                NASA(
-                    copyright: "NASA",
-                    date: "2025-01-15",
-                    explanation: "Date navigation fixture for January 15.",
-                    hdurl: URL(string: "https://example.com/apod-2025-01-15-hd.jpg"),
-                    mediaType: .image,
-                    serviceVersion: "v1",
-                    title: "Fixture APOD 2025-01-15",
-                    url: URL(string: "https://example.com/apod-2025-01-15.jpg")
-                )
-            ]
+        if scenario == .dateNavigation || scenario == .monetization {
+            let fixtures: [NASA]
+            if scenario == .dateNavigation {
+                fixtures = [
+                    makeFixtureAPOD(day: 13, explanation: "Date navigation fixture for January 13."),
+                    makeFixtureAPOD(day: 14, explanation: "Date navigation fixture for January 14."),
+                    makeFixtureAPOD(day: 15, explanation: "Date navigation fixture for January 15.")
+                ]
+            } else {
+                fixtures = (1...15).map { day in
+                    makeFixtureAPOD(
+                        day: day,
+                        explanation: "Monetization fixture for January \(day)."
+                    )
+                }
+            }
 
             apodData = fixtures
             currentNasa = fixtures.last ?? .default
             cachedItemCount = apodData.count
+            preloadFavoritesFromEnvironmentIfNeeded()
             return
         }
 
         let fixture: NASA
         switch scenario {
         case .dateNavigation:
+            fixture = NASA.default
+        case .monetization:
             fixture = NASA.default
         case .unsupportedVideo:
             fixture = NASA(
@@ -175,6 +162,7 @@ extension NasaCollectionFetcher {
         apodData = scenario == .loadFailure ? [] : [fixture]
         currentNasa = scenario == .loadFailure ? .default : fixture
         cachedItemCount = apodData.count
+        preloadFavoritesFromEnvironmentIfNeeded()
 
         switch scenario {
         case .offlineCached:
@@ -241,5 +229,37 @@ extension NasaCollectionFetcher {
             )
         }
         return true
+    }
+
+    private func preloadFavoritesFromEnvironmentIfNeeded() {
+        guard let rawDates = ProcessInfo.processInfo.environment["UITEST_PRELOAD_FAVORITE_DATES"] else { return }
+
+        let requestedDates = rawDates
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !requestedDates.isEmpty else { return }
+
+        favorites = requestedDates.compactMap { requestedDate in
+            apodData.first(where: { $0.date == requestedDate })
+        }
+        sortFavorites()
+        persistLibraryState()
+    }
+
+    private func makeFixtureAPOD(day: Int, explanation: String) -> NASA {
+        let dayString = String(format: "%02d", day)
+
+        return NASA(
+            copyright: "NASA",
+            date: "2025-01-\(dayString)",
+            explanation: explanation,
+            hdurl: URL(string: "https://example.com/apod-2025-01-\(dayString)-hd.jpg"),
+            mediaType: .image,
+            serviceVersion: "v1",
+            title: "Fixture APOD 2025-01-\(dayString)",
+            url: URL(string: "https://example.com/apod-2025-01-\(dayString).jpg")
+        )
     }
 }
