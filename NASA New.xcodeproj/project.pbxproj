@@ -43,6 +43,8 @@
 		E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
 		E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
 		E10000192F80001900000019 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
+		E100001A2F80001A0000001A /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001A2F80001A0000001A /* PurchaseManager.swift */; };
+		E100001B2F80001B0000001B /* MonetizationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001B2F80001B0000001B /* MonetizationLogger.swift */; };
 		E30010012F80010100000001 /* NASA_New_Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30020012F80020100000001 /* NASA_New_Widget.swift */; };
 		E30010022F80010200000002 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DCCE8DE2F77CE82009C8476 /* Localizable.strings */; };
 		E30010032F80010300000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E30020042F80020400000004 /* PrivacyInfo.xcprivacy */; };
@@ -64,6 +66,8 @@
 		F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172F80001700000017 /* APODOfflineMedia.swift */; };
 		F10000152F81001500000015 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */; };
 		F10000162F81001600000016 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
+		F10000172F81001700000017 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001A2F80001A0000001A /* PurchaseManager.swift */; };
+		F10000182F81001800000018 /* MonetizationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001B2F80001B0000001B /* MonetizationLogger.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -156,6 +160,8 @@
 		E20000172F80001700000017 /* APODOfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODOfflineMedia.swift; sourceTree = "<group>"; };
 		E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NasaCollectionFetcher+OfflineMedia.swift"; sourceTree = "<group>"; };
 		E20000192F80001900000019 /* APODDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDownloadService.swift; sourceTree = "<group>"; };
+		E200001A2F80001A0000001A /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
+		E200001B2F80001B0000001B /* MonetizationLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonetizationLogger.swift; sourceTree = "<group>"; };
 		E30020012F80020100000001 /* NASA_New_Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_New_Widget.swift; sourceTree = "<group>"; };
 		E30020022F80020200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E30020042F80020400000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -254,6 +260,8 @@
 					E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
 					E20000172F80001700000017 /* APODOfflineMedia.swift */,
 					E20000192F80001900000019 /* APODDownloadService.swift */,
+					E200001A2F80001A0000001A /* PurchaseManager.swift */,
+					E200001B2F80001B0000001B /* MonetizationLogger.swift */,
 					E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */,
 					E200000A2F80000A0000000A /* APODService.swift */,
 					E200000B2F80000B0000000B /* APODStores.swift */,
@@ -517,6 +525,8 @@
 					E10000132F80001300000013 /* AppShellView.swift in Sources */,
 					E10000172F80001700000017 /* APODOfflineMedia.swift in Sources */,
 					E10000192F80001900000019 /* APODDownloadService.swift in Sources */,
+					E100001A2F80001A0000001A /* PurchaseManager.swift in Sources */,
+					E100001B2F80001B0000001B /* MonetizationLogger.swift in Sources */,
 					E10000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift in Sources */,
 					E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */,
 				E10000042F80000400000004 /* SettingsSheetView.swift in Sources */,
@@ -553,6 +563,8 @@
 					F100000F2F81000F0000000F /* NasaCollectionFetcher+Fixtures.swift in Sources */,
 					AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
 					F10000162F81001600000016 /* APODDownloadService.swift in Sources */,
+					F10000172F81001700000017 /* PurchaseManager.swift in Sources */,
+					F10000182F81001800000018 /* MonetizationLogger.swift in Sources */,
 					2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
 					AA1000062F00000100000006 /* AppRouterTests.swift in Sources */,
 					F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */,
