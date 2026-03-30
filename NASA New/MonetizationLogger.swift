@@ -41,7 +41,7 @@ enum MonetizationEvent: Equatable {
 
 enum MonetizationLogger {
     private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "eu.medarov.NASA-New",
+        subsystem: Bundle.main.bundleIdentifier ?? "eu.medarov.space-briefing",
         category: "Monetization"
     )
 

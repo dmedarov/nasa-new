@@ -183,7 +183,7 @@ struct APODRecordDetailView: View {
             fetcher.recordPresentedItem(nasa)
             AppDiscoveryCoordinator.refreshSearchIndex(archive: fetcher.archiveItems, favorites: fetcher.favorites)
         }
-        .userActivity(AppUserActivityType.apod, isActive: true) { activity in
+        .userActivity(SpaceBriefingUserActivityType.apod, isActive: true) { activity in
             AppDiscoveryCoordinator.configure(activity: activity, for: nasa, destination: destination)
         }
     }

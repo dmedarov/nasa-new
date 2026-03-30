@@ -108,7 +108,7 @@ struct AppShellView: View {
                 openSavedAction: { router.showSaved() }
             )
         }
-        .userActivity(AppUserActivityType.today, isActive: router.destination == .today) { activity in
+        .userActivity(SpaceBriefingUserActivityType.today, isActive: router.destination == .today) { activity in
             activity.title = L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
             activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .today))
             activity.isEligibleForSearch = true
@@ -123,7 +123,7 @@ struct AppShellView: View {
         ArchiveScreenView()
             .environmentObject(fetcher)
             .environmentObject(router)
-            .userActivity(AppUserActivityType.archive, isActive: router.destination == .archive) { activity in
+            .userActivity(SpaceBriefingUserActivityType.archive, isActive: router.destination == .archive) { activity in
                 activity.title = L10n.text("APOD Archive", default: "APOD Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .archive))
                 activity.isEligibleForSearch = true
@@ -138,7 +138,7 @@ struct AppShellView: View {
         SavedScreenView()
             .environmentObject(fetcher)
             .environmentObject(router)
-            .userActivity(AppUserActivityType.saved, isActive: router.destination == .saved) { activity in
+            .userActivity(SpaceBriefingUserActivityType.saved, isActive: router.destination == .saved) { activity in
                 activity.title = L10n.text("Saved Archive", default: "Saved Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .saved))
                 activity.isEligibleForSearch = true

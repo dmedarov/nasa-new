@@ -62,7 +62,7 @@ private struct APODWidgetPayload: Decodable {
 }
 
 private enum APODWidgetAPI {
-    static let kind = AppGroupConfiguration.widgetKind
+    static let kind = AppGroupConfiguration.legacyWidgetKind
     private static let refreshHours = 4
 
     static func placeholderEntry() -> APODWidgetEntry {
@@ -340,7 +340,7 @@ private struct APODWidgetProvider: TimelineProvider {
 }
 
 @main
-struct NASA_New_Widget: Widget {
+struct SpaceBriefingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: APODWidgetAPI.kind, provider: APODWidgetProvider()) { entry in
             APODWidgetEntryView(entry: entry)

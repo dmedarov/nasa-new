@@ -281,7 +281,7 @@ final class SwiftDataAPODLibraryStorage: APODLibraryStorage, APODLibraryStateSto
         let configuration = ModelConfiguration(
             "APODLibrary",
             allowsSave: true,
-            groupContainer: .identifier(AppGroupConfiguration.identifier),
+            groupContainer: .identifier(AppGroupConfiguration.sharedAppGroupIdentifier),
             cloudKitDatabase: .none
         )
         self.container = try ModelContainer(for: StoredAPODRecord.self, configurations: configuration)

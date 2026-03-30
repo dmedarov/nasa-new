@@ -6,7 +6,7 @@ import AppIntents
 #endif
 
 @main
-struct NASA_NewApp: App {
+struct SpaceBriefingApp: App {
     @StateObject private var fetcher: NasaCollectionFetcher
     @StateObject private var router = AppRouter()
     @StateObject private var purchaseManager: PurchaseManager
@@ -49,16 +49,16 @@ struct NASA_NewApp: App {
                 .onOpenURL { url in
                     router.handle(url: url, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
-                .onContinueUserActivity(AppUserActivityType.today) { activity in
+                .onContinueUserActivity(SpaceBriefingUserActivityType.today) { activity in
                     router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
-                .onContinueUserActivity(AppUserActivityType.archive) { activity in
+                .onContinueUserActivity(SpaceBriefingUserActivityType.archive) { activity in
                     router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
-                .onContinueUserActivity(AppUserActivityType.saved) { activity in
+                .onContinueUserActivity(SpaceBriefingUserActivityType.saved) { activity in
                     router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
-                .onContinueUserActivity(AppUserActivityType.apod) { activity in
+                .onContinueUserActivity(SpaceBriefingUserActivityType.apod) { activity in
                     router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
             }

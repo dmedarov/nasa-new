@@ -31,15 +31,17 @@ enum NASAAPIKeyConfiguration {
 }
 
 enum AppGroupConfiguration {
-    static let identifier = "group.eu.medarov.nasa-new.shared"
-    static let widgetKind = "NASA_New_Widget"
+    // These runtime identifiers intentionally keep the old namespace so installed apps,
+    // widgets, and shared-container data remain compatible across updates.
+    static let sharedAppGroupIdentifier = "group.eu.medarov.nasa-new.shared"
+    static let legacyWidgetKind = "NASA_New_Widget"
 
     static var sharedUserDefaults: UserDefaults {
-        UserDefaults(suiteName: identifier) ?? .standard
+        UserDefaults(suiteName: sharedAppGroupIdentifier) ?? .standard
     }
 
     static var sharedContainerURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: sharedAppGroupIdentifier)
     }
 
     static var sharedOfflineMediaDirectoryURL: URL {
@@ -58,8 +60,8 @@ enum AppGroupConfiguration {
     }
 
     static func resetSharedUserDefaults() {
-        guard let sharedDefaults = UserDefaults(suiteName: identifier) else { return }
-        sharedDefaults.removePersistentDomain(forName: identifier)
+        guard let sharedDefaults = UserDefaults(suiteName: sharedAppGroupIdentifier) else { return }
+        sharedDefaults.removePersistentDomain(forName: sharedAppGroupIdentifier)
         sharedDefaults.synchronize()
     }
 }
@@ -68,7 +70,7 @@ enum AppWidgetRefreshCoordinator {
     static func reloadSharedTimelines() {
 #if canImport(WidgetKit)
         if #available(iOS 14.0, *) {
-            WidgetCenter.shared.reloadTimelines(ofKind: AppGroupConfiguration.widgetKind)
+            WidgetCenter.shared.reloadTimelines(ofKind: AppGroupConfiguration.legacyWidgetKind)
         }
 #endif
     }
@@ -312,7 +314,9 @@ enum APODDateCoding {
     }
 }
 
-enum AppUserActivityType {
+// These values are still part of external routing/discovery state, so only the symbol
+// name is updated in this pass. The string values stay frozen until a full migration.
+enum SpaceBriefingUserActivityType {
     static let today = "eu.medarov.nasa-new.today"
     static let archive = "eu.medarov.nasa-new.archive"
     static let saved = "eu.medarov.nasa-new.saved"
