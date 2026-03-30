@@ -2,18 +2,16 @@ import Foundation
 
 extension NasaCollectionFetcher {
     var savedOfflineItemCount: Int {
-        favorites.reduce(into: 0) { result, item in
-            if offlineMediaAsset(for: item)?.availability == .availableOffline {
-                result += 1
-            }
-        }
+        offlineMediaStorageSummary.fullyOfflineCount
     }
 
     var savedPreviewItemCount: Int {
-        favorites.reduce(into: 0) { result, item in
-            if offlineMediaAsset(for: item)?.availability == .previewOffline {
-                result += 1
-            }
+        offlineMediaStorageSummary.previewCount
+    }
+
+    var offlineMediaStorageSummary: APODOfflineMediaStorageSummary {
+        favorites.reduce(into: APODOfflineMediaStorageSummary()) { result, item in
+            result.register(offlineMediaAsset(for: item))
         }
     }
 
@@ -34,7 +32,7 @@ extension NasaCollectionFetcher {
 
         guard !favorites.isEmpty else { return }
         let favoritesSnapshot = favorites
-        let preferences = APODOfflineMediaPreferences.current()
+        let preferences = currentOfflineMediaPreferences()
         markOfflineMediaSyncInProgress(for: favoritesSnapshot)
         offlineMediaAssetsByID = await offlineMediaStore.synchronizeFavorites(
             favoritesSnapshot,
@@ -44,7 +42,7 @@ extension NasaCollectionFetcher {
 
     func queueOfflineMediaSynchronization(marking items: [NASA]? = nil) {
         let favoritesSnapshot = favorites
-        let preferences = APODOfflineMediaPreferences.current()
+        let preferences = currentOfflineMediaPreferences()
         let offlineMediaStore = self.offlineMediaStore
         let itemsToMark = items ?? favoritesSnapshot
 
@@ -62,6 +60,26 @@ extension NasaCollectionFetcher {
                 self?.offlineMediaAssetsByID = records
             }
         }
+    }
+
+    func clearOfflineMedia() async {
+        offlineMediaSyncTask?.cancel()
+        offlineMediaAssetsByID = await offlineMediaStore.clearRecords()
+    }
+
+    func rebuildOfflineMedia() async {
+        offlineMediaSyncTask?.cancel()
+        await clearOfflineMedia()
+
+        guard !favorites.isEmpty else { return }
+
+        let favoritesSnapshot = favorites
+        let preferences = currentOfflineMediaPreferences()
+        markOfflineMediaSyncInProgress(for: favoritesSnapshot)
+        offlineMediaAssetsByID = await offlineMediaStore.synchronizeFavorites(
+            favoritesSnapshot,
+            preferences: preferences
+        )
     }
 
     private func markOfflineMediaSyncInProgress(for items: [NASA]) {
@@ -91,5 +109,9 @@ extension NasaCollectionFetcher {
 
         let favoriteIDs = Set(favorites.map(\.id))
         offlineMediaAssetsByID = offlineMediaAssetsByID.filter { favoriteIDs.contains($0.key) }
+    }
+
+    private func currentOfflineMediaPreferences() -> APODOfflineMediaPreferences {
+        APODOfflineMediaPreferences.current()
     }
 }

@@ -90,12 +90,58 @@ struct APODOfflineMediaAsset: Codable, Hashable, Sendable {
     }
 }
 
+struct APODOfflineMediaStorageSummary: Equatable, Sendable {
+    var fullyOfflineCount = 0
+    var previewCount = 0
+    var remoteOnlyCount = 0
+    var syncingCount = 0
+    var failedCount = 0
+    var totalByteCount: Int64 = 0
+    var lastUpdatedAt: Date?
+
+    var totalManagedItemCount: Int {
+        fullyOfflineCount + previewCount + remoteOnlyCount + syncingCount + failedCount
+    }
+
+    var hasStoredLocalMedia: Bool {
+        fullyOfflineCount > 0 || previewCount > 0 || totalByteCount > 0
+    }
+
+    var canClearStorage: Bool {
+        hasStoredLocalMedia || syncingCount > 0 || failedCount > 0
+    }
+
+    mutating func register(_ asset: APODOfflineMediaAsset?) {
+        let availability = asset?.availability ?? .remoteOnly
+
+        switch availability {
+        case .availableOffline:
+            fullyOfflineCount += 1
+            totalByteCount += max(asset?.byteCount ?? 0, 0)
+        case .previewOffline:
+            previewCount += 1
+            totalByteCount += max(asset?.byteCount ?? 0, 0)
+        case .remoteOnly:
+            remoteOnlyCount += 1
+        case .syncing:
+            syncingCount += 1
+        case .failed:
+            failedCount += 1
+        }
+
+        if let updatedAt = asset?.updatedAt {
+            lastUpdatedAt = max(lastUpdatedAt ?? updatedAt, updatedAt)
+        }
+    }
+}
+
 protocol APODOfflineMediaStore: Sendable {
     func loadRecords() async -> [String: APODOfflineMediaAsset]
     func synchronizeFavorites(
         _ favorites: [NASA],
         preferences: APODOfflineMediaPreferences
     ) async -> [String: APODOfflineMediaAsset]
+    func clearRecords() async -> [String: APODOfflineMediaAsset]
 }
 
 actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
@@ -147,6 +193,15 @@ actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
         let sanitized = sanitizePersistedRecords(records)
         persist(sanitized)
         return sanitized
+    }
+
+    func clearRecords() async -> [String: APODOfflineMediaAsset] {
+        offlineMediaFiles().forEach { fileURL in
+            removeFileIfPresent(at: fileURL)
+        }
+        removeRootDirectoryIfPresent()
+        userDefaults.removeObject(forKey: Self.recordsKey)
+        return [:]
     }
 
     private func synchronizedRecord(
@@ -298,8 +353,35 @@ actor SharedAPODOfflineMediaStore: APODOfflineMediaStore {
 
         for relativePath in candidatePaths {
             let fileURL = rootDirectoryURL.appendingPathComponent(relativePath, isDirectory: false)
-            try? fileManager.removeItem(at: fileURL)
+            removeFileIfPresent(at: fileURL)
         }
+    }
+
+    private func offlineMediaFiles() -> [URL] {
+        guard let recordsData = userDefaults.data(forKey: Self.recordsKey),
+              let records = try? JSONDecoder().decode([String: APODOfflineMediaAsset].self, from: recordsData) else {
+            return []
+        }
+
+        return Array(
+            Set(
+                records.values.flatMap { record in
+                    [record.localAssetRelativePath, record.localPreviewRelativePath]
+                        .compactMap { $0 }
+                        .map { rootDirectoryURL.appendingPathComponent($0, isDirectory: false) }
+                }
+            )
+        )
+    }
+
+    private func removeRootDirectoryIfPresent() {
+        guard fileManager.fileExists(atPath: rootDirectoryURL.path) else { return }
+        try? fileManager.removeItem(at: rootDirectoryURL)
+    }
+
+    private func removeFileIfPresent(at fileURL: URL) {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return }
+        try? fileManager.removeItem(at: fileURL)
     }
 
     private func sanitizedStem(for identifier: String, suffix: String) -> String {

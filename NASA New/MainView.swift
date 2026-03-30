@@ -310,7 +310,14 @@ struct MainView: View {
                 networkReachable: networkStatus.isSatisfied,
                 networkIsExpensive: networkStatus.isExpensive,
                 networkIsConstrained: networkStatus.isConstrained,
-                videoAutoplayEligible: !wifiOnlyVideoAutoplay || networkStatus.connectionKind == .wifi
+                videoAutoplayEligible: !wifiOnlyVideoAutoplay || networkStatus.connectionKind == .wifi,
+                offlineMediaSummary: fetcher.offlineMediaStorageSummary,
+                onClearOfflineMedia: {
+                    await fetcher.clearOfflineMedia()
+                },
+                onRebuildOfflineMedia: {
+                    await fetcher.rebuildOfflineMedia()
+                }
             )
         }
         .accessibilityIdentifier(AccessibilityID.mainViewRoot)

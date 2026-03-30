@@ -67,6 +67,10 @@ private struct SettingsSupportingTextRow: View {
 
 struct SettingsSheetView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isClearingOfflineMedia = false
+    @State private var isRebuildingOfflineMedia = false
+    @State private var showClearOfflineMediaConfirmation = false
+    @State private var offlineMediaActionMessage = ""
     @Binding var appearancePreference: AppAppearancePreference
     @Binding var preferImages: Bool
     @Binding var allowVideoPlayback: Bool
@@ -95,6 +99,9 @@ struct SettingsSheetView: View {
     let networkIsExpensive: Bool
     let networkIsConstrained: Bool
     let videoAutoplayEligible: Bool
+    let offlineMediaSummary: APODOfflineMediaStorageSummary
+    let onClearOfflineMedia: () async -> Void
+    let onRebuildOfflineMedia: () async -> Void
 
     private func localizedDiagnosticResult(_ result: String) -> String {
         switch result.lowercased() {
@@ -192,6 +199,18 @@ struct SettingsSheetView: View {
             return L10n.text("network.metered_detected", default: "Metered connection detected. HD media may increase data usage.")
         }
         return L10n.text("network.standard_delivery", default: "Standard media delivery.")
+    }
+
+    private var formattedOfflineMediaSize: String {
+        ByteCountFormatter.string(fromByteCount: offlineMediaSummary.totalByteCount, countStyle: .file)
+    }
+
+    private var canClearOfflineMedia: Bool {
+        offlineMediaSummary.canClearStorage && !isClearingOfflineMedia && !isRebuildingOfflineMedia
+    }
+
+    private var canRebuildOfflineMedia: Bool {
+        offlineMediaSummary.totalManagedItemCount > 0 && !isClearingOfflineMedia && !isRebuildingOfflineMedia
     }
 
     private var followsSystemAppearance: Bool {
@@ -416,6 +435,74 @@ struct SettingsSheetView: View {
                     }
                 }
 
+                Section(L10n.text("Offline Media", default: "Offline Media")) {
+                    LabeledContent(L10n.text("Saved Offline Items", default: "Saved Offline Items")) {
+                        Text(String(offlineMediaSummary.fullyOfflineCount))
+                    }
+                    LabeledContent(L10n.text("Saved Preview Items", default: "Saved Preview Items")) {
+                        Text(String(offlineMediaSummary.previewCount))
+                    }
+                    LabeledContent(L10n.text("Source Required Items", default: "Source Required Items")) {
+                        Text(String(offlineMediaSummary.remoteOnlyCount))
+                    }
+                    if offlineMediaSummary.syncingCount > 0 {
+                        LabeledContent(L10n.text("Offline Sync In Progress", default: "Offline Sync In Progress")) {
+                            Text(String(offlineMediaSummary.syncingCount))
+                        }
+                    }
+                    if offlineMediaSummary.failedCount > 0 {
+                        LabeledContent(L10n.text("Offline Save Failures", default: "Offline Save Failures")) {
+                            Text(String(offlineMediaSummary.failedCount))
+                        }
+                    }
+                    LabeledContent(L10n.text("Offline Media Size", default: "Offline Media Size")) {
+                        Text(formattedOfflineMediaSize)
+                    }
+                    LabeledContent(L10n.text("Last Offline Update", default: "Last Offline Update")) {
+                        Text(formattedRequestDate(offlineMediaSummary.lastUpdatedAt))
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    Button(role: .destructive) {
+                        showClearOfflineMediaConfirmation = true
+                    } label: {
+                        Label(
+                            L10n.text("offline.media.clear.action", default: "Clear Offline Files"),
+                            systemImage: "trash"
+                        )
+                    }
+                    .disabled(!canClearOfflineMedia)
+                    .accessibilityIdentifier(AccessibilityID.clearOfflineMediaButton)
+
+                    Button {
+                        Task {
+                            await rebuildOfflineMedia()
+                        }
+                    } label: {
+                        Label(
+                            L10n.text("offline.media.rebuild.action", default: "Rebuild Saved Media"),
+                            systemImage: "arrow.clockwise"
+                        )
+                    }
+                    .disabled(!canRebuildOfflineMedia)
+                    .accessibilityIdentifier(AccessibilityID.rebuildOfflineMediaButton)
+
+                    SettingsSupportingTextRow(
+                        text: L10n.text(
+                            "offline.media.settings.description",
+                            default: "Clearing removes downloaded files but keeps your saved APOD stories in Favorites. Rebuild downloads fresh offline media for the saved items that support it."
+                        ),
+                        accessibilityIdentifier: nil
+                    )
+
+                    if !offlineMediaActionMessage.isEmpty {
+                        SettingsSupportingTextRow(
+                            text: offlineMediaActionMessage,
+                            accessibilityIdentifier: AccessibilityID.offlineMediaActionStatus
+                        )
+                    }
+                }
+
                 Section(L10n.text("Network Diagnostics", default: "Network Diagnostics")) {
                     LabeledContent(L10n.text("Connection", default: "Connection")) {
                         Text(networkConnectionLabel)
@@ -474,11 +561,58 @@ struct SettingsSheetView: View {
                         .accessibilityLabel(L10n.text("Close settings", default: "Close settings"))
                 }
             }
+            .confirmationDialog(
+                L10n.text("offline.media.clear.confirmation.title", default: "Clear downloaded offline media?"),
+                isPresented: $showClearOfflineMediaConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(
+                    L10n.text("offline.media.clear.action", default: "Clear Offline Files"),
+                    role: .destructive
+                ) {
+                    Task {
+                        await clearOfflineMedia()
+                    }
+                }
+
+                Button(L10n.text("Cancel", default: "Cancel"), role: .cancel) {}
+            } message: {
+                Text(
+                    L10n.text(
+                        "offline.media.clear.confirmation.message",
+                        default: "This removes saved image files and preview files from this device, but it does not remove items from Favorites."
+                    )
+                )
+            }
         }
     }
 
     private func formattedRequestDate(_ date: Date?) -> String {
         guard let date else { return L10n.notAvailable }
         return date.formatted(date: .abbreviated, time: .standard)
+    }
+
+    @MainActor
+    private func clearOfflineMedia() async {
+        isClearingOfflineMedia = true
+        defer { isClearingOfflineMedia = false }
+
+        await onClearOfflineMedia()
+        offlineMediaActionMessage = L10n.text(
+            "offline.media.clear.success",
+            default: "Offline files removed. Saved APOD stories remain in Favorites."
+        )
+    }
+
+    @MainActor
+    private func rebuildOfflineMedia() async {
+        isRebuildingOfflineMedia = true
+        defer { isRebuildingOfflineMedia = false }
+
+        await onRebuildOfflineMedia()
+        offlineMediaActionMessage = L10n.text(
+            "offline.media.rebuild.success",
+            default: "Offline media refreshed for your saved APOD items."
+        )
     }
 }

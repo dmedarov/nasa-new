@@ -597,6 +597,45 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertNil(record.localPreviewRelativePath)
     }
 
+    func testSharedOfflineMediaStoreClearRecordsRemovesPersistedFiles() async throws {
+        let sourceURL = try temporaryFileURL(
+            named: "offline-store-clear-image.jpg",
+            data: Data(repeating: 0xEF, count: 2_048)
+        )
+        let rootDirectoryURL = temporaryDirectoryURL(named: "offline-store-clear-root")
+        let userDefaults = isolatedUserDefaults(name: "offlineMediaStoreClear")
+        let store = SharedAPODOfflineMediaStore(
+            userDefaults: userDefaults,
+            rootDirectoryURL: rootDirectoryURL
+        )
+        let favorite = NASA(
+            date: "2025-01-17",
+            explanation: "Offline image clear fixture.",
+            mediaType: .image,
+            title: "Offline Clear Favorite",
+            url: sourceURL
+        )
+
+        let records = await store.synchronizeFavorites(
+            [favorite],
+            preferences: APODOfflineMediaPreferences(dataSaverMode: false, preferHDImages: false)
+        )
+
+        guard let relativePath = records[favorite.id]?.localAssetRelativePath else {
+            XCTFail("Expected a downloaded file before clearing records")
+            return
+        }
+
+        let storedFileURL = rootDirectoryURL.appendingPathComponent(relativePath, isDirectory: false)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: storedFileURL.path))
+
+        let clearedRecords = await store.clearRecords()
+
+        XCTAssertTrue(clearedRecords.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storedFileURL.path))
+        XCTAssertNil(userDefaults.data(forKey: "nasa.apod.offline-media.records.v1"))
+    }
+
     func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
         let service = PhotoExportService()
         let nasa = NASA(

@@ -591,6 +591,85 @@ struct NasaCollectionFetcherTests {
     }
 
     @Test
+    func clearOfflineMediaRemovesLocalStateButKeepsFavorites() async {
+        let item = NASA(
+            date: "2025-01-23",
+            explanation: "Clear offline media fixture.",
+            mediaType: .image,
+            title: "Clear Offline",
+            url: URL(string: "https://example.com/clear-offline.jpg")
+        )
+        let offlineMediaStore = InMemoryOfflineMediaStore()
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(initialFavorites: [item]),
+            cacheStorage: InMemoryAPODCacheStorage(),
+            offlineMediaStore: offlineMediaStore
+        )
+
+        await fetcher.bootstrapOfflineMediaState()
+        #expect(fetcher.savedOfflineItemCount == 1)
+
+        await fetcher.clearOfflineMedia()
+
+        #expect(fetcher.favorites.count == 1)
+        #expect(fetcher.offlineMediaAsset(for: item) == nil)
+        #expect(fetcher.savedOfflineItemCount == 0)
+        #expect(fetcher.offlineMediaStorageSummary.remoteOnlyCount == 1)
+        #expect(await offlineMediaStore.clearInvocationCount() == 1)
+    }
+
+    @Test
+    func rebuildOfflineMediaRestoresSavedOfflineState() async {
+        let item = NASA(
+            date: "2025-01-24",
+            explanation: "Rebuild offline media fixture.",
+            mediaType: .image,
+            title: "Rebuild Offline",
+            url: URL(string: "https://example.com/rebuild-offline.jpg")
+        )
+        let offlineMediaStore = InMemoryOfflineMediaStore()
+        let fetcher = NasaCollectionFetcher(
+            session: makeSession { _ in
+                let response = HTTPURLResponse(
+                    url: URL(string: "https://example.com/fallback")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data("[]".utf8))
+            },
+            apiKey: "TEST_KEY",
+            calendar: deterministicCalendar,
+            nowProvider: { fixedNow },
+            favoritesStorage: InMemoryFavoritesStorage(initialFavorites: [item]),
+            cacheStorage: InMemoryAPODCacheStorage(),
+            offlineMediaStore: offlineMediaStore
+        )
+
+        await fetcher.clearOfflineMedia()
+        #expect(fetcher.offlineMediaStorageSummary.remoteOnlyCount == 1)
+
+        await fetcher.rebuildOfflineMedia()
+
+        #expect(fetcher.offlineMediaAsset(for: item)?.availability == .availableOffline)
+        #expect(fetcher.savedOfflineItemCount == 1)
+        #expect(fetcher.offlineMediaStorageSummary.totalByteCount == 1_024)
+        #expect(await offlineMediaStore.lastSynchronizedFavoriteIDs() == [item.id])
+    }
+
+    @Test
     func selectingFavoriteUpdatesCurrentNasaAndCollection() {
         let favorite = NASA(
             date: "2025-01-10",
@@ -1209,6 +1288,7 @@ private struct InMemoryStoredOfflineMediaLoader: APODOfflineMediaRecordLoading {
 private actor InMemoryOfflineMediaStore: APODOfflineMediaStore {
     private var records: [String: APODOfflineMediaAsset] = [:]
     private var synchronizedFavoriteIDs = [String]()
+    private var clearInvocations = 0
 
     func loadRecords() async -> [String: APODOfflineMediaAsset] {
         records
@@ -1248,7 +1328,17 @@ private actor InMemoryOfflineMediaStore: APODOfflineMediaStore {
         return records
     }
 
+    func clearRecords() async -> [String: APODOfflineMediaAsset] {
+        clearInvocations += 1
+        records = [:]
+        return records
+    }
+
     func lastSynchronizedFavoriteIDs() -> [String] {
         synchronizedFavoriteIDs
+    }
+
+    func clearInvocationCount() -> Int {
+        clearInvocations
     }
 }
