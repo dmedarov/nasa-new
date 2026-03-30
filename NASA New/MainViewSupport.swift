@@ -316,6 +316,22 @@ extension EnvironmentValues {
     }
 }
 
+enum AppShellContext {
+    case compactTabs
+    case premiumRegularShell
+}
+
+private struct AppShellContextKey: EnvironmentKey {
+    static let defaultValue: AppShellContext = .compactTabs
+}
+
+extension EnvironmentValues {
+    var appShellContext: AppShellContext {
+        get { self[AppShellContextKey.self] }
+        set { self[AppShellContextKey.self] = newValue }
+    }
+}
+
 struct SpaceBackdropView: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -512,6 +528,70 @@ struct MissionPanel<Content: View>: View {
                     }
             }
             .shadow(color: AppTheme.panelShadow(isDarkMode: isDarkMode, tone: tone), radius: 22, y: 12)
+    }
+}
+
+struct PremiumShellStage<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
+    let tone: AppTheme.SurfaceTone
+    private let content: Content
+
+    init(
+        tone: AppTheme.SurfaceTone = .neutral,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.tone = tone
+        self.content = content()
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    private var effectiveReduceTransparency: Bool {
+        appRuntimeOverrides.resolvedReduceTransparency(systemValue: accessibilityReduceTransparency)
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background {
+                RoundedRectangle(
+                    cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                    style: .continuous
+                )
+                .fill(AppTheme.adaptiveSurface(
+                    isDarkMode: isDarkMode,
+                    reduceTransparency: effectiveReduceTransparency
+                ))
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                        style: .continuous
+                    )
+                    .fill(AppTheme.panelOverlayGradient(isDarkMode: isDarkMode, tone: tone))
+                }
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                        style: .continuous
+                    )
+                    .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+                }
+            }
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                    style: .continuous
+                )
+            )
+            .shadow(
+                color: AppTheme.panelShadow(isDarkMode: isDarkMode, tone: tone),
+                radius: 26,
+                y: 16
+            )
     }
 }
 
@@ -776,6 +856,27 @@ struct MissionStateCard<Actions: View>: View {
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+struct LibrarySelectionPlaceholderView: View {
+    let eyebrow: String
+    let title: String
+    let message: String
+    let systemImage: String
+    let tone: AppTheme.SurfaceTone
+
+    var body: some View {
+        MissionStateCard(
+            eyebrow: eyebrow,
+            title: title,
+            message: message,
+            systemImage: systemImage,
+            tone: tone
+        )
+        .padding(AppTheme.Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(SpaceBackdropView())
     }
 }
 

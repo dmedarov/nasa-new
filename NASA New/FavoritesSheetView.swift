@@ -153,6 +153,7 @@ struct SavedScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    let embedInRegularShell: Bool
 
     @AppStorage("saved.presentation.mode") private var savedPresentationModeRawValue = ArchivePresentationMode.list.rawValue
     @AppStorage("saved.filter") private var savedFilterRawValue = SavedFilter.all.rawValue
@@ -162,8 +163,12 @@ struct SavedScreenView: View {
     @State private var savedDisplayItems = [APODLibraryDisplayItem]()
     @State private var filteredFavoriteItems = [APODLibraryDisplayItem]()
 
+    init(embedInRegularShell: Bool = false) {
+        self.embedInRegularShell = embedInRegularShell
+    }
+
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular
+        horizontalSizeClass == .regular && !embedInRegularShell
     }
 
     private var supportsGridPresentation: Bool {
@@ -218,7 +223,12 @@ struct SavedScreenView: View {
 
     var body: some View {
         Group {
-            if usesSplitLayout {
+            if embedInRegularShell {
+                savedCollectionContent(
+                    selectedItemID: selectedFavoriteID ?? router.selectedSavedItemID,
+                    selectionAction: selectFavorite
+                )
+            } else if usesSplitLayout {
                 NavigationSplitView {
                     savedCollectionContent(
                         selectedItemID: selectedFavoriteID ?? router.selectedSavedItemID,
@@ -592,7 +602,7 @@ struct SavedScreenView: View {
     }
 
     private var savedSelectionPlaceholder: some View {
-        MissionStateCard(
+        LibrarySelectionPlaceholderView(
             eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
             title: L10n.text("Select a saved APOD", default: "Select a saved APOD"),
             message: L10n.text(
@@ -602,9 +612,6 @@ struct SavedScreenView: View {
             systemImage: "bookmark.circle",
             tone: .favorite
         )
-        .padding(AppTheme.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SpaceBackdropView())
     }
 }
 
@@ -614,6 +621,7 @@ struct ArchiveScreenView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    let embedInRegularShell: Bool
 
     @AppStorage("archive.presentation.mode") private var archivePresentationModeRawValue = ArchivePresentationMode.grid.rawValue
     @AppStorage("archive.filter") private var archiveFilterRawValue = ArchiveFilter.all.rawValue
@@ -625,8 +633,12 @@ struct ArchiveScreenView: View {
     @State private var filteredArchiveItems = [APODLibraryDisplayItem]()
     @State private var archiveSections = [ArchiveSection]()
 
+    init(embedInRegularShell: Bool = false) {
+        self.embedInRegularShell = embedInRegularShell
+    }
+
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular
+        horizontalSizeClass == .regular && !embedInRegularShell
     }
 
     private var archivePresentationMode: ArchivePresentationMode {
@@ -719,7 +731,14 @@ struct ArchiveScreenView: View {
 
     var body: some View {
         Group {
-            if usesSplitLayout {
+            if embedInRegularShell {
+                archiveCollectionContent(
+                    selectedItemID: selectedArchiveItemID ?? router.selectedArchiveItemID,
+                    selectionAction: { item in
+                        handleArchiveSelection(item)
+                    }
+                )
+            } else if usesSplitLayout {
                 NavigationSplitView {
                     archiveCollectionContent(
                         selectedItemID: selectedArchiveItemID ?? router.selectedArchiveItemID,
@@ -1322,7 +1341,7 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveSelectionPlaceholder: some View {
-        MissionStateCard(
+        LibrarySelectionPlaceholderView(
             eyebrow: L10n.text("Editorial Archive", default: "Editorial Archive"),
             title: L10n.text("Select an APOD entry", default: "Select an APOD entry"),
             message: L10n.text(
@@ -1332,9 +1351,6 @@ struct ArchiveScreenView: View {
             systemImage: "sparkles.rectangle.stack",
             tone: .accent
         )
-        .padding(AppTheme.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SpaceBackdropView())
     }
 
     private func archiveSectionKey(for apiDateString: String?) -> String {

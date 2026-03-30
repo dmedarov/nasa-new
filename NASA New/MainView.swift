@@ -27,6 +27,7 @@ struct MainView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var imageScale: CGFloat = ViewConstants.minImageScale
     @State private var imageOffset: CGSize = .zero
@@ -89,6 +90,15 @@ struct MainView: View {
 
     private var usesWideEditorialLayout: Bool {
         horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var navigationTitleText: String {
+        switch appShellContext {
+        case .compactTabs:
+            return L10n.text("Space Briefing", default: "Space Briefing")
+        case .premiumRegularShell:
+            return L10n.text("Today", default: "Today")
+        }
     }
 
     private func resetImageState() {
@@ -273,7 +283,7 @@ struct MainView: View {
         }
         .padding(.top, AppTheme.Spacing.xs)
         .background(backgroundLayer)
-        .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
+        .navigationTitle(navigationTitleText)
         .appScreenChrome()
         .preferredColorScheme(appearancePreference.preferredColorScheme)
         .sheet(isPresented: $showShareSheet) {
