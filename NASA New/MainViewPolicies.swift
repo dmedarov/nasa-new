@@ -76,6 +76,8 @@ enum AppTheme {
         static let cardCornerRadius: CGFloat = 24
         static let compactCornerRadius: CGFloat = 14
         static let heroCornerRadius: CGFloat = 30
+        static let screenContentMaxWidth: CGFloat = 760
+        static let screenPanelSpacing: CGFloat = 16
     }
 
     enum Spacing {

@@ -51,6 +51,45 @@ struct AdaptiveNavigationContainer<Content: View>: View {
     }
 }
 
+private struct AppScreenChromeModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(.thinMaterial, for: .navigationBar)
+    }
+}
+
+struct ScreenPanelColumn<Content: View>: View {
+    let spacing: CGFloat
+    let topPadding: CGFloat
+    let bottomPadding: CGFloat
+    private let content: Content
+
+    init(
+        spacing: CGFloat = AppTheme.Metrics.screenPanelSpacing,
+        topPadding: CGFloat = AppTheme.Spacing.xs,
+        bottomPadding: CGFloat = 0,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.spacing = spacing
+        self.topPadding = topPadding
+        self.bottomPadding = bottomPadding
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            content
+        }
+        .frame(maxWidth: AppTheme.Metrics.screenContentMaxWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
+    }
+}
+
 struct MissionSearchField: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
@@ -135,6 +174,12 @@ struct AppEnvironmentOverrideContainer<Content: View>: View {
         }
 
         return view
+    }
+}
+
+extension View {
+    func appScreenChrome() -> some View {
+        modifier(AppScreenChromeModifier())
     }
 }
 
