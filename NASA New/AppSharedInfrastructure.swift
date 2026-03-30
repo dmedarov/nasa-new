@@ -132,7 +132,10 @@ enum AppDeepLink {
     }
 
     static func publicWebURL(for route: AppRoute, publicBaseURL: URL? = configuredPublicBaseURL()) -> URL? {
-        guard let publicBaseURL else { return nil }
+        guard let publicBaseURL,
+              publicBaseURL.scheme?.lowercased() == "https" else {
+            return nil
+        }
         guard var components = URLComponents(url: publicBaseURL, resolvingAgainstBaseURL: false) else {
             return nil
         }
@@ -178,7 +181,7 @@ enum AppDeepLink {
         switch url.scheme?.lowercased() {
         case scheme:
             return routeFromCustomURL(url)
-        case "http", "https":
+        case "https":
             return routeFromPublicWebURL(url, publicBaseURL: publicBaseURL)
         default:
             return nil
@@ -229,7 +232,7 @@ enum AppDeepLink {
         guard !trimmedValue.contains("$(") else { return nil }
         guard var components = URLComponents(string: trimmedValue) else { return nil }
         guard let scheme = components.scheme?.lowercased(),
-              scheme == "https" || scheme == "http" else {
+              scheme == "https" else {
             return nil
         }
         guard components.host != nil else { return nil }

@@ -26,17 +26,17 @@ struct AppRouterTests {
     @Test
     func appDeepLinkBuildsPublicWebURLWhenConfigured() {
         let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
-        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
+        let publicBaseURL = URL(string: "https://links.medarov.eu")!
 
         let generatedURL = AppDeepLink.publicWebURL(for: route, publicBaseURL: publicBaseURL)
 
-        #expect(generatedURL == URL(string: "https://example.com/space-briefing/archive?date=2025-01-07"))
+        #expect(generatedURL == URL(string: "https://links.medarov.eu/archive?date=2025-01-07"))
     }
 
     @Test
     func appDeepLinkUsesCustomSchemeForInternalNavigationEvenWhenPublicWebURLIsConfigured() {
         let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
-        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
+        let publicBaseURL = URL(string: "https://links.medarov.eu")!
 
         let generatedURL = AppDeepLink.url(for: route, publicBaseURL: publicBaseURL)
 
@@ -45,12 +45,32 @@ struct AppRouterTests {
 
     @Test
     func appDeepLinkParsesConfiguredPublicWebURL() {
-        let publicBaseURL = URL(string: "https://example.com/space-briefing")!
-        let url = URL(string: "https://example.com/space-briefing/saved?date=2025-02-11")!
+        let publicBaseURL = URL(string: "https://links.medarov.eu")!
+        let url = URL(string: "https://links.medarov.eu/saved?date=2025-02-11")!
 
         let route = AppDeepLink.route(from: url, publicBaseURL: publicBaseURL)
 
         #expect(route == AppRoute(destination: .saved, apodDate: "2025-02-11"))
+    }
+
+    @Test
+    func appDeepLinkRejectsNonHTTPSPublicBaseURLWhenBuildingPublicLinks() {
+        let route = AppRoute(destination: .archive, apodDate: "2025-01-07")
+        let publicBaseURL = URL(string: "http://links.medarov.eu")!
+
+        let generatedURL = AppDeepLink.publicWebURL(for: route, publicBaseURL: publicBaseURL)
+
+        #expect(generatedURL == nil)
+    }
+
+    @Test
+    func appDeepLinkDoesNotParseHTTPPublicWebURL() {
+        let publicBaseURL = URL(string: "https://links.medarov.eu")!
+        let url = URL(string: "http://links.medarov.eu/archive?date=2025-02-11")!
+
+        let route = AppDeepLink.route(from: url, publicBaseURL: publicBaseURL)
+
+        #expect(route == nil)
     }
 
     @Test

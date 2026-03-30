@@ -7,6 +7,10 @@
 //
 // APOD_PUBLIC_WEB_BASE_URL:
 // - Leave empty unless you have associated domains + AASA configured for universal links.
+// - For the planned medarov.eu rollout, use `https://links.medarov.eu` only after:
+//   1. `links.medarov.eu` has valid HTTPS
+//   2. `/.well-known/apple-app-site-association` is live without redirects
+//   3. the app build includes the matching `applinks:links.medarov.eu` entitlement
 // - Share/discovery links may use it, but widget and in-app routing should keep using nasanew://.
 NASA_API_KEY =
 APOD_PUBLIC_WEB_BASE_URL =
