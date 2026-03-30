@@ -339,17 +339,19 @@ struct SavedScreenView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     private var savedHeaderPanels: some View {
-        VStack(spacing: AppTheme.Spacing.md) {
+        ScreenPanelColumn(
+            spacing: AppTheme.Metrics.screenPanelSpacing,
+            topPadding: AppTheme.Spacing.xs,
+            bottomPadding: AppTheme.Spacing.xs
+        ) {
             savedOverviewPanel
             savedControlsPanel
         }
-        .padding(.horizontal, AppTheme.Spacing.lg)
-        .padding(.top, AppTheme.Spacing.xs)
-        .padding(.bottom, AppTheme.Spacing.xs)
     }
 
     private var savedOverviewPanel: some View {
@@ -814,14 +816,15 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveHeaderPanels: some View {
-        VStack(spacing: AppTheme.Spacing.md) {
+        ScreenPanelColumn(
+            spacing: AppTheme.Metrics.screenPanelSpacing,
+            topPadding: AppTheme.Spacing.xs,
+            bottomPadding: AppTheme.Spacing.xs
+        ) {
             archiveOverviewPanel
             archiveControlsPanel
             archiveJumpPanel
         }
-        .padding(.horizontal, AppTheme.Spacing.lg)
-        .padding(.top, AppTheme.Spacing.xs)
-        .padding(.bottom, AppTheme.Spacing.xs)
     }
 
     private var archiveOverviewPanel: some View {
@@ -1140,15 +1143,15 @@ struct ArchiveScreenView: View {
                                 selectionAction: selectionAction
                             )
                             .swipeActions(edge: .trailing) {
+                                let favoriteActionTitle = displayItem.isSaved
+                                    ? L10n.text("Remove Favorite", default: "Remove Favorite")
+                                    : L10n.text("Save Favorite", default: "Save Favorite")
+                                let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
+
                                 Button {
                                     toggleArchiveFavorite(displayItem.item)
                                 } label: {
-                                    Label(
-                                        displayItem.isSaved
-                                            ? L10n.text("Remove Favorite", default: "Remove Favorite")
-                                            : L10n.text("Save Favorite", default: "Save Favorite"),
-                                        systemImage: displayItem.isSaved ? "bookmark.slash" : "bookmark"
-                                    )
+                                    Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
                                 }
                                 .tint(displayItem.isSaved ? .gray : AppTheme.Palette.favorite)
                             }
@@ -1171,18 +1174,20 @@ struct ArchiveScreenView: View {
                             }
                             .buttonStyle(.borderedProminent)
                         }
+                        .libraryStateRowStyle()
                     }
-                    .listRowBackground(Color.clear)
                 }
 
                 if fetcher.canLoadMoreArchiveHistory {
                     Section {
                         archiveLoadMoreButton
+                            .libraryStateRowStyle()
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     private func archiveGridContent(selectionAction: @escaping (NASA) -> Void) -> some View {
@@ -1531,11 +1536,20 @@ private extension View {
     }
 
     func libraryRowBackground(isSelected: Bool) -> some View {
-        listRowBackground(
+        listRowInsets(
+            EdgeInsets(
+                top: AppTheme.Spacing.xs,
+                leading: AppTheme.Spacing.lg,
+                bottom: AppTheme.Spacing.xs,
+                trailing: AppTheme.Spacing.lg
+            )
+        )
+        .listRowBackground(
             isSelected
                 ? AppTheme.Palette.accentLight.opacity(0.08)
                 : Color.clear
         )
+        .listRowSeparator(.hidden)
     }
 }
 
