@@ -12,6 +12,7 @@ Use `NASA New/AppConfig.xcconfig` for checked-in defaults and keep local or CI-o
 - Treat `DEMO_KEY` as development-only. If Settings still shows `No (Using DEMO_KEY)`, the build is not release-ready.
 - Only set `APOD_PUBLIC_WEB_BASE_URL` when the hosted domain already serves a valid `apple-app-site-association` file and the app has matching Associated Domains entitlements.
 - If universal links are not configured, leave `APOD_PUBLIC_WEB_BASE_URL` empty and rely on `nasanew://` for widgets, shortcuts, and internal navigation.
+- The current planned universal-link host is `https://links.medarov.eu`; keep the checked-in value blank until that host is live on HTTPS with a non-redirecting AASA file.
 
 ## Local StoreKit Testing
 - Run the app with the shared `NASA New` scheme in Debug; it now points to `NASA New/SpaceBriefing.storekit`.

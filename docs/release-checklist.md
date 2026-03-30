@@ -10,7 +10,10 @@
 - [ ] `LocalSecrets.xcconfig` or CI release overrides provide a real `NASA_API_KEY` for release builds.
 - [ ] Release/TestFlight/App Store builds no longer rely on `DEMO_KEY`.
 - [ ] `APOD_PUBLIC_WEB_BASE_URL` stays empty unless Associated Domains and `apple-app-site-association` are already configured.
+- [ ] If universal links are enabled, `APOD_PUBLIC_WEB_BASE_URL` is exactly `https://links.medarov.eu`.
 - [ ] Public web links and internal `nasanew://` routes were sanity-checked after the final config values were applied.
+- [ ] `https://links.medarov.eu/.well-known/apple-app-site-association` returns `200 OK` over HTTPS without redirects.
+- [ ] The hosted AASA file lists `UT5GZ42DGX.eu.medarov.NASA-New` and the `/today`, `/archive/*`, and `/saved/*` paths.
 
 ## Core Flows
 - [ ] Open today's briefing, then move backward and forward across APOD dates.

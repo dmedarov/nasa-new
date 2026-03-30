@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "UT5GZ42DGX.eu.medarov.NASA-New",
+        "paths": [
+          "/today",
+          "/archive/*",
+          "/saved/*"
+        ]
+      }
+    ]
+  }
+}
