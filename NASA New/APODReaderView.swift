@@ -6,6 +6,7 @@ struct APODReaderView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var imageScale: CGFloat = 1
     @State private var imageOffset: CGSize = .zero
@@ -28,6 +29,15 @@ struct APODReaderView: View {
         horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
 
+    private var detailsColumnMaxWidth: CGFloat {
+        switch appShellContext {
+        case .compactTabs:
+            return AppTheme.Metrics.compactDetailsColumnMaxWidth
+        case .premiumRegularShell:
+            return AppTheme.Metrics.regularDetailsColumnMaxWidth
+        }
+    }
+
     private var effectivePreferHDImages: Bool {
         DataSaverPreferencePolicy.resolvedPreferHDImages(
             dataSaverMode: dataSaverMode,
@@ -43,12 +53,12 @@ struct APODReaderView: View {
     var body: some View {
         Group {
             if usesWideEditorialLayout {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
+                HStack(alignment: .top, spacing: AppTheme.Spacing.xxl) {
                     mediaSection
                         .frame(maxWidth: .infinity, alignment: .top)
 
                     detailsSection
-                        .frame(maxWidth: 520, alignment: .top)
+                        .frame(maxWidth: detailsColumnMaxWidth, alignment: .top)
                 }
             } else {
                 VStack(spacing: AppTheme.Spacing.xl) {
@@ -135,10 +145,21 @@ struct APODReaderView: View {
 struct APODRecordDetailView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var purchaseManager: PurchaseManager
+    @Environment(\.appShellContext) private var appShellContext
     let nasa: NASA
     let destination: AppDestination
 
     @State private var showShareSheet = false
+
+    private var detailStageMaxWidth: CGFloat {
+        appShellContext == .premiumRegularShell
+            ? AppTheme.Metrics.readerStageMaxWidth
+            : .infinity
+    }
+
+    private var detailHorizontalPadding: CGFloat {
+        appShellContext == .premiumRegularShell ? AppTheme.Spacing.xl : AppTheme.Spacing.lg
+    }
 
     var body: some View {
         ScrollView {
@@ -146,7 +167,9 @@ struct APODRecordDetailView: View {
                 nasa: nasa,
                 isFavorite: fetcher.isFavorite(nasa)
             )
-            .padding(.horizontal, AppTheme.Spacing.lg)
+            .frame(maxWidth: detailStageMaxWidth, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, detailHorizontalPadding)
             .padding(.top, AppTheme.Spacing.sm)
             .padding(.bottom, AppTheme.Spacing.xxl)
         }

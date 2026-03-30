@@ -4,6 +4,9 @@ import YouTubePlayerKit
 
 struct MediaView: View {
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.appShellContext) private var appShellContext
     let nasa: NASA
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
@@ -25,6 +28,26 @@ struct MediaView: View {
 
     private var isDarkMode: Bool {
         colorScheme == .dark
+    }
+
+    private var usesWidePresentation: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var heroMinimumHeight: CGFloat {
+        usesWidePresentation
+            ? AppTheme.Metrics.regularHeroMinimumHeight
+            : AppTheme.Metrics.compactHeroMinimumHeight
+    }
+
+    private var videoHeroHeight: CGFloat {
+        usesWidePresentation
+            ? AppTheme.Metrics.regularVideoHeroHeight
+            : AppTheme.Metrics.compactVideoHeroHeight
+    }
+
+    private var mediaHorizontalPadding: CGFloat {
+        appShellContext == .premiumRegularShell ? AppTheme.Spacing.xs : AppTheme.Spacing.lg
     }
 
     private var preferredMediaURL: URL? {
@@ -180,14 +203,14 @@ struct MediaView: View {
         if let localImage {
             mediaHero(tone: .accent) {
                 interactiveImageView(localImage)
-                    .frame(maxWidth: .infinity, minHeight: 300)
+                    .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
             }
         } else if let preferredImageURL {
             AsyncImage(url: preferredImageURL) { phase in
                 if let image = phase.image {
                     mediaHero(tone: .accent) {
                         interactiveImageView(image)
-                            .frame(maxWidth: .infinity, minHeight: 300)
+                            .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
                     }
                 } else if phase.error != nil {
                     MediaPlaceholderCard(
@@ -203,9 +226,10 @@ struct MediaView: View {
                         Button(L10n.text("media.open_source", default: "Open Source")) {
                             openURL(preferredImageURL)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
                     }
+                    .frame(minHeight: heroMinimumHeight)
                     .accessibilityIdentifier(AccessibilityID.apodImageUnavailableMessage)
                 } else {
                     MediaPlaceholderCard(
@@ -217,7 +241,8 @@ struct MediaView: View {
                             default: "Fetching the best available APOD source and preparing it for reading."
                         ),
                         tone: .accent,
-                        showsProgress: true
+                        showsProgress: true,
+                        minHeight: heroMinimumHeight
                     )
                 }
             }
@@ -240,6 +265,7 @@ struct MediaView: View {
                     .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
                 }
             }
+            .frame(minHeight: heroMinimumHeight)
             .accessibilityIdentifier(AccessibilityID.apodImageUnavailableMessage)
         }
     }
@@ -259,6 +285,7 @@ struct MediaView: View {
             ) {
                 EmptyView()
             }
+            .frame(minHeight: heroMinimumHeight)
             .accessibilityIdentifier(AccessibilityID.videoDisabledMessage)
         } else if let localVideoURL, supportsInlineDirectVideo(localVideoURL) {
             directVideoHero(for: localVideoURL, autoplay: true, showsAutoplayBadge: false)
@@ -266,7 +293,7 @@ struct MediaView: View {
             let player = YouTubePlayer(source: .video(id: videoID))
             mediaHero(tone: .accent) {
                 YouTubePlayerView(player)
-                    .frame(height: 320)
+                    .frame(height: videoHeroHeight)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
                     .padding(AppTheme.Spacing.sm)
                     .overlay {
@@ -316,6 +343,7 @@ struct MediaView: View {
                     .accessibilityIdentifier(AccessibilityID.openVideoExternalButton)
                 }
             }
+            .frame(minHeight: heroMinimumHeight)
             .accessibilityIdentifier(AccessibilityID.unsupportedVideoMessage)
         }
     }
@@ -330,7 +358,7 @@ struct MediaView: View {
             ZStack(alignment: .bottomLeading) {
                 VideoPlayer(player: directVideoPlayer)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .frame(height: 320)
+                    .frame(height: videoHeroHeight)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
                     .padding(AppTheme.Spacing.sm)
                     .task(id: videoURL) {
@@ -389,6 +417,7 @@ struct MediaView: View {
                 .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
             }
         }
+        .frame(minHeight: heroMinimumHeight)
         .accessibilityIdentifier(AccessibilityID.unsupportedVideoMessage)
     }
 
@@ -401,7 +430,7 @@ struct MediaView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topLeading) {
                     content()
-                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         MissionBadge(
@@ -450,7 +479,7 @@ struct MediaView: View {
                 mediaIntegrityFooter
             }
         }
-        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.horizontal, mediaHorizontalPadding)
     }
 
     private var mediaIntegrityFooter: some View {
@@ -545,6 +574,7 @@ private struct MediaPlaceholderCard<Actions: View>: View {
     let message: String
     let tone: AppTheme.SurfaceTone
     let showsProgress: Bool
+    let minHeight: CGFloat
     private let actions: Actions
 
     init(
@@ -554,6 +584,7 @@ private struct MediaPlaceholderCard<Actions: View>: View {
         message: String,
         tone: AppTheme.SurfaceTone = .neutral,
         showsProgress: Bool = false,
+        minHeight: CGFloat = AppTheme.Metrics.compactHeroMinimumHeight,
         @ViewBuilder actions: () -> Actions
     ) {
         self.eyebrow = eyebrow
@@ -562,6 +593,7 @@ private struct MediaPlaceholderCard<Actions: View>: View {
         self.message = message
         self.tone = tone
         self.showsProgress = showsProgress
+        self.minHeight = minHeight
         self.actions = actions()
     }
 
@@ -571,7 +603,8 @@ private struct MediaPlaceholderCard<Actions: View>: View {
         title: String,
         message: String,
         tone: AppTheme.SurfaceTone = .neutral,
-        showsProgress: Bool = false
+        showsProgress: Bool = false,
+        minHeight: CGFloat = AppTheme.Metrics.compactHeroMinimumHeight
     ) where Actions == EmptyView {
         self.eyebrow = eyebrow
         self.systemImage = systemImage
@@ -579,6 +612,7 @@ private struct MediaPlaceholderCard<Actions: View>: View {
         self.message = message
         self.tone = tone
         self.showsProgress = showsProgress
+        self.minHeight = minHeight
         self.actions = EmptyView()
     }
 
@@ -590,7 +624,7 @@ private struct MediaPlaceholderCard<Actions: View>: View {
             systemImage: systemImage,
             tone: tone,
             showsProgress: showsProgress,
-            minHeight: 300
+            minHeight: minHeight
         ) {
             actions
         }

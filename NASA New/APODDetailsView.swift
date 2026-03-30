@@ -5,7 +5,10 @@ struct APODDetailsView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var isExplanationExpanded = false
     @State private var isSavingToPhotos = false
@@ -121,8 +124,28 @@ struct APODDetailsView: View {
         PhotoExportService.exportSourceURL(for: nasa) != nil
     }
 
+    private var usesWideEditorialLayout: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var detailPanelPadding: CGFloat {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+            ? AppTheme.Spacing.xxl
+            : AppTheme.Spacing.xl
+    }
+
+    private var titleFont: Font {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+            ? AppTheme.Typography.heroTitle
+            : AppTheme.Typography.screenTitle
+    }
+
+    private var explanationLineSpacing: CGFloat {
+        usesWideEditorialLayout ? 6 : 4
+    }
+
     var body: some View {
-        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.xl) {
+        MissionPanel(tone: .neutral, padding: detailPanelPadding) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                 headerSection
                 provenanceSection
@@ -166,7 +189,7 @@ struct APODDetailsView: View {
             SectionEyebrow(L10n.text("Mission Story", default: "Mission Story"), tone: .accent)
 
             Text(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
-                .font(AppTheme.Typography.screenTitle)
+                .font(titleFont)
                 .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .ignore)
@@ -175,7 +198,7 @@ struct APODDetailsView: View {
                 .accessibilityAddTraits(.isHeader)
 
             Text(L10n.text("Curated directly from NASA’s Astronomy Picture of the Day archive.", default: "Curated directly from NASA’s Astronomy Picture of the Day archive."))
-                .font(AppTheme.Typography.subheadline)
+                .font(AppTheme.Typography.body)
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -296,7 +319,7 @@ struct APODDetailsView: View {
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .multilineTextAlignment(.leading)
-                .lineSpacing(4)
+                .lineSpacing(explanationLineSpacing)
                 .lineLimit(isExplanationExpanded ? nil : APODExplanationDisplayPolicy.collapsedLineLimit)
                 .textSelection(.enabled)
                 .accessibilityIdentifier(AccessibilityID.apodExplanationText)

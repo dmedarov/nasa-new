@@ -72,7 +72,7 @@ struct AppShellView: View {
     private var splitShell: some View {
         GeometryReader { proxy in
             let railWidth = min(
-                max(proxy.size.width * 0.22, AppTheme.Metrics.shellRailMinimumWidth),
+                max(proxy.size.width * 0.2, AppTheme.Metrics.shellRailMinimumWidth),
                 AppTheme.Metrics.shellRailMaximumWidth
             )
             let contentWidth = max(
@@ -88,6 +88,7 @@ struct AppShellView: View {
                     }
 
                 regularShellStageContent(availableWidth: contentWidth)
+                    .frame(maxWidth: AppTheme.Metrics.readerStageMaxWidth, maxHeight: .infinity, alignment: .topLeading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .overlay(alignment: .topLeading) {
                         AccessibilityMarker(identifier: AccessibilityID.appShellDetail)
@@ -119,33 +120,21 @@ struct AppShellView: View {
     private var premiumSidebarRail: some View {
         PremiumShellStage(tone: .accent) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
-                        Text(L10n.text("Cosmic editorial, tuned for iPad.", default: "Cosmic editorial, tuned for iPad."))
-                            .font(AppTheme.Typography.cardTitle)
-                            .foregroundStyle(AppTheme.inkPrimary(isDarkMode: true))
+                    Text(L10n.text("NASA stories, made to breathe on iPad.", default: "NASA stories, made to breathe on iPad."))
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundStyle(AppTheme.inkPrimary(isDarkMode: true))
 
-                        Text(
-                            L10n.text(
-                                "Browse today's APOD, move across the archive, and keep saved stories close in one calm workspace.",
-                                default: "Browse today's APOD, move across the archive, and keep saved stories close in one calm workspace."
-                            )
+                    Text(
+                        L10n.text(
+                            "Move between today, archive, and saved stories while the content keeps center stage.",
+                            default: "Move between today, archive, and saved stories while the content keeps center stage."
                         )
-                        .font(AppTheme.Typography.subheadline)
-                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
-                    }
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: AppTheme.Spacing.xs) {
-                            shellStatusBadges
-                        }
-
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                            shellStatusBadges
-                        }
-                    }
+                    )
+                    .font(AppTheme.Typography.footnote)
+                    .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
                 }
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
@@ -154,21 +143,20 @@ struct AppShellView: View {
                     }
                 }
 
-                Spacer(minLength: 0)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        shellStatusBadges
+                    }
 
-                MissionSupportPanel(
-                    eyebrow: L10n.text("Workspace", default: "Workspace"),
-                    summary: L10n.text(
-                        "Designed for focused reading, fast archive jumps, and a cleaner split between library browsing and editorial detail.",
-                        default: "Designed for focused reading, fast archive jumps, and a cleaner split between library browsing and editorial detail."
-                    ),
-                    tone: .neutral,
-                    padding: AppTheme.Spacing.md
-                ) {
-                    EmptyView()
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        shellStatusBadges
+                    }
                 }
+
+                Spacer(minLength: 0)
             }
-            .padding(AppTheme.Spacing.lg)
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.lg)
         }
     }
 
@@ -550,7 +538,7 @@ private struct AppShellSidebarRow: View {
                 Text(summaryText)
                     .font(AppTheme.Typography.footnote)
                     .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                    .lineLimit(2)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)

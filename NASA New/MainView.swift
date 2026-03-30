@@ -92,6 +92,20 @@ struct MainView: View {
         horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
 
+    private var usesPremiumShellWideLayout: Bool {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+    }
+
+    private var shouldInlineStatusBannerInEditorialColumn: Bool {
+        usesPremiumShellWideLayout && hasLoadedContent && fetcher.error == nil
+    }
+
+    private var wideEditorialContentMaxWidth: CGFloat {
+        appShellContext == .premiumRegularShell
+            ? AppTheme.Metrics.premiumEditorialStageMaxWidth
+            : AppTheme.Metrics.readerStageMaxWidth
+    }
+
     private var navigationTitleText: String {
         switch appShellContext {
         case .compactTabs:
@@ -278,7 +292,9 @@ struct MainView: View {
     
     var body: some View {
         VStack(spacing: AppTheme.Spacing.sm) {
-            statusBannerSection
+            if !shouldInlineStatusBannerInEditorialColumn {
+                statusBannerSection
+            }
             mainContentSection
         }
         .padding(.top, AppTheme.Spacing.xs)
@@ -379,44 +395,52 @@ struct MainView: View {
 
     private var headerSection: some View {
         ScreenPanelColumn {
-            MainHeaderBar(
-                showSettingsSheet: $showSettingsSheet,
-                selectedDate: gatedSelectedDateBinding,
-                minimumDate: fetcher.minimumSelectableDate,
-                maximumDate: fetcher.maximumSelectableDate,
-                isFetching: fetcher.isFetching,
-                hasApodData: hasLoadedContent,
-                favoritesCount: fetcher.favorites.count,
-                isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-                preferImages: preferImages,
-                isShowingLatestDate: isShowingLatestDate,
-                toggleFavoriteAction: toggleFavorite,
-                shareAction: { showShareSheet = true },
-                refreshAction: retryLatestRequest,
-                isShowingMinimumDate: isShowingMinimumDate,
-                previousDateAction: { shiftSelectedDate(byDays: -1) },
-                nextDateAction: { shiftSelectedDate(byDays: 1) },
-                jumpToLatestAction: jumpToLatestDate,
-                randomizeAction: randomizeSelection,
-                openArchiveAction: openArchiveAction,
-                openSavedAction: openSavedAction
-            )
+            headerPanelContent
         }
     }
 
     private var statusBannerSection: some View {
         ScreenPanelColumn(topPadding: 0) {
-            APIRequestStatusBanner(
-                isFetching: fetcher.isFetching,
-                error: fetcher.error,
-                hasLoadedContent: hasLoadedContent,
-                retryAction: retryLatestRequest,
-                isOfflineMode: fetcher.isOfflineMode,
-                apiKeyWarning: fetcher.apiKeyWarning,
-                rateLimitRetryDate: fetcher.rateLimitRetryDate
-            )
+            statusBannerContent
             .accessibilitySortPriority(90)
         }
+    }
+
+    private var statusBannerContent: some View {
+        APIRequestStatusBanner(
+            isFetching: fetcher.isFetching,
+            error: fetcher.error,
+            hasLoadedContent: hasLoadedContent,
+            retryAction: retryLatestRequest,
+            isOfflineMode: fetcher.isOfflineMode,
+            apiKeyWarning: fetcher.apiKeyWarning,
+            rateLimitRetryDate: fetcher.rateLimitRetryDate
+        )
+    }
+
+    private var headerPanelContent: some View {
+        MainHeaderBar(
+            showSettingsSheet: $showSettingsSheet,
+            selectedDate: gatedSelectedDateBinding,
+            minimumDate: fetcher.minimumSelectableDate,
+            maximumDate: fetcher.maximumSelectableDate,
+            isFetching: fetcher.isFetching,
+            hasApodData: hasLoadedContent,
+            favoritesCount: fetcher.favorites.count,
+            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
+            preferImages: preferImages,
+            isShowingLatestDate: isShowingLatestDate,
+            toggleFavoriteAction: toggleFavorite,
+            shareAction: { showShareSheet = true },
+            refreshAction: retryLatestRequest,
+            isShowingMinimumDate: isShowingMinimumDate,
+            previousDateAction: { shiftSelectedDate(byDays: -1) },
+            nextDateAction: { shiftSelectedDate(byDays: 1) },
+            jumpToLatestAction: jumpToLatestDate,
+            randomizeAction: randomizeSelection,
+            openArchiveAction: openArchiveAction,
+            openSavedAction: openSavedAction
+        )
     }
 
     @ViewBuilder
@@ -435,31 +459,59 @@ struct MainView: View {
             Spacer()
         } else {
             ScrollView {
-                VStack(spacing: AppTheme.Spacing.xl) {
-                    if usesWideEditorialLayout {
-                        headerSection
-
-                        HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
-                            mediaSection
-                                .frame(maxWidth: .infinity, alignment: .top)
-
-                            detailsSection
-                                .frame(maxWidth: 520, alignment: .top)
-                        }
-                        .padding(.horizontal, AppTheme.Spacing.lg)
-                    } else {
+                if usesPremiumShellWideLayout {
+                    HStack(alignment: .top, spacing: AppTheme.Spacing.xxl) {
                         mediaSection
-                        headerSection
-                        detailsSection
+                            .frame(maxWidth: .infinity, alignment: .top)
+
+                        premiumEditorialColumn
+                            .frame(width: AppTheme.Metrics.premiumEditorialColumnWidth, alignment: .top)
                     }
+                    .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+                    .padding(.top, AppTheme.Spacing.sm)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
+                } else {
+                    VStack(spacing: AppTheme.Spacing.xl) {
+                        if usesWideEditorialLayout {
+                            headerSection
+
+                            HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
+                                mediaSection
+                                    .frame(maxWidth: .infinity, alignment: .top)
+
+                                detailsSection
+                                    .frame(maxWidth: AppTheme.Metrics.compactDetailsColumnMaxWidth, alignment: .top)
+                            }
+                            .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
+                        } else {
+                            mediaSection
+                            headerSection
+                            detailsSection
+                        }
+                    }
+                    .padding(.top, AppTheme.Spacing.xs)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
                 }
-                .padding(.top, AppTheme.Spacing.xs)
-                .padding(.bottom, AppTheme.Spacing.xxl)
             }
             .accessibilityIdentifier(AccessibilityID.mainContentScrollView)
             .refreshable {
                 retryLatestRequest()
             }
+        }
+    }
+
+    private var premiumEditorialColumn: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
+            statusBannerContent
+                .accessibilitySortPriority(90)
+
+            headerPanelContent
+
+            detailsSection
         }
     }
 

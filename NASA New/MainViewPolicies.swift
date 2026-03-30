@@ -78,13 +78,22 @@ enum AppTheme {
         static let heroCornerRadius: CGFloat = 30
         static let screenContentMaxWidth: CGFloat = 760
         static let screenPanelSpacing: CGFloat = 16
-        static let shellRailMinimumWidth: CGFloat = 220
-        static let shellRailMaximumWidth: CGFloat = 276
-        static let shellContentGap: CGFloat = 20
+        static let shellRailMinimumWidth: CGFloat = 208
+        static let shellRailMaximumWidth: CGFloat = 248
+        static let shellContentGap: CGFloat = 24
         static let shellStageCornerRadius: CGFloat = 32
-        static let shellLibraryPaneMinimumWidth: CGFloat = 280
-        static let shellLibraryPaneMaximumWidth: CGFloat = 380
+        static let shellLibraryPaneMinimumWidth: CGFloat = 296
+        static let shellLibraryPaneMaximumWidth: CGFloat = 360
         static let shellDualStageMinimumWidth: CGFloat = 680
+        static let premiumEditorialColumnWidth: CGFloat = 500
+        static let premiumEditorialStageMaxWidth: CGFloat = 1480
+        static let readerStageMaxWidth: CGFloat = 1500
+        static let compactHeroMinimumHeight: CGFloat = 320
+        static let regularHeroMinimumHeight: CGFloat = 540
+        static let compactVideoHeroHeight: CGFloat = 320
+        static let regularVideoHeroHeight: CGFloat = 520
+        static let compactDetailsColumnMaxWidth: CGFloat = 520
+        static let regularDetailsColumnMaxWidth: CGFloat = 600
     }
 
     enum Spacing {

@@ -6,6 +6,7 @@ struct MainHeaderBar: View {
     @ScaledMetric(relativeTo: .body) private var datePickerWidth = 152
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @Binding var showSettingsSheet: Bool
     @Binding var selectedDate: Date
@@ -37,10 +38,22 @@ struct MainHeaderBar: View {
     }
 
     private var editorialSummary: String {
+        if appShellContext == .premiumRegularShell {
+            return isShowingLatestDate
+                ? L10n.text(
+                    "header.today_summary.premium",
+                    default: "Today's NASA APOD, with quick timeline controls and space to really read the story."
+                )
+                : L10n.text(
+                    "header.archive_summary.premium",
+                    default: "A selected APOD date, ready to compare against the wider archive without losing focus."
+                )
+        }
+
         if isShowingLatestDate {
             return L10n.text(
                 "header.today_summary",
-                default: "Open today's APOD story, jump across the timeline, and save favorites for later."
+                default: "Open today's APOD story, jump across the timeline, and keep the best finds close."
             )
         }
 
@@ -63,9 +76,29 @@ struct MainHeaderBar: View {
         )
     }
 
+    private var headerPanelPadding: CGFloat {
+        appShellContext == .premiumRegularShell ? AppTheme.Spacing.lg : AppTheme.Spacing.md
+    }
+
+    private var headerSectionSpacing: CGFloat {
+        appShellContext == .premiumRegularShell ? AppTheme.Spacing.sm : AppTheme.Spacing.md
+    }
+
+    private var actionButtonMinWidth: CGFloat {
+        appShellContext == .premiumRegularShell ? 112 : 104
+    }
+
+    private var featuredActionMinWidth: CGFloat {
+        appShellContext == .premiumRegularShell ? 148 : 140
+    }
+
+    private var resolvedDatePickerWidth: CGFloat {
+        appShellContext == .premiumRegularShell ? max(datePickerWidth, 168) : max(datePickerWidth, 140)
+    }
+
     var body: some View {
-        MissionPanel(tone: .accent, padding: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+        MissionPanel(tone: .accent, padding: headerPanelPadding) {
+            VStack(alignment: .leading, spacing: headerSectionSpacing) {
                 MissionPanelHeader(
                     eyebrow: L10n.text("Space Briefing", default: "Space Briefing"),
                     title: editorialTitle,
@@ -127,7 +160,7 @@ struct MainHeaderBar: View {
         } label: {
             Label(L10n.text("Refresh", default: "Refresh"), systemImage: "arrow.clockwise")
                 .font(AppTheme.Typography.buttonLabel)
-                .frame(minWidth: 104)
+                .frame(minWidth: actionButtonMinWidth)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
@@ -145,7 +178,7 @@ struct MainHeaderBar: View {
         } label: {
             Label(L10n.text("Today", default: "Today"), systemImage: "calendar")
                 .font(AppTheme.Typography.buttonLabel)
-                .frame(minWidth: 104)
+                .frame(minWidth: actionButtonMinWidth)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
@@ -163,7 +196,7 @@ struct MainHeaderBar: View {
         } label: {
             Label(L10n.text("Archive", default: "Archive"), systemImage: "books.vertical")
                 .font(AppTheme.Typography.buttonLabel)
-                .frame(minWidth: 112)
+                .frame(minWidth: max(actionButtonMinWidth, 112))
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
@@ -186,7 +219,7 @@ struct MainHeaderBar: View {
                 systemImage: "sparkles.rectangle.stack"
             )
             .font(AppTheme.Typography.buttonLabel)
-            .frame(minWidth: 140)
+            .frame(minWidth: featuredActionMinWidth)
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.Metrics.compactCornerRadius))
@@ -268,7 +301,7 @@ struct MainHeaderBar: View {
 
             DatePicker("", selection: $selectedDate, in: minimumDate...maximumDate, displayedComponents: .date)
                 .labelsHidden()
-                .frame(width: max(datePickerWidth, 132))
+                .frame(width: resolvedDatePickerWidth)
                 .accessibilityLabel(L10n.text("Select APOD date", default: "Select APOD date"))
                 .accessibilityHint(L10n.text("Choose a date to view a specific Astronomy Picture of the Day", default: "Choose a date to view a specific Astronomy Picture of the Day"))
 
