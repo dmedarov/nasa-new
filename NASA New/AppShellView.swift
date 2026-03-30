@@ -1,12 +1,16 @@
 import SwiftUI
 
 struct AppShellView: View {
+    private enum StorageKey {
+        static let destination = "app.shell.destination"
+    }
+
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("app.shell.destination") private var persistedDestinationRawValue = AppDestination.today.rawValue
+    @AppStorage(StorageKey.destination) private var persistedDestinationRawValue = AppDestination.today.rawValue
     @State private var lastTrackedDestination: AppDestination?
 
     private var usesSplitShell: Bool {
@@ -34,7 +38,7 @@ struct AppShellView: View {
             }
         }
         .onChange(of: router.destination) { newValue in
-            persistedDestinationRawValue = newValue.rawValue
+            persistDestination(newValue)
             trackArchiveVisitIfNeeded(for: newValue)
         }
         .sheet(item: activePaywallBinding) { context in
@@ -172,21 +176,30 @@ struct AppShellView: View {
 
     private func updateDestination(_ destination: AppDestination) {
         router.destination = destination
-        persistedDestinationRawValue = destination.rawValue
+        persistDestination(destination)
     }
 
     private func restorePersistedDestinationIfNeeded() {
         guard router.destination == .today else {
-            persistedDestinationRawValue = router.destination.rawValue
+            persistDestination(router.destination)
             return
         }
 
         guard let persistedDestination = AppDestination(rawValue: persistedDestinationRawValue) else {
-            persistedDestinationRawValue = AppDestination.today.rawValue
+            persistDestination(.today)
             return
         }
 
         router.destination = persistedDestination
+    }
+
+    private func persistDestination(_ destination: AppDestination) {
+        persistedDestinationRawValue = destination.rawValue
+
+        // Flush the shell selection explicitly so relaunches and UI tests can restore the last
+        // active destination even when the app is terminated immediately after a tab/sidebar change.
+        UserDefaults.standard.set(destination.rawValue, forKey: StorageKey.destination)
+        UserDefaults.standard.synchronize()
     }
 
     private var activePaywallBinding: Binding<PaywallPresentation?> {
