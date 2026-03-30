@@ -80,7 +80,6 @@ struct MainHeaderBar: View {
                 adaptiveActionButtons
             }
         }
-        .padding(.horizontal, AppTheme.Spacing.lg)
     }
 
     private var adaptiveActionButtons: some View {

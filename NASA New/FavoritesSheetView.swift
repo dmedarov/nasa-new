@@ -307,6 +307,7 @@ struct SavedScreenView: View {
         }
         .background(SpaceBackdropView())
         .navigationTitle(L10n.text("Favorites", default: "Favorites"))
+        .appScreenChrome()
     }
 
     private func savedListContent(
@@ -809,6 +810,7 @@ struct ArchiveScreenView: View {
         }
         .background(SpaceBackdropView())
         .navigationTitle(L10n.text("Archive", default: "Archive"))
+        .appScreenChrome()
     }
 
     private var archiveHeaderPanels: some View {

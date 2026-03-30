@@ -274,9 +274,7 @@ struct MainView: View {
         .padding(.top, AppTheme.Spacing.xs)
         .background(backgroundLayer)
         .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(.thinMaterial, for: .navigationBar)
+        .appScreenChrome()
         .preferredColorScheme(appearancePreference.preferredColorScheme)
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
@@ -370,41 +368,45 @@ struct MainView: View {
     }
 
     private var headerSection: some View {
-        MainHeaderBar(
-            showSettingsSheet: $showSettingsSheet,
-            selectedDate: gatedSelectedDateBinding,
-            minimumDate: fetcher.minimumSelectableDate,
-            maximumDate: fetcher.maximumSelectableDate,
-            isFetching: fetcher.isFetching,
-            hasApodData: hasLoadedContent,
-            favoritesCount: fetcher.favorites.count,
-            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-            preferImages: preferImages,
-            isShowingLatestDate: isShowingLatestDate,
-            toggleFavoriteAction: toggleFavorite,
-            shareAction: { showShareSheet = true },
-            refreshAction: retryLatestRequest,
-            isShowingMinimumDate: isShowingMinimumDate,
-            previousDateAction: { shiftSelectedDate(byDays: -1) },
-            nextDateAction: { shiftSelectedDate(byDays: 1) },
-            jumpToLatestAction: jumpToLatestDate,
-            randomizeAction: randomizeSelection,
-            openArchiveAction: openArchiveAction,
-            openSavedAction: openSavedAction
-        )
+        ScreenPanelColumn {
+            MainHeaderBar(
+                showSettingsSheet: $showSettingsSheet,
+                selectedDate: gatedSelectedDateBinding,
+                minimumDate: fetcher.minimumSelectableDate,
+                maximumDate: fetcher.maximumSelectableDate,
+                isFetching: fetcher.isFetching,
+                hasApodData: hasLoadedContent,
+                favoritesCount: fetcher.favorites.count,
+                isFavorite: fetcher.isFavorite(fetcher.currentNasa),
+                preferImages: preferImages,
+                isShowingLatestDate: isShowingLatestDate,
+                toggleFavoriteAction: toggleFavorite,
+                shareAction: { showShareSheet = true },
+                refreshAction: retryLatestRequest,
+                isShowingMinimumDate: isShowingMinimumDate,
+                previousDateAction: { shiftSelectedDate(byDays: -1) },
+                nextDateAction: { shiftSelectedDate(byDays: 1) },
+                jumpToLatestAction: jumpToLatestDate,
+                randomizeAction: randomizeSelection,
+                openArchiveAction: openArchiveAction,
+                openSavedAction: openSavedAction
+            )
+        }
     }
 
     private var statusBannerSection: some View {
-        APIRequestStatusBanner(
-            isFetching: fetcher.isFetching,
-            error: fetcher.error,
-            hasLoadedContent: hasLoadedContent,
-            retryAction: retryLatestRequest,
-            isOfflineMode: fetcher.isOfflineMode,
-            apiKeyWarning: fetcher.apiKeyWarning,
-            rateLimitRetryDate: fetcher.rateLimitRetryDate
-        )
-        .accessibilitySortPriority(90)
+        ScreenPanelColumn(topPadding: 0) {
+            APIRequestStatusBanner(
+                isFetching: fetcher.isFetching,
+                error: fetcher.error,
+                hasLoadedContent: hasLoadedContent,
+                retryAction: retryLatestRequest,
+                isOfflineMode: fetcher.isOfflineMode,
+                apiKeyWarning: fetcher.apiKeyWarning,
+                rateLimitRetryDate: fetcher.rateLimitRetryDate
+            )
+            .accessibilitySortPriority(90)
+        }
     }
 
     @ViewBuilder
