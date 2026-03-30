@@ -2,6 +2,8 @@
 
 Use this sheet for the final manual release pass across `en`, `bg`, and `es`.
 
+String key parity note: `bg` and `es` now match the checked-in `en` key set. The remaining work here is manual fit, truncation, and accessibility verification on device.
+
 ## Signoff Gate
 - [ ] GitHub Actions `iOS Tests` workflow is green for the release branch.
 - [ ] Local `xcodebuild test` passes on the release simulator target.
