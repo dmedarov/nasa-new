@@ -28,18 +28,27 @@ struct AppShellView: View {
         .task {
             restorePersistedDestinationIfNeeded()
             router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            ensureRegularShellSelectionIfNeeded()
             trackArchiveVisitIfNeeded(for: router.destination)
         }
         .onChange(of: scenePhase) { newPhase in
             guard newPhase == .active else { return }
             router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            ensureRegularShellSelectionIfNeeded()
             Task {
                 await purchaseManager.refreshEntitlements()
             }
         }
         .onChange(of: router.destination) { newValue in
             persistDestination(newValue)
+            ensureRegularShellSelectionIfNeeded()
             trackArchiveVisitIfNeeded(for: newValue)
+        }
+        .onChange(of: fetcher.archiveItems.map(\.id)) { _ in
+            ensureRegularShellSelectionIfNeeded()
+        }
+        .onChange(of: fetcher.favorites.map(\.id)) { _ in
+            ensureRegularShellSelectionIfNeeded()
         }
         .sheet(item: activePaywallBinding) { context in
             MonetizationPaywallView(context: context)
@@ -72,7 +81,7 @@ struct AppShellView: View {
     private var splitShell: some View {
         GeometryReader { proxy in
             let railWidth = min(
-                max(proxy.size.width * 0.2, AppTheme.Metrics.shellRailMinimumWidth),
+                max(proxy.size.width * 0.22, AppTheme.Metrics.shellRailMinimumWidth),
                 AppTheme.Metrics.shellRailMaximumWidth
             )
             let contentWidth = max(
@@ -108,7 +117,10 @@ struct AppShellView: View {
         switch router.destination {
         case .today:
             PremiumShellStage(tone: .accent) {
-                todayRoot(shellContext: .premiumRegularShell)
+                todayRoot(
+                    shellContext: .premiumRegularShell,
+                    availableWidth: availableWidth
+                )
             }
         case .archive:
             regularArchiveStage(availableWidth: availableWidth)
@@ -119,22 +131,17 @@ struct AppShellView: View {
 
     private var premiumSidebarRail: some View {
         PremiumShellStage(tone: .accent) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                     SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
-                    Text(L10n.text("NASA stories, made to breathe on iPad.", default: "NASA stories, made to breathe on iPad."))
-                        .font(AppTheme.Typography.cardTitle)
+                    Text(L10n.text("A calmer space for NASA stories.", default: "A calmer space for NASA stories."))
+                        .font(AppTheme.Typography.sectionTitle)
                         .foregroundStyle(AppTheme.inkPrimary(isDarkMode: true))
 
-                    Text(
-                        L10n.text(
-                            "Move between today, archive, and saved stories while the content keeps center stage.",
-                            default: "Move between today, archive, and saved stories while the content keeps center stage."
-                        )
-                    )
-                    .font(AppTheme.Typography.footnote)
-                    .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
+                    Text(L10n.text("Today, archive, and saved.", default: "Today, archive, and saved."))
+                        .font(AppTheme.Typography.footnote)
+                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
                 }
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
@@ -191,9 +198,13 @@ struct AppShellView: View {
         )
     }
 
-    private func todayRoot(shellContext: AppShellContext) -> some View {
+    private func todayRoot(
+        shellContext: AppShellContext,
+        availableWidth: CGFloat? = nil
+    ) -> some View {
         NavigationStack {
             MainView(
+                preferredAvailableWidth: availableWidth,
                 openArchiveAction: { router.showArchive() },
                 openSavedAction: { router.showSaved() }
             )
@@ -299,9 +310,17 @@ struct AppShellView: View {
             ?? fetcher.favorites.first(where: { $0.id == selectedID })
     }
 
+    private var fallbackArchiveItem: NASA? {
+        fetcher.archiveItems.first
+    }
+
     private var selectedSavedItem: NASA? {
         guard let selectedID = router.selectedSavedItemID else { return nil }
         return fetcher.favorites.first(where: { $0.id == selectedID })
+    }
+
+    private var fallbackSavedItem: NASA? {
+        fetcher.favorites.first
     }
 
     private func regularArchiveStage(availableWidth: CGFloat) -> some View {
@@ -311,7 +330,15 @@ struct AppShellView: View {
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
-        return HStack(spacing: AppTheme.Metrics.shellContentGap) {
+        guard !fetcher.archiveItems.isEmpty else {
+            return AnyView(
+                PremiumShellStage {
+                    archiveRoot(embedInRegularShell: true)
+                }
+            )
+        }
+
+        return AnyView(HStack(spacing: AppTheme.Metrics.shellContentGap) {
             if supportsDualPane || selectedArchiveItem == nil {
                 PremiumShellStage {
                     archiveRoot(embedInRegularShell: true)
@@ -319,12 +346,12 @@ struct AppShellView: View {
                 .frame(width: supportsDualPane ? libraryWidth : nil)
             }
 
-            if supportsDualPane || selectedArchiveItem != nil {
+            if supportsDualPane || selectedArchiveItem != nil || fallbackArchiveItem != nil {
                 PremiumShellStage(tone: .accent) {
                     archiveDetailContent(showsBackButton: !supportsDualPane)
                 }
             }
-        }
+        })
     }
 
     private func regularSavedStage(availableWidth: CGFloat) -> some View {
@@ -334,7 +361,15 @@ struct AppShellView: View {
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
-        return HStack(spacing: AppTheme.Metrics.shellContentGap) {
+        guard !fetcher.favorites.isEmpty else {
+            return AnyView(
+                PremiumShellStage(tone: .favorite) {
+                    savedRoot(embedInRegularShell: true)
+                }
+            )
+        }
+
+        return AnyView(HStack(spacing: AppTheme.Metrics.shellContentGap) {
             if supportsDualPane || selectedSavedItem == nil {
                 PremiumShellStage(tone: .favorite) {
                     savedRoot(embedInRegularShell: true)
@@ -342,19 +377,19 @@ struct AppShellView: View {
                 .frame(width: supportsDualPane ? libraryWidth : nil)
             }
 
-            if supportsDualPane || selectedSavedItem != nil {
+            if supportsDualPane || selectedSavedItem != nil || fallbackSavedItem != nil {
                 PremiumShellStage(tone: .favorite) {
                     savedDetailContent(showsBackButton: !supportsDualPane)
                 }
             }
-        }
+        })
     }
 
     @ViewBuilder
     private func archiveDetailContent(showsBackButton: Bool) -> some View {
         NavigationStack {
-            if let selectedArchiveItem {
-                APODRecordDetailView(nasa: selectedArchiveItem, destination: .archive)
+            if let resolvedArchiveItem = selectedArchiveItem ?? fallbackArchiveItem {
+                APODRecordDetailView(nasa: resolvedArchiveItem, destination: .archive)
                     .toolbar {
                         if showsBackButton {
                             ToolbarItem(placement: .topBarLeading) {
@@ -386,8 +421,8 @@ struct AppShellView: View {
     @ViewBuilder
     private func savedDetailContent(showsBackButton: Bool) -> some View {
         NavigationStack {
-            if let selectedSavedItem {
-                APODRecordDetailView(nasa: selectedSavedItem, destination: .saved)
+            if let resolvedSavedItem = selectedSavedItem ?? fallbackSavedItem {
+                APODRecordDetailView(nasa: resolvedSavedItem, destination: .saved)
                     .toolbar {
                         if showsBackButton {
                             ToolbarItem(placement: .topBarLeading) {
@@ -459,6 +494,41 @@ struct AppShellView: View {
         router.selectedSavedItemID = nil
     }
 
+    private func ensureRegularShellSelectionIfNeeded() {
+        guard usesSplitShell else { return }
+
+        switch router.destination {
+        case .today:
+            break
+        case .archive:
+            guard let firstArchiveItem = fetcher.archiveItems.first else {
+                router.selectedArchiveItemID = nil
+                return
+            }
+
+            if let selectedID = router.selectedArchiveItemID,
+               fetcher.archiveItems.contains(where: { $0.id == selectedID }) {
+                return
+            }
+
+            router.selectedArchiveItemID = firstArchiveItem.id
+            fetcher.selectArchivedItem(firstArchiveItem)
+        case .saved:
+            guard let firstSavedItem = fetcher.favorites.first else {
+                router.selectedSavedItemID = nil
+                return
+            }
+
+            if let selectedID = router.selectedSavedItemID,
+               fetcher.favorites.contains(where: { $0.id == selectedID }) {
+                return
+            }
+
+            router.selectedSavedItemID = firstSavedItem.id
+            fetcher.selectFavorite(firstSavedItem)
+        }
+    }
+
     private var activePaywallBinding: Binding<PaywallPresentation?> {
         Binding(
             get: { purchaseManager.activePaywall },
@@ -490,26 +560,6 @@ private struct AppShellSidebarRow: View {
         colorScheme == .dark
     }
 
-    private var summaryText: String {
-        switch destination {
-        case .today:
-            return L10n.text(
-                "Daily story and live APOD briefing",
-                default: "Daily story and live APOD briefing"
-            )
-        case .archive:
-            return L10n.text(
-                "Browse the timeline and jump by date",
-                default: "Browse the timeline and jump by date"
-            )
-        case .saved:
-            return L10n.text(
-                "Revisit favorites and offline media",
-                default: "Revisit favorites and offline media"
-            )
-        }
-    }
-
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
             ZStack {
@@ -530,15 +580,12 @@ private struct AppShellSidebarRow: View {
                     )
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(destination.localizedTitle)
                     .font(AppTheme.Typography.sectionTitle)
                     .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
-
-                Text(summaryText)
-                    .font(AppTheme.Typography.footnote)
-                    .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
 
             Spacer(minLength: 0)

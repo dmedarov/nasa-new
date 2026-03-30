@@ -20,13 +20,32 @@ struct APODReaderView: View {
 
     let nasa: NASA
     let isFavorite: Bool
+    let availableWidth: CGFloat?
+
+    init(
+        nasa: NASA,
+        isFavorite: Bool,
+        availableWidth: CGFloat? = nil
+    ) {
+        self.nasa = nasa
+        self.isFavorite = isFavorite
+        self.availableWidth = availableWidth
+    }
+
+    private var effectiveAvailableWidth: CGFloat {
+        guard let availableWidth else { return 0 }
+        return max(availableWidth, 0)
+    }
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
     }
 
     private var usesWideEditorialLayout: Bool {
-        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+        if availableWidth != nil {
+            return effectiveAvailableWidth >= 940 && !dynamicTypeSize.isAccessibilitySize
+        }
+        return horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
 
     private var detailsColumnMaxWidth: CGFloat {
@@ -45,6 +64,16 @@ struct APODReaderView: View {
         )
     }
 
+    private func readerStageWidths(for availableWidth: CGFloat) -> (media: CGFloat, details: CGFloat) {
+        let usableWidth = min(max(availableWidth, 0), AppTheme.Metrics.readerStageMaxWidth)
+        let detailsWidth = min(
+            max(usableWidth * 0.34, 420),
+            detailsColumnMaxWidth
+        )
+        let mediaWidth = max(usableWidth - detailsWidth - AppTheme.Spacing.xxl, 520)
+        return (mediaWidth, detailsWidth)
+    }
+
     private func resetImageState() {
         imageScale = 1
         imageOffset = .zero
@@ -53,13 +82,18 @@ struct APODReaderView: View {
     var body: some View {
         Group {
             if usesWideEditorialLayout {
+                let widths = readerStageWidths(for: effectiveAvailableWidth)
+
                 HStack(alignment: .top, spacing: AppTheme.Spacing.xxl) {
                     mediaSection
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        .frame(width: widths.media, alignment: .topLeading)
+                        .layoutPriority(1)
 
                     detailsSection
-                        .frame(maxWidth: detailsColumnMaxWidth, alignment: .top)
+                        .frame(width: widths.details, alignment: .topLeading)
                 }
+                .frame(width: widths.media + widths.details + AppTheme.Spacing.xxl, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 VStack(spacing: AppTheme.Spacing.xl) {
                     mediaSection
@@ -158,20 +192,26 @@ struct APODRecordDetailView: View {
     }
 
     private var detailHorizontalPadding: CGFloat {
-        appShellContext == .premiumRegularShell ? AppTheme.Spacing.xl : AppTheme.Spacing.lg
+        appShellContext == .premiumRegularShell ? AppTheme.Spacing.lg : AppTheme.Spacing.lg
     }
 
     var body: some View {
-        ScrollView {
-            APODReaderView(
-                nasa: nasa,
-                isFavorite: fetcher.isFavorite(nasa)
-            )
-            .frame(maxWidth: detailStageMaxWidth, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.horizontal, detailHorizontalPadding)
-            .padding(.top, AppTheme.Spacing.sm)
-            .padding(.bottom, AppTheme.Spacing.xxl)
+        GeometryReader { proxy in
+            ScrollView {
+                APODReaderView(
+                    nasa: nasa,
+                    isFavorite: fetcher.isFavorite(nasa),
+                    availableWidth: min(
+                        max(proxy.size.width - (detailHorizontalPadding * 2), 0),
+                        detailStageMaxWidth
+                    )
+                )
+                .frame(maxWidth: detailStageMaxWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, detailHorizontalPadding)
+                .padding(.top, AppTheme.Spacing.sm)
+                .padding(.bottom, AppTheme.Spacing.xxl)
+            }
         }
         .background(SpaceBackdropView())
         .navigationTitle(APODDateDisplayPolicy.displayString(for: nasa.date))

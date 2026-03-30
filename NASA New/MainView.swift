@@ -57,11 +57,14 @@ struct MainView: View {
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
     private let openArchiveAction: () -> Void
     private let openSavedAction: () -> Void
+    private let preferredAvailableWidth: CGFloat?
 
     init(
+        preferredAvailableWidth: CGFloat? = nil,
         openArchiveAction: @escaping () -> Void = {},
         openSavedAction: @escaping () -> Void = {}
     ) {
+        self.preferredAvailableWidth = preferredAvailableWidth
         self.openArchiveAction = openArchiveAction
         self.openSavedAction = openSavedAction
     }
@@ -96,6 +99,10 @@ struct MainView: View {
         appShellContext == .premiumRegularShell && usesWideEditorialLayout
     }
 
+    private func usesPremiumShellSplitLayout(for availableWidth: CGFloat) -> Bool {
+        usesPremiumShellWideLayout && availableWidth >= AppTheme.Metrics.premiumSplitLayoutMinimumWidth
+    }
+
     private var shouldInlineStatusBannerInEditorialColumn: Bool {
         usesPremiumShellWideLayout && hasLoadedContent && fetcher.error == nil
     }
@@ -104,6 +111,28 @@ struct MainView: View {
         appShellContext == .premiumRegularShell
             ? AppTheme.Metrics.premiumEditorialStageMaxWidth
             : AppTheme.Metrics.readerStageMaxWidth
+    }
+
+    private func premiumStageWidths(for availableWidth: CGFloat) -> (media: CGFloat, editorial: CGFloat) {
+        let usableWidth = min(
+            max(availableWidth - (AppTheme.Spacing.xl * 2), 0),
+            wideEditorialContentMaxWidth
+        )
+        let spacing = AppTheme.Spacing.xxl
+        let idealEditorialWidth = min(
+            max(usableWidth * 0.36, 320),
+            AppTheme.Metrics.premiumEditorialColumnWidth
+        )
+        let minimumMediaWidth: CGFloat = 420
+        let rawMediaWidth = usableWidth - idealEditorialWidth - spacing
+
+        if rawMediaWidth >= minimumMediaWidth {
+            return (rawMediaWidth, idealEditorialWidth)
+        }
+
+        let adjustedEditorialWidth = max(usableWidth - minimumMediaWidth - spacing, 300)
+        let adjustedMediaWidth = max(usableWidth - adjustedEditorialWidth - spacing, 0)
+        return (adjustedMediaWidth, adjustedEditorialWidth)
     }
 
     private var navigationTitleText: String {
@@ -291,11 +320,15 @@ struct MainView: View {
     }
     
     var body: some View {
-        VStack(spacing: AppTheme.Spacing.sm) {
-            if !shouldInlineStatusBannerInEditorialColumn {
-                statusBannerSection
+        GeometryReader { proxy in
+            let contentWidth = preferredAvailableWidth ?? proxy.size.width
+
+            VStack(spacing: AppTheme.Spacing.sm) {
+                if !shouldInlineStatusBannerInEditorialColumn {
+                    statusBannerSection
+                }
+                mainContentSection(availableWidth: contentWidth)
             }
-            mainContentSection
         }
         .padding(.top, AppTheme.Spacing.xs)
         .background(backgroundLayer)
@@ -444,7 +477,7 @@ struct MainView: View {
     }
 
     @ViewBuilder
-    private var mainContentSection: some View {
+    private func mainContentSection(availableWidth: CGFloat) -> some View {
         if !hasLoadedContent && fetcher.isFetching {
             APIRequestEmptyStateView(
                 title: L10n.text("Loading APOD", default: "Loading APOD"),
@@ -459,17 +492,34 @@ struct MainView: View {
             Spacer()
         } else {
             ScrollView {
-                if usesPremiumShellWideLayout {
+                if usesPremiumShellSplitLayout(for: availableWidth) {
+                    let widths = premiumStageWidths(for: availableWidth)
+
                     HStack(alignment: .top, spacing: AppTheme.Spacing.xxl) {
                         mediaSection
-                            .frame(maxWidth: .infinity, alignment: .top)
+                            .frame(width: widths.media, alignment: .topLeading)
+                            .layoutPriority(1)
 
                         premiumEditorialColumn
-                            .frame(width: AppTheme.Metrics.premiumEditorialColumnWidth, alignment: .top)
+                            .frame(width: widths.editorial, alignment: .topLeading)
                     }
-                    .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .leading)
+                    .frame(width: widths.media + widths.editorial + AppTheme.Spacing.xxl, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal, AppTheme.Spacing.xl)
+                    .padding(.top, AppTheme.Spacing.sm)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
+                } else if appShellContext == .premiumRegularShell {
+                    VStack(spacing: AppTheme.Spacing.xl) {
+                        mediaSection
+                            .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.xl)
+
+                        premiumEditorialColumn
+                            .frame(maxWidth: 860, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.xl)
+                    }
                     .padding(.top, AppTheme.Spacing.sm)
                     .padding(.bottom, AppTheme.Spacing.xxl)
                 } else {

@@ -855,6 +855,7 @@ struct MissionStateCard<Actions: View>: View {
             }
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
     }
 }
@@ -874,8 +875,10 @@ struct LibrarySelectionPlaceholderView: View {
             systemImage: systemImage,
             tone: tone
         )
-        .padding(AppTheme.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: 620, alignment: .leading)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+        .padding(.top, AppTheme.Spacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(SpaceBackdropView())
     }
 }
