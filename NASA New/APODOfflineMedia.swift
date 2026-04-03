@@ -30,6 +30,67 @@ enum APODOfflineMediaAvailability: String, Codable, Hashable, Sendable {
     case failed
 }
 
+enum APODOfflineMediaState: Hashable, Sendable {
+    case sourceRequired(remoteSourceURL: URL?)
+    case saving(remoteSourceURL: URL?)
+    case full(localAssetURL: URL, remoteSourceURL: URL?)
+    case preview(localPreviewURL: URL, remoteSourceURL: URL?)
+    case failed(remoteSourceURL: URL?, message: String?)
+
+    var availability: APODOfflineMediaAvailability {
+        switch self {
+        case .sourceRequired:
+            return .remoteOnly
+        case .saving:
+            return .syncing
+        case .full:
+            return .availableOffline
+        case .preview:
+            return .previewOffline
+        case .failed:
+            return .failed
+        }
+    }
+
+    var hasStoredLocalMedia: Bool {
+        switch self {
+        case .full, .preview:
+            return true
+        case .sourceRequired, .saving, .failed:
+            return false
+        }
+    }
+
+    var localAssetURL: URL? {
+        switch self {
+        case .full(let localAssetURL, _):
+            return localAssetURL
+        case .sourceRequired, .saving, .preview, .failed:
+            return nil
+        }
+    }
+
+    var localPreviewURL: URL? {
+        switch self {
+        case .full(let localAssetURL, _):
+            return localAssetURL
+        case .preview(let localPreviewURL, _):
+            return localPreviewURL
+        case .sourceRequired, .saving, .failed:
+            return nil
+        }
+    }
+
+    var countsAsSourceBacked: Bool {
+        switch self {
+        case .sourceRequired, .saving, .failed:
+            return true
+        case .full, .preview:
+            return false
+        }
+    }
+}
+
 struct APODOfflineMediaAsset: Codable, Hashable, Sendable {
     let apodID: String
     let mediaTypeRawValue: String
@@ -88,6 +149,27 @@ struct APODOfflineMediaAsset: Codable, Hashable, Sendable {
         }
         return nil
     }
+
+    var state: APODOfflineMediaState {
+        switch availability {
+        case .availableOffline:
+            if let localAssetURL {
+                return .full(localAssetURL: localAssetURL, remoteSourceURL: remoteSourceURL)
+            }
+        case .previewOffline:
+            if let localPreviewURL {
+                return .preview(localPreviewURL: localPreviewURL, remoteSourceURL: remoteSourceURL)
+            }
+        case .syncing:
+            return .saving(remoteSourceURL: remoteSourceURL)
+        case .failed:
+            return .failed(remoteSourceURL: remoteSourceURL, message: errorDescription)
+        case .remoteOnly:
+            break
+        }
+
+        return .sourceRequired(remoteSourceURL: remoteSourceURL)
+    }
 }
 
 struct APODOfflineMediaStorageSummary: Equatable, Sendable {
@@ -112,18 +194,18 @@ struct APODOfflineMediaStorageSummary: Equatable, Sendable {
     }
 
     mutating func register(_ asset: APODOfflineMediaAsset?) {
-        let availability = asset?.availability ?? .remoteOnly
+        let state = asset?.state ?? .sourceRequired(remoteSourceURL: nil)
 
-        switch availability {
-        case .availableOffline:
+        switch state {
+        case .full:
             fullyOfflineCount += 1
             totalByteCount += max(asset?.byteCount ?? 0, 0)
-        case .previewOffline:
+        case .preview:
             previewCount += 1
             totalByteCount += max(asset?.byteCount ?? 0, 0)
-        case .remoteOnly:
+        case .sourceRequired:
             remoteOnlyCount += 1
-        case .syncing:
+        case .saving:
             syncingCount += 1
         case .failed:
             failedCount += 1
@@ -519,8 +601,8 @@ enum APODOfflineMediaStatusPolicy {
     ) -> APODOfflineMediaStatusPresentation? {
         guard isSaved else { return nil }
 
-        switch asset?.availability ?? .remoteOnly {
-        case .availableOffline:
+        switch asset?.state ?? .sourceRequired(remoteSourceURL: nil) {
+        case .full:
             if nasa.mediaType == .video {
                 return APODOfflineMediaStatusPresentation(
                     title: L10n.text("offline.media.available", default: "Available Offline"),
@@ -543,7 +625,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .previewOffline:
+        case .preview:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.preview", default: "Preview Saved"),
                 systemImage: "photo.badge.arrow.down",
@@ -554,7 +636,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .syncing:
+        case .saving:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.syncing", default: "Saving Offline"),
                 systemImage: "arrow.down.circle",
@@ -576,7 +658,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .remoteOnly:
+        case .sourceRequired:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.remote", default: "Source Required"),
                 systemImage: "icloud.and.arrow.down",

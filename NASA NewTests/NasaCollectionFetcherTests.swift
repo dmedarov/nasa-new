@@ -517,6 +517,12 @@ struct NasaCollectionFetcherTests {
         await fetcher.bootstrapOfflineMediaState()
 
         #expect(fetcher.offlineMediaAsset(for: item)?.availability == .availableOffline)
+        switch fetcher.offlineMediaAsset(for: item)?.state {
+        case .some(.full):
+            break
+        default:
+            Issue.record("Expected a full offline media state for saved image media.")
+        }
         #expect(fetcher.savedOfflineItemCount == 1)
         #expect(await offlineMediaStore.lastSynchronizedFavoriteIDs() == [item.id])
     }
@@ -552,6 +558,12 @@ struct NasaCollectionFetcherTests {
         await fetcher.bootstrapOfflineMediaState()
 
         #expect(fetcher.offlineMediaAsset(for: item)?.availability == .previewOffline)
+        switch fetcher.offlineMediaAsset(for: item)?.state {
+        case .some(.preview):
+            break
+        default:
+            Issue.record("Expected a preview offline media state for hosted video media.")
+        }
         #expect(fetcher.savedPreviewItemCount == 1)
     }
 
@@ -586,6 +598,12 @@ struct NasaCollectionFetcherTests {
         await fetcher.bootstrapOfflineMediaState()
 
         #expect(fetcher.offlineMediaAsset(for: item)?.availability == .remoteOnly)
+        switch fetcher.offlineMediaAsset(for: item)?.state {
+        case .some(.sourceRequired):
+            break
+        default:
+            Issue.record("Expected a sourceRequired offline media state for direct video media.")
+        }
         #expect(fetcher.savedOfflineItemCount == 0)
         #expect(fetcher.savedPreviewItemCount == 0)
     }
@@ -664,6 +682,12 @@ struct NasaCollectionFetcherTests {
         await fetcher.rebuildOfflineMedia()
 
         #expect(fetcher.offlineMediaAsset(for: item)?.availability == .availableOffline)
+        switch fetcher.offlineMediaAsset(for: item)?.state {
+        case .some(.full):
+            break
+        default:
+            Issue.record("Expected rebuild to restore a full offline media state.")
+        }
         #expect(fetcher.savedOfflineItemCount == 1)
         #expect(fetcher.offlineMediaStorageSummary.totalByteCount == 1_024)
         #expect(await offlineMediaStore.lastSynchronizedFavoriteIDs() == [item.id])

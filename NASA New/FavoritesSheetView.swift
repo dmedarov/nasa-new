@@ -124,20 +124,23 @@ private struct APODLibraryDisplayItem: Identifiable {
     }
 
     func matchesSavedFilter(_ filter: SavedFilter) -> Bool {
+        let offlineState = offlineMedia?.state ?? .sourceRequired(remoteSourceURL: nil)
+
         switch filter {
         case .all:
             return true
         case .offline:
-            return offlineMedia?.availability == .availableOffline
-        case .preview:
-            return offlineMedia?.availability == .previewOffline
-        case .sourceRequired:
-            switch offlineMedia?.availability ?? .remoteOnly {
-            case .availableOffline, .previewOffline:
-                return false
-            case .remoteOnly, .syncing, .failed:
+            if case .full = offlineState {
                 return true
             }
+            return false
+        case .preview:
+            if case .preview = offlineState {
+                return true
+            }
+            return false
+        case .sourceRequired:
+            return offlineState.countsAsSourceBacked
         }
     }
 }

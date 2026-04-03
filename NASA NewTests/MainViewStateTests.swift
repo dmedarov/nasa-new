@@ -636,6 +636,117 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertNil(userDefaults.data(forKey: "nasa.apod.offline-media.records.v1"))
     }
 
+    func testAPODOfflineMediaAssetStateMapsFullAndPreviewAssets() {
+        let fullAsset = APODOfflineMediaAsset(
+            apodID: "image-asset",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/image.jpg"),
+            localAssetRelativePath: "offline/image-asset.jpg",
+            availability: .availableOffline,
+            byteCount: 2_048
+        )
+        let previewAsset = APODOfflineMediaAsset(
+            apodID: "video-preview",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localPreviewRelativePath: "offline/video-preview.jpg",
+            availability: .previewOffline,
+            byteCount: 512
+        )
+
+        switch fullAsset.state {
+        case .full(let localAssetURL, let remoteSourceURL):
+            XCTAssertTrue(localAssetURL.path.contains("image-asset.jpg"))
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/image.jpg")
+        default:
+            XCTFail("Expected a full offline state for stored image media")
+        }
+
+        switch previewAsset.state {
+        case .preview(let localPreviewURL, let remoteSourceURL):
+            XCTAssertTrue(localPreviewURL.path.contains("video-preview.jpg"))
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/video")
+        default:
+            XCTFail("Expected a preview offline state for hosted video media")
+        }
+    }
+
+    func testAPODOfflineMediaAssetStateTreatsSourceBackedEntriesExplicitly() {
+        let sourceRequiredAsset = APODOfflineMediaAsset(
+            apodID: "remote-only",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/direct-video.mp4"),
+            availability: .remoteOnly
+        )
+        let syncingAsset = APODOfflineMediaAsset(
+            apodID: "syncing",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/syncing.jpg"),
+            availability: .syncing
+        )
+        let failedAsset = APODOfflineMediaAsset(
+            apodID: "failed",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/failed.jpg"),
+            availability: .failed,
+            errorDescription: "network"
+        )
+
+        if case .sourceRequired(let remoteSourceURL) = sourceRequiredAsset.state {
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/direct-video.mp4")
+        } else {
+            XCTFail("Expected sourceRequired state for direct video media")
+        }
+
+        XCTAssertTrue(syncingAsset.state.countsAsSourceBacked)
+        XCTAssertTrue(failedAsset.state.countsAsSourceBacked)
+    }
+
+    func testAPODOfflineMediaStorageSummaryCountsDerivedStateBuckets() {
+        var summary = APODOfflineMediaStorageSummary()
+        let fullAsset = APODOfflineMediaAsset(
+            apodID: "full",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/full.jpg"),
+            localAssetRelativePath: "offline/full.jpg",
+            availability: .availableOffline,
+            byteCount: 1_024
+        )
+        let previewAsset = APODOfflineMediaAsset(
+            apodID: "preview",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localPreviewRelativePath: "offline/preview.jpg",
+            availability: .previewOffline,
+            byteCount: 256
+        )
+        let syncingAsset = APODOfflineMediaAsset(
+            apodID: "syncing",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/syncing.jpg"),
+            availability: .syncing
+        )
+        let failedAsset = APODOfflineMediaAsset(
+            apodID: "failed",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/failed.jpg"),
+            availability: .failed
+        )
+
+        summary.register(fullAsset)
+        summary.register(previewAsset)
+        summary.register(syncingAsset)
+        summary.register(failedAsset)
+        summary.register(nil)
+
+        XCTAssertEqual(summary.fullyOfflineCount, 1)
+        XCTAssertEqual(summary.previewCount, 1)
+        XCTAssertEqual(summary.syncingCount, 1)
+        XCTAssertEqual(summary.failedCount, 1)
+        XCTAssertEqual(summary.remoteOnlyCount, 1)
+        XCTAssertEqual(summary.totalByteCount, 1_280)
+    }
+
     func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
         let service = PhotoExportService()
         let nasa = NASA(

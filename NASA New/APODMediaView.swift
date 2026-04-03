@@ -110,12 +110,12 @@ struct MediaView: View {
     }
 
     private var localImage: Image? {
-        APODLocalMediaImageLoader.image(from: offlineMediaAsset?.localAssetURL)
+        APODLocalMediaImageLoader.image(from: offlineMediaAsset?.state.localPreviewURL)
     }
 
     private var localVideoURL: URL? {
-        guard offlineMediaAsset?.availability == .availableOffline else { return nil }
-        return offlineMediaAsset?.localAssetURL
+        guard case .full(let localAssetURL, _) = offlineMediaAsset?.state else { return nil }
+        return localAssetURL
     }
 
     private var imagePanGesture: some Gesture {
