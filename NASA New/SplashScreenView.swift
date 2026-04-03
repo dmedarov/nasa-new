@@ -8,40 +8,40 @@ struct SplashScreenView: View {
         let heroMaxWidth: CGFloat
         let heroMinimumHeight: CGFloat
         let panelPadding: CGFloat
-        let columnSpacing: CGFloat
+        let splitSpacing: CGFloat
         let contentSpacing: CGFloat
         let copyMaxWidth: CGFloat
         let stageWidth: CGFloat
         let stageHeight: CGFloat
         let statusMaxWidth: CGFloat
-        let emblemSize: CGFloat
         let haloSize: CGFloat
+        let emblemSize: CGFloat
         let logoSize: CGFloat
         let titleFont: Font
         let subtitleFont: Font
-        let featuredTitleFont: Font
+        let stageTitleFont: Font
 
         init(size: CGSize) {
             let wide = size.width >= 980
             isWide = wide
             outerPadding = wide ? 32 : 18
-            topInset = wide ? max(28, size.height * 0.06) : max(18, size.height * 0.06)
-            heroMaxWidth = wide ? min(size.width - 64, 1_360) : min(size.width - 20, 460)
-            heroMinimumHeight = wide ? 560 : 520
-            panelPadding = wide ? 32 : 22
-            columnSpacing = wide ? 30 : 18
-            contentSpacing = wide ? 22 : 16
-            copyMaxWidth = wide ? 430 : 360
-            stageWidth = wide ? min(size.width * 0.42, 560) : min(size.width - 60, 360)
+            topInset = wide ? max(32, size.height * 0.07) : max(18, size.height * 0.06)
+            heroMaxWidth = wide ? min(size.width - 64, 1_320) : min(size.width - 24, 430)
+            heroMinimumHeight = wide ? 500 : 430
+            panelPadding = wide ? 30 : 20
+            splitSpacing = wide ? 28 : 18
+            contentSpacing = wide ? 20 : 16
+            copyMaxWidth = wide ? 360 : 320
+            stageWidth = wide ? min(size.width * 0.58, 760) : min(size.width - 40, 360)
             stageHeight = wide ? 430 : 260
-            statusMaxWidth = wide ? 340 : .infinity
-            emblemSize = wide ? 144 : 88
-            haloSize = wide ? 320 : 190
-            logoSize = wide ? 72 : 48
+            statusMaxWidth = wide ? 320 : .infinity
+            haloSize = wide ? 260 : 180
+            emblemSize = wide ? 132 : 88
+            logoSize = wide ? 64 : 44
             titleFont = wide ? AppTheme.Typography.splashDisplayRegular : AppTheme.Typography.splashDisplayCompact
             subtitleFont = wide ? AppTheme.Typography.splashLeadRegular : AppTheme.Typography.splashLeadCompact
-            featuredTitleFont = wide
-                ? Font.system(size: 28, weight: .bold, design: .serif)
+            stageTitleFont = wide
+                ? Font.system(size: 30, weight: .bold, design: .serif)
                 : Font.system(size: 22, weight: .bold, design: .serif)
         }
     }
@@ -123,27 +123,23 @@ struct SplashScreenView: View {
             )
         }
 
-        if explanation.count > 180 {
-            let prefix = explanation.prefix(177).trimmingCharacters(in: .whitespacesAndNewlines)
+        if explanation.count > 140 {
+            let prefix = explanation.prefix(137).trimmingCharacters(in: .whitespacesAndNewlines)
             return "\(prefix)..."
         }
 
         return explanation
     }
 
-    private var archiveCount: Int {
-        max(fetcher.archiveItemsByNewestFirst.count, fetcher.apodData.count)
-    }
-
     private var statusDetail: String {
-        if fetcher.error != nil, archiveCount > 0 {
+        if fetcher.error != nil, fetcher.isUsingCachedData {
             return L10n.text(
                 "splash.status.cached_ready",
                 default: "Opening with cached APOD context while the latest briefing catches up."
             )
         }
 
-        if fetcher.isUsingCachedData || archiveCount > 0 {
+        if fetcher.isUsingCachedData || !fetcher.apodData.isEmpty {
             return L10n.text(
                 "splash.status.cached_refresh",
                 default: "Loading the latest APOD while keeping archived context and source details ready."
@@ -232,13 +228,13 @@ struct SplashScreenView: View {
         MissionPanel(tone: .accent, padding: layout.panelPadding) {
             Group {
                 if layout.isWide {
-                    HStack(alignment: .center, spacing: layout.columnSpacing) {
+                    HStack(alignment: .center, spacing: layout.splitSpacing) {
+                        heroStage(layout: layout)
                         copyColumn(layout: layout, alignment: .leading)
-                        featuredStageColumn(layout: layout)
                     }
                 } else {
                     VStack(spacing: layout.contentSpacing) {
-                        featuredStageColumn(layout: layout)
+                        heroStage(layout: layout)
                         copyColumn(layout: layout, alignment: .center)
                     }
                     .frame(maxWidth: .infinity)
@@ -251,140 +247,7 @@ struct SplashScreenView: View {
     }
 
     @ViewBuilder
-    private func copyColumn(layout: SplashLayout, alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: layout.contentSpacing) {
-            SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
-
-            VStack(alignment: alignment, spacing: AppTheme.Spacing.sm) {
-                Text(L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day"))
-                    .font(layout.titleFont)
-                    .foregroundStyle(primaryInk)
-                    .multilineTextAlignment(layout.isWide ? .leading : .center)
-                    .lineLimit(layout.isWide ? 2 : 3)
-                    .minimumScaleFactor(0.84)
-
-                Text(L10n.text("splash.subtitle", default: "Daily space imagery, editorial context, and source links from NASA's APOD archive."))
-                    .font(layout.subtitleFont)
-                    .foregroundStyle(secondaryInk)
-                    .multilineTextAlignment(layout.isWide ? .leading : .center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if featuredEntry != nil {
-                    Text(featuredTitle)
-                        .font(AppTheme.Typography.cardTitle)
-                        .foregroundStyle(primaryInk.opacity(isDarkMode ? 0.94 : 0.88))
-                        .multilineTextAlignment(layout.isWide ? .leading : .center)
-                        .lineLimit(3)
-                }
-            }
-
-            missionMetrics(layout: layout)
-            splashStatusCard(layout: layout)
-
-            Text(AppBrandingPolicy.independentNotice())
-                .font(AppTheme.Typography.metadata)
-                .foregroundStyle(secondaryInk.opacity(0.82))
-                .multilineTextAlignment(layout.isWide ? .leading : .center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: layout.copyMaxWidth, alignment: layout.isWide ? .leading : .center)
-    }
-
-    @ViewBuilder
-    private func missionMetrics(layout: SplashLayout) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: AppTheme.Spacing.sm) {
-                metricCard(
-                    title: L10n.text("Today", default: "Today"),
-                    value: featuredDate,
-                    systemImage: "sparkles.rectangle.stack",
-                    tone: .accent
-                )
-                metricCard(
-                    title: L10n.text("Archive", default: "Archive"),
-                    value: L10n.format("splash.metric.archive_count", default: "%d briefings ready", archiveCount),
-                    systemImage: "books.vertical",
-                    tone: .neutral
-                )
-                metricCard(
-                    title: L10n.text("Saved", default: "Saved"),
-                    value: L10n.format("splash.metric.saved_count", default: "%d stories saved", fetcher.favorites.count),
-                    systemImage: "bookmark",
-                    tone: .favorite
-                )
-            }
-
-            VStack(spacing: AppTheme.Spacing.sm) {
-                metricCard(
-                    title: L10n.text("Today", default: "Today"),
-                    value: featuredDate,
-                    systemImage: "sparkles.rectangle.stack",
-                    tone: .accent
-                )
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    metricCard(
-                        title: L10n.text("Archive", default: "Archive"),
-                        value: L10n.format("splash.metric.archive_count", default: "%d briefings ready", archiveCount),
-                        systemImage: "books.vertical",
-                        tone: .neutral
-                    )
-                    metricCard(
-                        title: L10n.text("Saved", default: "Saved"),
-                        value: L10n.format("splash.metric.saved_count", default: "%d stories saved", fetcher.favorites.count),
-                        systemImage: "bookmark",
-                        tone: .favorite
-                    )
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func metricCard(
-        title: String,
-        value: String,
-        systemImage: String,
-        tone: AppTheme.SurfaceTone
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            Label(title, systemImage: systemImage)
-                .font(AppTheme.Typography.metadata)
-                .foregroundStyle(AppTheme.toneColor(tone, isDarkMode: isDarkMode))
-                .lineLimit(1)
-
-            Text(value)
-                .font(AppTheme.Typography.footnoteStrong)
-                .foregroundStyle(primaryInk)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.vertical, AppTheme.Spacing.sm)
-        .background {
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                .fill(AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(effectiveReduceTransparency ? 1.0 : 0.86))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                        .stroke(AppTheme.toneColor(tone, isDarkMode: isDarkMode).opacity(isDarkMode ? 0.28 : 0.2), lineWidth: 1)
-                }
-        }
-    }
-
-    @ViewBuilder
-    private func featuredStageColumn(layout: SplashLayout) -> some View {
-        VStack(alignment: layout.isWide ? .leading : .center, spacing: AppTheme.Spacing.md) {
-            featuredVisualStage(layout: layout)
-
-            if featuredEntry != nil {
-                featuredContextCard(layout: layout)
-            }
-        }
-        .frame(maxWidth: layout.stageWidth, alignment: layout.isWide ? .leading : .center)
-    }
-
-    @ViewBuilder
-    private func featuredVisualStage(layout: SplashLayout) -> some View {
+    private func heroStage(layout: SplashLayout) -> some View {
         ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous)
                 .fill(
@@ -410,9 +273,9 @@ struct SplashScreenView: View {
                             .overlay {
                                 LinearGradient(
                                     colors: [
-                                        Color.black.opacity(isDarkMode ? 0.08 : 0.04),
-                                        Color.black.opacity(isDarkMode ? 0.3 : 0.14),
-                                        AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.48 : 0.32)
+                                        Color.black.opacity(isDarkMode ? 0.04 : 0.02),
+                                        Color.black.opacity(isDarkMode ? 0.18 : 0.1),
+                                        AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.38 : 0.24)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -428,29 +291,33 @@ struct SplashScreenView: View {
 
             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 HStack(spacing: AppTheme.Spacing.sm) {
-                    MissionBadge(
-                        title: featuredEntry?.mediaType.localizedDisplayName ?? L10n.text("Image", default: "Image"),
-                        systemImage: featuredStageSymbolName,
-                        tone: .accent
-                    )
+                    if featuredEntry != nil {
+                        MissionBadge(
+                            title: featuredEntry?.mediaType.localizedDisplayName ?? L10n.text("Image", default: "Image"),
+                            systemImage: featuredStageSymbolName,
+                            tone: .accent
+                        )
 
-                    MissionBadge(
-                        title: featuredDate,
-                        systemImage: "calendar",
-                        tone: .neutral
-                    )
+                        MissionBadge(
+                            title: featuredDate,
+                            systemImage: "calendar",
+                            tone: .neutral
+                        )
+                    } else {
+                        SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
+                    }
                 }
 
-                Text(featuredTitle)
-                    .font(layout.featuredTitleFont)
+                Text(featuredStageTitle)
+                    .font(layout.stageTitleFont)
                     .foregroundStyle(Color.white)
                     .lineLimit(layout.isWide ? 3 : 2)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.84)
 
                 Text(featuredSummary)
                     .font(AppTheme.Typography.footnoteStrong)
                     .foregroundStyle(Color.white.opacity(0.9))
-                    .lineLimit(layout.isWide ? 3 : 2)
+                    .lineLimit(layout.isWide ? 2 : 3)
             }
             .padding(layout.isWide ? 24 : 18)
         }
@@ -463,46 +330,10 @@ struct SplashScreenView: View {
         .shadow(color: accentColor.opacity(isDarkMode ? 0.18 : 0.12), radius: 28, y: 16)
     }
 
-    @ViewBuilder
-    private func emblemFallbackStage(layout: SplashLayout) -> some View {
-        ZStack {
-            Circle()
-                .fill(accentColor.opacity(isDarkMode ? 0.26 : 0.16))
-                .frame(width: layout.haloSize, height: layout.haloSize)
-                .blur(radius: 18)
-
-            Circle()
-                .stroke(accentColor.opacity(isDarkMode ? 0.32 : 0.22), lineWidth: 1.5)
-                .frame(width: layout.haloSize * 0.88, height: layout.haloSize * 0.88)
-
-            Circle()
-                .stroke(Color.white.opacity(isDarkMode ? 0.18 : 0.16), lineWidth: 1)
-                .frame(width: layout.haloSize * 0.58, height: layout.haloSize * 0.58)
-
-            RoundedRectangle(cornerRadius: layout.isWide ? 40 : 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isDarkMode ? 0.08 : 0.22),
-                            AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(effectiveReduceTransparency ? 1.0 : 0.84)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: layout.emblemSize, height: layout.emblemSize)
-                .overlay {
-                    RoundedRectangle(cornerRadius: layout.isWide ? 40 : 28, style: .continuous)
-                        .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode).opacity(0.85), lineWidth: 1)
-                }
-
-            Image("logo-swift-outlined")
-                .resizable()
-                .scaledToFit()
-                .frame(width: layout.logoSize, height: layout.logoSize)
-                .accessibilityHidden(true)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private var featuredStageTitle: String {
+        featuredEntry != nil
+            ? featuredTitle
+            : L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
     }
 
     private var featuredStageSymbolName: String {
@@ -517,38 +348,70 @@ struct SplashScreenView: View {
     }
 
     @ViewBuilder
-    private func featuredContextCard(layout: SplashLayout) -> some View {
-        MissionPanel(tone: .neutral, padding: layout.isWide ? 20 : 16) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    SectionEyebrow(
-                        L10n.text("splash.featured.eyebrow", default: "Latest Entry"),
-                        tone: .neutral
-                    )
+    private func emblemFallbackStage(layout: SplashLayout) -> some View {
+        ZStack {
+            Circle()
+                .fill(accentColor.opacity(isDarkMode ? 0.24 : 0.16))
+                .frame(width: layout.haloSize, height: layout.haloSize)
+                .blur(radius: 18)
 
-                    Spacer(minLength: 0)
+            Circle()
+                .stroke(accentColor.opacity(isDarkMode ? 0.3 : 0.22), lineWidth: 1.5)
+                .frame(width: layout.haloSize * 0.88, height: layout.haloSize * 0.88)
 
-                    MissionBadge(
-                        title: featuredDate,
-                        systemImage: "clock.arrow.circlepath",
-                        tone: .neutral
+            RoundedRectangle(cornerRadius: layout.isWide ? 38 : 26, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(isDarkMode ? 0.08 : 0.18),
+                            AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(effectiveReduceTransparency ? 1.0 : 0.84)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
+                )
+                .frame(width: layout.emblemSize, height: layout.emblemSize)
+                .overlay {
+                    RoundedRectangle(cornerRadius: layout.isWide ? 38 : 26, style: .continuous)
+                        .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode).opacity(0.85), lineWidth: 1)
                 }
 
-                Text(featuredTitle)
-                    .font(AppTheme.Typography.cardTitle)
-                    .foregroundStyle(primaryInk)
-                    .lineLimit(layout.isWide ? 2 : 3)
-
-                Text(featuredSummary)
-                    .font(AppTheme.Typography.body)
-                    .foregroundStyle(secondaryInk)
-                    .lineLimit(layout.isWide ? 3 : 4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Image("logo-swift-outlined")
+                .resizable()
+                .scaledToFit()
+                .frame(width: layout.logoSize, height: layout.logoSize)
+                .accessibilityHidden(true)
         }
-        .frame(width: layout.stageWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func copyColumn(layout: SplashLayout, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: layout.contentSpacing) {
+            SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
+
+            Text(L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day"))
+                .font(layout.titleFont)
+                .foregroundStyle(primaryInk)
+                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .lineLimit(layout.isWide ? 2 : 3)
+                .minimumScaleFactor(0.86)
+
+            Text(L10n.text("splash.subtitle", default: "Daily space imagery, editorial context, and source links from NASA's APOD archive."))
+                .font(layout.subtitleFont)
+                .foregroundStyle(secondaryInk)
+                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            splashStatusCard(layout: layout)
+
+            Text(AppBrandingPolicy.independentNotice())
+                .font(AppTheme.Typography.metadata)
+                .foregroundStyle(secondaryInk.opacity(0.82))
+                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: layout.copyMaxWidth, alignment: layout.isWide ? .leading : .center)
     }
 
     @ViewBuilder
