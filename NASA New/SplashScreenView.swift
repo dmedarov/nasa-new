@@ -6,43 +6,33 @@ struct SplashScreenView: View {
         let outerPadding: CGFloat
         let topInset: CGFloat
         let heroMaxWidth: CGFloat
-        let heroMinimumHeight: CGFloat
-        let panelPadding: CGFloat
-        let splitSpacing: CGFloat
-        let contentSpacing: CGFloat
+        let heroHeight: CGFloat
+        let overlayPadding: CGFloat
         let copyMaxWidth: CGFloat
-        let stageWidth: CGFloat
-        let stageHeight: CGFloat
-        let statusMaxWidth: CGFloat
+        let titleFont: Font
+        let subtitleFont: Font
         let haloSize: CGFloat
         let emblemSize: CGFloat
         let logoSize: CGFloat
-        let titleFont: Font
-        let subtitleFont: Font
-        let stageTitleFont: Font
 
         init(size: CGSize) {
-            let wide = size.width >= 980
+            let wide = size.width >= 900
             isWide = wide
-            outerPadding = wide ? 32 : 18
-            topInset = wide ? max(32, size.height * 0.07) : max(18, size.height * 0.06)
-            heroMaxWidth = wide ? min(size.width - 64, 1_320) : min(size.width - 24, 430)
-            heroMinimumHeight = wide ? 500 : 430
-            panelPadding = wide ? 30 : 20
-            splitSpacing = wide ? 28 : 18
-            contentSpacing = wide ? 20 : 16
-            copyMaxWidth = wide ? 360 : 320
-            stageWidth = wide ? min(size.width * 0.58, 760) : min(size.width - 40, 360)
-            stageHeight = wide ? 430 : 260
-            statusMaxWidth = wide ? 320 : .infinity
-            haloSize = wide ? 260 : 180
-            emblemSize = wide ? 132 : 88
-            logoSize = wide ? 64 : 44
-            titleFont = wide ? AppTheme.Typography.splashDisplayRegular : AppTheme.Typography.splashDisplayCompact
-            subtitleFont = wide ? AppTheme.Typography.splashLeadRegular : AppTheme.Typography.splashLeadCompact
-            stageTitleFont = wide
-                ? Font.system(size: 30, weight: .bold, design: .serif)
-                : Font.system(size: 22, weight: .bold, design: .serif)
+            outerPadding = wide ? 36 : 18
+            topInset = wide ? max(36, size.height * 0.08) : max(22, size.height * 0.08)
+            heroMaxWidth = wide ? min(size.width - 72, 1_200) : min(size.width - 24, 430)
+            heroHeight = wide ? 560 : 440
+            overlayPadding = wide ? 32 : 22
+            copyMaxWidth = wide ? 420 : 300
+            titleFont = wide
+                ? Font.system(size: 54, weight: .bold, design: .serif)
+                : Font.system(size: 40, weight: .bold, design: .serif)
+            subtitleFont = wide
+                ? Font.system(size: 21, weight: .semibold, design: .rounded)
+                : Font.system(size: 18, weight: .semibold, design: .rounded)
+            haloSize = wide ? 280 : 190
+            emblemSize = wide ? 136 : 88
+            logoSize = wide ? 66 : 44
         }
     }
 
@@ -57,19 +47,14 @@ struct SplashScreenView: View {
 
     @EnvironmentObject var fetcher: NasaCollectionFetcher
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @Environment(\.colorScheme) private var colorScheme
     @State private var isActive = false
-    @State private var size = 0.96
+    @State private var scale = 0.97
     @State private var opacity = 0.0
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
-    }
-
-    private var effectiveReduceTransparency: Bool {
-        appRuntimeOverrides.resolvedReduceTransparency(systemValue: accessibilityReduceTransparency)
     }
 
     private var isDarkMode: Bool {
@@ -88,47 +73,10 @@ struct SplashScreenView: View {
         AppTheme.accentColor(isDarkMode: isDarkMode)
     }
 
-    private var featuredEntry: NASA? {
-        if let latestCached = fetcher.apodData.last {
-            return latestCached
-        }
-        let current = fetcher.currentNasa
-        guard current.date != nil || current.title != NASA.default.title || current.url != nil else {
-            return nil
-        }
-        return current
-    }
-
     private var featuredImageURL: URL? {
-        guard let featuredEntry, featuredEntry.mediaType == .image else { return nil }
+        let featuredEntry = fetcher.apodData.last ?? fetcher.currentNasa
+        guard featuredEntry.mediaType == .image else { return nil }
         return featuredEntry.url ?? featuredEntry.hdurl
-    }
-
-    private var featuredDate: String {
-        APODDateDisplayPolicy.displayString(for: featuredEntry?.date)
-    }
-
-    private var featuredTitle: String {
-        guard let title = featuredEntry?.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
-            return L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
-        }
-        return title
-    }
-
-    private var featuredSummary: String {
-        guard let explanation = featuredEntry?.explanation?.trimmingCharacters(in: .whitespacesAndNewlines), !explanation.isEmpty else {
-            return L10n.text(
-                "splash.featured.summary_fallback",
-                default: "Curated from NASA's Astronomy Picture of the Day archive with editorial context, source details, and quick archive access."
-            )
-        }
-
-        if explanation.count > 140 {
-            let prefix = explanation.prefix(137).trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(prefix)..."
-        }
-
-        return explanation
     }
 
     private var statusDetail: String {
@@ -170,16 +118,16 @@ struct SplashScreenView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .scaleEffect(size)
+                .scaleEffect(scale)
                 .opacity(opacity)
                 .onAppear {
                     if let animation = AppTheme.Motion.reveal(reduceMotion: effectiveReduceMotion) {
                         withAnimation(animation) {
-                            size = 1.0
+                            scale = 1.0
                             opacity = 1.0
                         }
                     } else {
-                        size = 1.0
+                        scale = 1.0
                         opacity = 1.0
                     }
                 }
@@ -225,155 +173,74 @@ struct SplashScreenView: View {
 
     @ViewBuilder
     private func heroSurface(layout: SplashLayout) -> some View {
-        MissionPanel(tone: .accent, padding: layout.panelPadding) {
-            Group {
-                if layout.isWide {
-                    HStack(alignment: .center, spacing: layout.splitSpacing) {
-                        heroStage(layout: layout)
-                        copyColumn(layout: layout, alignment: .leading)
-                    }
-                } else {
-                    VStack(spacing: layout.contentSpacing) {
-                        heroStage(layout: layout)
-                        copyColumn(layout: layout, alignment: .center)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: layout.heroMinimumHeight, alignment: .center)
+        ZStack(alignment: .bottomLeading) {
+            heroBackground(layout: layout)
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(isDarkMode ? 0.06 : 0.02),
+                    Color.black.opacity(isDarkMode ? 0.18 : 0.08),
+                    AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.74 : 0.58)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            splashCopy(layout: layout)
         }
         .frame(maxWidth: layout.heroMaxWidth)
+        .frame(height: layout.heroHeight)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous)
+                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode).opacity(0.85), lineWidth: 1)
+        }
+        .shadow(color: accentColor.opacity(isDarkMode ? 0.18 : 0.1), radius: 26, y: 16)
         .padding(.horizontal, layout.outerPadding)
     }
 
     @ViewBuilder
-    private func heroStage(layout: SplashLayout) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            accentColor.opacity(isDarkMode ? 0.28 : 0.16),
-                            AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(effectiveReduceTransparency ? 1.0 : 0.92)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            if let featuredImageURL {
-                AsyncImage(url: featuredImageURL) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: layout.stageWidth, height: layout.stageHeight)
-                            .clipped()
-                            .overlay {
-                                LinearGradient(
-                                    colors: [
-                                        Color.black.opacity(isDarkMode ? 0.04 : 0.02),
-                                        Color.black.opacity(isDarkMode ? 0.18 : 0.1),
-                                        AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.38 : 0.24)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            }
-                    default:
-                        emblemFallbackStage(layout: layout)
-                    }
+    private func heroBackground(layout: SplashLayout) -> some View {
+        if let featuredImageURL {
+            AsyncImage(url: featuredImageURL) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    fallbackHeroBackground(layout: layout)
                 }
-            } else {
-                emblemFallbackStage(layout: layout)
             }
-
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    if featuredEntry != nil {
-                        MissionBadge(
-                            title: featuredEntry?.mediaType.localizedDisplayName ?? L10n.text("Image", default: "Image"),
-                            systemImage: featuredStageSymbolName,
-                            tone: .accent
-                        )
-
-                        MissionBadge(
-                            title: featuredDate,
-                            systemImage: "calendar",
-                            tone: .neutral
-                        )
-                    } else {
-                        SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
-                    }
-                }
-
-                Text(featuredStageTitle)
-                    .font(layout.stageTitleFont)
-                    .foregroundStyle(Color.white)
-                    .lineLimit(layout.isWide ? 3 : 2)
-                    .minimumScaleFactor(0.84)
-
-                Text(featuredSummary)
-                    .font(AppTheme.Typography.footnoteStrong)
-                    .foregroundStyle(Color.white.opacity(0.9))
-                    .lineLimit(layout.isWide ? 2 : 3)
-            }
-            .padding(layout.isWide ? 24 : 18)
-        }
-        .frame(width: layout.stageWidth, height: layout.stageHeight)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.heroCornerRadius, style: .continuous)
-                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode).opacity(0.9), lineWidth: 1)
-        }
-        .shadow(color: accentColor.opacity(isDarkMode ? 0.18 : 0.12), radius: 28, y: 16)
-    }
-
-    private var featuredStageTitle: String {
-        featuredEntry != nil
-            ? featuredTitle
-            : L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
-    }
-
-    private var featuredStageSymbolName: String {
-        switch featuredEntry?.mediaType {
-        case .video:
-            return "play.rectangle.fill"
-        case .other:
-            return "link"
-        default:
-            return "photo.on.rectangle.angled"
+        } else {
+            fallbackHeroBackground(layout: layout)
         }
     }
 
     @ViewBuilder
-    private func emblemFallbackStage(layout: SplashLayout) -> some View {
+    private func fallbackHeroBackground(layout: SplashLayout) -> some View {
         ZStack {
+            LinearGradient(
+                colors: [
+                    accentColor.opacity(isDarkMode ? 0.22 : 0.12),
+                    AppTheme.panelFallbackColor(isDarkMode: isDarkMode),
+                    AppTheme.panelFallbackColor(isDarkMode: isDarkMode)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
             Circle()
-                .fill(accentColor.opacity(isDarkMode ? 0.24 : 0.16))
+                .fill(accentColor.opacity(isDarkMode ? 0.24 : 0.15))
                 .frame(width: layout.haloSize, height: layout.haloSize)
                 .blur(radius: 18)
 
-            Circle()
-                .stroke(accentColor.opacity(isDarkMode ? 0.3 : 0.22), lineWidth: 1.5)
-                .frame(width: layout.haloSize * 0.88, height: layout.haloSize * 0.88)
-
             RoundedRectangle(cornerRadius: layout.isWide ? 38 : 26, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isDarkMode ? 0.08 : 0.18),
-                            AppTheme.panelFallbackColor(isDarkMode: isDarkMode).opacity(effectiveReduceTransparency ? 1.0 : 0.84)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(Color.white.opacity(isDarkMode ? 0.08 : 0.18))
                 .frame(width: layout.emblemSize, height: layout.emblemSize)
                 .overlay {
                     RoundedRectangle(cornerRadius: layout.isWide ? 38 : 26, style: .continuous)
-                        .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode).opacity(0.85), lineWidth: 1)
+                        .strokeBorder(Color.white.opacity(isDarkMode ? 0.18 : 0.3), lineWidth: 1)
                 }
 
             Image("logo-swift-outlined")
@@ -386,37 +253,25 @@ struct SplashScreenView: View {
     }
 
     @ViewBuilder
-    private func copyColumn(layout: SplashLayout, alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: layout.contentSpacing) {
-            SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
+    private func splashCopy(layout: SplashLayout) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            Text(L10n.text("Space Briefing", default: "Space Briefing").uppercased())
+                .font(AppTheme.Typography.metadata)
+                .foregroundStyle(accentColor)
+                .tracking(1.1)
 
             Text(L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day"))
                 .font(layout.titleFont)
-                .foregroundStyle(primaryInk)
-                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .foregroundStyle(Color.white)
                 .lineLimit(layout.isWide ? 2 : 3)
                 .minimumScaleFactor(0.86)
 
             Text(L10n.text("splash.subtitle", default: "Daily space imagery, editorial context, and source links from NASA's APOD archive."))
                 .font(layout.subtitleFont)
-                .foregroundStyle(secondaryInk)
-                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .foregroundStyle(Color.white.opacity(0.9))
+                .lineLimit(layout.isWide ? 2 : 3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            splashStatusCard(layout: layout)
-
-            Text(AppBrandingPolicy.independentNotice())
-                .font(AppTheme.Typography.metadata)
-                .foregroundStyle(secondaryInk.opacity(0.82))
-                .multilineTextAlignment(layout.isWide ? .leading : .center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: layout.copyMaxWidth, alignment: layout.isWide ? .leading : .center)
-    }
-
-    @ViewBuilder
-    private func splashStatusCard(layout: SplashLayout) -> some View {
-        VStack(alignment: layout.isWide ? .leading : .center, spacing: AppTheme.Spacing.xs) {
             HStack(spacing: AppTheme.Spacing.sm) {
                 ProgressView()
                     .controlSize(.small)
@@ -424,26 +279,18 @@ struct SplashScreenView: View {
 
                 Text(L10n.text("splash.status.preparing", default: "Preparing today's briefing"))
                     .font(AppTheme.Typography.splashStatus)
-                    .foregroundStyle(primaryInk)
+                    .foregroundStyle(Color.white)
             }
+            .padding(.top, AppTheme.Spacing.xs)
 
             Text(statusDetail)
                 .font(AppTheme.Typography.footnote)
-                .foregroundStyle(secondaryInk)
-                .multilineTextAlignment(layout.isWide ? .leading : .center)
+                .foregroundStyle(Color.white.opacity(0.82))
+                .lineLimit(layout.isWide ? 2 : 3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.vertical, AppTheme.Spacing.sm)
-        .frame(maxWidth: layout.statusMaxWidth, alignment: layout.isWide ? .leading : .center)
-        .background {
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                .fill(accentColor.opacity(isDarkMode ? 0.12 : 0.08))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                        .stroke(accentColor.opacity(isDarkMode ? 0.24 : 0.18), lineWidth: 1)
-                }
-        }
+        .frame(maxWidth: layout.copyMaxWidth, alignment: .leading)
+        .padding(layout.overlayPadding)
     }
 
     private func waitForFetchCompletion() async {
