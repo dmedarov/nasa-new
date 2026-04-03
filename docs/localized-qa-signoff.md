@@ -2,9 +2,12 @@
 
 Use this sheet for the final manual release pass across `en`, `bg`, and `es`.
 
-String key parity note: `bg` and `es` now match the checked-in `en` key set. The remaining work here is manual fit, truncation, and accessibility verification on device.
+String key parity note: `scripts/check_localizations.py` now enforces exact key-set parity, duplicate-key cleanup, and malformed-entry detection in CI. The remaining work here is manual fit, truncation, and accessibility verification on device.
+
+Key hygiene note: new localization work should use stable semantic keys such as `splash.subtitle`, not full English sentences as keys.
 
 ## Signoff Gate
+- [ ] `python3 scripts/check_localizations.py` passes locally before merge.
 - [ ] GitHub Actions `iOS Tests` workflow is green for the release branch.
 - [ ] Local `xcodebuild test` passes on the release simulator target.
 - [ ] iPad smoke coverage passes on the split-shell simulator target.

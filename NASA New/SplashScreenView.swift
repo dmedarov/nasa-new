@@ -41,7 +41,7 @@ struct SplashScreenView: View {
                             .foregroundColor(AppTheme.Palette.splashText)
                             .multilineTextAlignment(.center)
 
-                        Text(L10n.text("Daily space imagery, editorial context, and source links from NASA’s APOD archive.", default: "Daily space imagery, editorial context, and source links from NASA’s APOD archive."))
+                        Text(L10n.text("splash.subtitle", default: "Daily space imagery, editorial context, and source links from NASA's APOD archive."))
                             .font(AppTheme.Typography.splashCaption)
                             .foregroundColor(AppTheme.Palette.splashText)
                             .multilineTextAlignment(.center)

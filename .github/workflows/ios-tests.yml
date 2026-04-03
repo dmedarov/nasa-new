@@ -5,10 +5,22 @@ on:
   push:
 
 jobs:
+  localization-parity:
+    name: Localization Parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check localization parity
+        run: python3 scripts/check_localizations.py
+
   test:
     name: Build and Test
     runs-on: macos-15
     timeout-minutes: 30
+    needs: localization-parity
 
     steps:
       - name: Checkout
@@ -33,6 +45,7 @@ jobs:
     name: iPad Smoke Tests
     runs-on: macos-15
     timeout-minutes: 30
+    needs: localization-parity
 
     steps:
       - name: Checkout

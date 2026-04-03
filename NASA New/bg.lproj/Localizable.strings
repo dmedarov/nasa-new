@@ -5,7 +5,7 @@
 "Saved Archive" = "Запазен архив";
 "Space Briefing" = "Космически обзор";
 "Astronomy Picture of the Day" = "Астрономическа снимка на деня";
-"Daily space imagery, editorial context, and source links from NASA’s APOD archive." = "Ежедневни космически изображения, редакционен контекст и източници от архива APOD на NASA.";
+"splash.subtitle" = "Ежедневни космически изображения, редакционен контекст и източници от архива APOD на NASA.";
 "brand.independent_notice" = "Независимо приложение, което използва публичната услуга APOD на NASA. Няма връзка с NASA и не е одобрено от нея.";
 "brand.data_source_notice" = "Изображенията, описанията и метаданните идват от услугата Astronomy Picture of the Day на NASA. Правата върху материалите извън NASA остават при посочения автор.";
 "Refresh" = "Опресняване";
