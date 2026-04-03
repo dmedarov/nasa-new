@@ -85,27 +85,21 @@ struct AppShellView: View {
                 AppTheme.Metrics.shellRailMaximumWidth
             )
             let contentWidth = max(
-                proxy.size.width - railWidth - AppTheme.Metrics.shellContentGap - (AppTheme.Spacing.xl * 2),
+                proxy.size.width - railWidth - AppTheme.Metrics.shellContentGap - (AppTheme.Metrics.shellWorkspaceHorizontalPadding * 2),
                 AppTheme.Metrics.shellLibraryPaneMinimumWidth
             )
 
-            HStack(spacing: AppTheme.Metrics.shellContentGap) {
+            PremiumShellWorkspace(railWidth: railWidth) {
                 premiumSidebarRail
-                    .frame(width: railWidth)
                     .overlay(alignment: .topLeading) {
                         AccessibilityMarker(identifier: AccessibilityID.appShellSidebar)
                     }
-
+            } content: {
                 regularShellStageContent(availableWidth: contentWidth)
-                    .frame(maxWidth: AppTheme.Metrics.readerStageMaxWidth, maxHeight: .infinity, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .overlay(alignment: .topLeading) {
                         AccessibilityMarker(identifier: AccessibilityID.appShellDetail)
                     }
             }
-            .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.vertical, AppTheme.Spacing.lg)
-            .background(SpaceBackdropView())
             .overlay(alignment: .topLeading) {
                 AccessibilityMarker(identifier: AccessibilityID.appShellSplitRoot)
             }
@@ -338,14 +332,13 @@ struct AppShellView: View {
             )
         }
 
-        return AnyView(HStack(spacing: AppTheme.Metrics.shellContentGap) {
+        return AnyView(PremiumDualPaneStage(primaryWidth: supportsDualPane ? libraryWidth : nil) {
             if supportsDualPane || selectedArchiveItem == nil {
                 PremiumShellStage {
                     archiveRoot(embedInRegularShell: true)
                 }
-                .frame(width: supportsDualPane ? libraryWidth : nil)
             }
-
+        } secondary: {
             if supportsDualPane || selectedArchiveItem != nil || fallbackArchiveItem != nil {
                 PremiumShellStage(tone: .accent) {
                     archiveDetailContent(showsBackButton: !supportsDualPane)
@@ -369,14 +362,13 @@ struct AppShellView: View {
             )
         }
 
-        return AnyView(HStack(spacing: AppTheme.Metrics.shellContentGap) {
+        return AnyView(PremiumDualPaneStage(primaryWidth: supportsDualPane ? libraryWidth : nil) {
             if supportsDualPane || selectedSavedItem == nil {
                 PremiumShellStage(tone: .favorite) {
                     savedRoot(embedInRegularShell: true)
                 }
-                .frame(width: supportsDualPane ? libraryWidth : nil)
             }
-
+        } secondary: {
             if supportsDualPane || selectedSavedItem != nil || fallbackSavedItem != nil {
                 PremiumShellStage(tone: .favorite) {
                     savedDetailContent(showsBackButton: !supportsDualPane)

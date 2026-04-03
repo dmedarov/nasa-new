@@ -25,6 +25,7 @@
 		E10000052F80000500000005 /* APIRequestFeedbackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000052F80000500000005 /* APIRequestFeedbackViews.swift */; };
 		E10000062F80000600000006 /* APODMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000062F80000600000006 /* APODMediaView.swift */; };
 		E10000072F80000700000007 /* MainViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000072F80000700000007 /* MainViewSupport.swift */; };
+		E100001C2F80001C0000001C /* ScreenPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001C2F80001C0000001C /* ScreenPrimitives.swift */; };
 		E10000082F80000800000008 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000082F80000800000008 /* NotificationScheduler.swift */; };
 		E10000092F80000900000009 /* NetworkStatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000092F80000900000009 /* NetworkStatusMonitor.swift */; };
 		E100000A2F80000A0000000A /* APODService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200000A2F80000A0000000A /* APODService.swift */; };
@@ -142,6 +143,7 @@
 		E20000052F80000500000005 /* APIRequestFeedbackViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequestFeedbackViews.swift; sourceTree = "<group>"; };
 		E20000062F80000600000006 /* APODMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODMediaView.swift; sourceTree = "<group>"; };
 		E20000072F80000700000007 /* MainViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewSupport.swift; sourceTree = "<group>"; };
+		E200001C2F80001C0000001C /* ScreenPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenPrimitives.swift; sourceTree = "<group>"; };
 		E20000082F80000800000008 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
 		E20000092F80000900000009 /* NetworkStatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkStatusMonitor.swift; sourceTree = "<group>"; };
 		E200000A2F80000A0000000A /* APODService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODService.swift; sourceTree = "<group>"; };
@@ -240,6 +242,7 @@
 				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
 				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
 				E20000072F80000700000007 /* MainViewSupport.swift */,
+				E200001C2F80001C0000001C /* ScreenPrimitives.swift */,
 				E20000012F80000100000001 /* MainHeaderBar.swift */,
 				E20000022F80000200000002 /* APODDetailsView.swift */,
 				E20000032F80000300000003 /* FavoritesSheetView.swift */,
@@ -509,6 +512,7 @@
 				E10000142F80001400000014 /* APODReaderView.swift in Sources */,
 				2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */,
 				E10000072F80000700000007 /* MainViewSupport.swift in Sources */,
+				E100001C2F80001C0000001C /* ScreenPrimitives.swift in Sources */,
 				E10000112F80001100000011 /* AppRouter.swift in Sources */,
 				D1A000092F70000900000009 /* AccessibilityIdentifiers.swift in Sources */,
 				D1A000042F70000400000004 /* APODDateRestoration.swift in Sources */,

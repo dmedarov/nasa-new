@@ -306,7 +306,7 @@ struct SavedScreenView: View {
         selectedItemID: String?,
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
-        Group {
+        AppScreenSurface(title: L10n.text("Favorites", default: "Favorites")) {
             if fetcher.favorites.isEmpty {
                 favoritesEmptyState
             } else if usesGridPresentation {
@@ -318,9 +318,6 @@ struct SavedScreenView: View {
                 )
             }
         }
-        .background(SpaceBackdropView())
-        .navigationTitle(L10n.text("Favorites", default: "Favorites"))
-        .appScreenChrome()
     }
 
     private func savedListContent(
@@ -357,11 +354,7 @@ struct SavedScreenView: View {
     }
 
     private var savedHeaderPanels: some View {
-        ScreenPanelColumn(
-            spacing: AppTheme.Metrics.screenPanelSpacing,
-            topPadding: AppTheme.Spacing.xs,
-            bottomPadding: AppTheme.Spacing.xs
-        ) {
+        LibraryPanelDeck {
             savedOverviewPanel
             savedControlsPanel
         }
@@ -397,32 +390,18 @@ struct SavedScreenView: View {
     }
 
     private var savedControlsPanel: some View {
-        MissionSupportPanel(
+        LibraryBrowserPanel(
             eyebrow: L10n.text("Saved Browser", default: "Saved Browser"),
             summary: savedResultsSummary,
-            tone: .neutral
+            tone: .neutral,
+            searchText: $searchQuery,
+            searchPlaceholder: L10n.text("Search favorites", default: "Search favorites"),
+            searchAccessibilityIdentifier: AccessibilityID.favoritesSearchField
         ) {
-            MissionSearchField(
-                text: $searchQuery,
-                placeholder: L10n.text("Search favorites", default: "Search favorites"),
-                accessibilityIdentifier: AccessibilityID.favoritesSearchField
-            )
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    savedFilterPicker
-                    Spacer(minLength: 0)
-                    if supportsGridPresentation {
-                        savedLayoutPicker
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                    savedFilterPicker
-                    if supportsGridPresentation {
-                        savedLayoutPicker
-                    }
-                }
+            savedFilterPicker
+        } layoutControl: {
+            if supportsGridPresentation {
+                savedLayoutPicker
             }
         }
     }
@@ -823,7 +802,7 @@ struct ArchiveScreenView: View {
         selectedItemID: String?,
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
-        Group {
+        AppScreenSurface(title: L10n.text("Archive", default: "Archive")) {
             if fetcher.archiveItems.isEmpty {
                 archiveEmptyContent
             } else if usesGridPresentation {
@@ -832,17 +811,10 @@ struct ArchiveScreenView: View {
                 archiveListContent(selectedItemID: selectedItemID, selectionAction: selectionAction)
             }
         }
-        .background(SpaceBackdropView())
-        .navigationTitle(L10n.text("Archive", default: "Archive"))
-        .appScreenChrome()
     }
 
     private var archiveHeaderPanels: some View {
-        ScreenPanelColumn(
-            spacing: AppTheme.Metrics.screenPanelSpacing,
-            topPadding: AppTheme.Spacing.xs,
-            bottomPadding: AppTheme.Spacing.xs
-        ) {
+        LibraryPanelDeck {
             archiveOverviewPanel
             archiveControlsPanel
             archiveJumpPanel
@@ -862,32 +834,18 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveControlsPanel: some View {
-        MissionSupportPanel(
+        LibraryBrowserPanel(
             eyebrow: L10n.text("Browse & Filter", default: "Browse & Filter"),
             summary: archiveControlsSummary,
-            tone: .neutral
+            tone: .neutral,
+            searchText: $searchQuery,
+            searchPlaceholder: L10n.text("Search archive", default: "Search archive"),
+            searchAccessibilityIdentifier: AccessibilityID.archiveSearchField
         ) {
-            MissionSearchField(
-                text: $searchQuery,
-                placeholder: L10n.text("Search archive", default: "Search archive"),
-                accessibilityIdentifier: AccessibilityID.archiveSearchField
-            )
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    archiveFilterPicker
-                    Spacer(minLength: 0)
-                    if supportsGridPresentation {
-                        archiveLayoutPicker
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                    archiveFilterPicker
-                    if supportsGridPresentation {
-                        archiveLayoutPicker
-                    }
-                }
+            archiveFilterPicker
+        } layoutControl: {
+            if supportsGridPresentation {
+                archiveLayoutPicker
             }
         }
     }
@@ -1531,44 +1489,6 @@ private struct ArchiveGridThumbnailView: View {
             .font(.system(size: 30, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private extension View {
-    func libraryHeaderRowStyle() -> some View {
-        listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-    }
-
-    func libraryStateRowStyle() -> some View {
-        listRowInsets(
-            EdgeInsets(
-                top: AppTheme.Spacing.sm,
-                leading: AppTheme.Spacing.lg,
-                bottom: AppTheme.Spacing.sm,
-                trailing: AppTheme.Spacing.lg
-            )
-        )
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-
-    func libraryRowBackground(isSelected: Bool) -> some View {
-        listRowInsets(
-            EdgeInsets(
-                top: AppTheme.Spacing.xs,
-                leading: AppTheme.Spacing.lg,
-                bottom: AppTheme.Spacing.xs,
-                trailing: AppTheme.Spacing.lg
-            )
-        )
-        .listRowBackground(
-            isSelected
-                ? AppTheme.Palette.accentLight.opacity(0.08)
-                : Color.clear
-        )
-        .listRowSeparator(.hidden)
     }
 }
 
