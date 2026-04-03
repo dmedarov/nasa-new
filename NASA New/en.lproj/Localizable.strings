@@ -32,6 +32,12 @@
 "source.generic_media_summary" = "Original media source referenced by the APOD story.";
 "splash.status.preparing" = "Preparing today's briefing";
 "splash.status.detail" = "Loading the latest APOD, archive context, and source details.";
+"splash.status.cached_refresh" = "Loading the latest APOD while keeping archived context and source details ready.";
+"splash.status.cached_ready" = "Opening with cached APOD context while the latest briefing catches up.";
+"splash.featured.eyebrow" = "Latest Entry";
+"splash.featured.summary_fallback" = "Curated from NASA's Astronomy Picture of the Day archive with editorial context, source details, and quick archive access.";
+"splash.metric.archive_count" = "%d briefings ready";
+"splash.metric.saved_count" = "%d stories saved";
 "api.key.warning.unconfigured" = "NASA_API_KEY is not configured. Space Briefing is using DEMO_KEY, which is shared and may hit rate limits sooner.";
 "api.payload.decode_failed" = "Failed to decode NASA API payload.";
 "error.bad_request" = "Unable to load APOD data right now. Please try again.";

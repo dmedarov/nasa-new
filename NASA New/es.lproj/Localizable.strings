@@ -8,6 +8,12 @@
 "splash.subtitle" = "Imagenes espaciales diarias, contexto editorial y enlaces de origen del archivo APOD de la NASA.";
 "splash.status.preparing" = "Preparando el resumen de hoy";
 "splash.status.detail" = "Cargando el APOD mas reciente, el contexto del archivo y los detalles de origen.";
+"splash.status.cached_refresh" = "Cargando el APOD mas reciente mientras el contexto del archivo y los detalles de origen permanecen listos.";
+"splash.status.cached_ready" = "Abriendo con contexto APOD en cache mientras se actualiza el ultimo resumen.";
+"splash.featured.eyebrow" = "Entrada reciente";
+"splash.featured.summary_fallback" = "Seleccionado del archivo Astronomy Picture of the Day de la NASA con contexto editorial, detalles de origen y acceso rapido al archivo.";
+"splash.metric.archive_count" = "%d resumenes listos";
+"splash.metric.saved_count" = "%d historias guardadas";
 "brand.independent_notice" = "Aplicacion independiente que usa el servicio publico APOD de la NASA. No esta afiliada ni respaldada por la NASA.";
 "brand.data_source_notice" = "Las imagenes, descripciones y metadatos provienen del servicio Astronomy Picture of the Day de la NASA. Los derechos del material que no sea de la NASA siguen perteneciendo al creador acreditado.";
 "Refresh" = "Actualizar";
