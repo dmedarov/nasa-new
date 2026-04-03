@@ -163,9 +163,7 @@ final class NASANewUITests: XCTestCase {
         if let pendingRouteDate {
             app.launchEnvironment["UITEST_PENDING_ROUTE_DATE"] = pendingRouteDate
         }
-        if hasPro {
-            app.launchEnvironment["UITEST_HAS_PRO"] = "1"
-        }
+        app.launchEnvironment["UITEST_HAS_PRO"] = hasPro ? "1" : "0"
         if let preloadedFavoriteDates, !preloadedFavoriteDates.isEmpty {
             app.launchEnvironment["UITEST_PRELOAD_FAVORITE_DATES"] = preloadedFavoriteDates.joined(separator: ",")
         }
@@ -416,7 +414,32 @@ final class NASANewUITests: XCTestCase {
         let continueButton = element(UIElementID.paywallContinueButton)
         XCTAssertTrue(continueButton.waitForExistence(timeout: 5.0))
         continueButton.tap()
-        XCTAssertTrue(waitForElementToDisappear(element(UIElementID.paywallRoot), timeout: 5.0))
+        XCTAssertTrue(waitForPaywallToDisappear(timeout: 5.0))
+    }
+
+    private func waitForPaywall(timeout: TimeInterval = 5.0) -> Bool {
+        let continueButton = element(UIElementID.paywallContinueButton)
+        if continueButton.waitForExistence(timeout: timeout) {
+            return true
+        }
+
+        let unlockButton = element(UIElementID.paywallUnlockButton)
+        return unlockButton.waitForExistence(timeout: timeout)
+    }
+
+    private func waitForPaywallToDisappear(timeout: TimeInterval = 5.0) -> Bool {
+        let continueButton = element(UIElementID.paywallContinueButton)
+        let unlockButton = element(UIElementID.paywallUnlockButton)
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !continueButton.exists && !unlockButton.exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        return !continueButton.exists && !unlockButton.exists
     }
 
     private func launchAndWaitForMainView(fixtureMode: String = "default", dataSaverMode: Bool? = nil, preferHDImages: Bool? = nil) {
@@ -791,7 +814,7 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
         archiveRow.tap()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
         XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
     }
@@ -804,11 +827,10 @@ final class NASANewUITests: XCTestCase {
         )
         app.launch()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
-        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
         XCTAssertFalse(element(UIElementID.archiveSheetRoot).exists)
     }
 
@@ -831,7 +853,7 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElementToBecomeHittable(favoriteButton, timeout: 5.0))
         favoriteButton.tap()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
 
         guard let refreshedFavoriteButton = waitForFavoriteButton() else {
@@ -851,7 +873,7 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
     }
 
@@ -866,7 +888,7 @@ final class NASANewUITests: XCTestCase {
 
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         guard let mainFavoriteButton = waitForFavoriteButton() else {
             XCTFail("Expected a favorite button on the main screen")
@@ -883,7 +905,7 @@ final class NASANewUITests: XCTestCase {
         }
 
         XCTAssertTrue(refreshedMainFavoriteButton.label.contains("Remove"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
     }
 
     func testProUserCanOpenLockedArchiveAndSavePhotoWithoutPaywall() {
@@ -897,7 +919,7 @@ final class NASANewUITests: XCTestCase {
 
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         tapElement(UIElementID.openArchiveButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
@@ -918,11 +940,11 @@ final class NASANewUITests: XCTestCase {
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-04"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
         XCTAssertTrue(waitForAnyLabel(containing: "Saved to Photos", timeout: 5.0))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         if app.buttons["OK"].waitForExistence(timeout: 1.0) {
             app.buttons["OK"].tap()

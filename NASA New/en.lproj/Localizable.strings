@@ -407,3 +407,7 @@
 "offline.media.clear.confirmation.message" = "This removes saved image files and preview files from this device, but it does not remove items from Favorites.";
 "offline.media.clear.success" = "Offline files removed. Saved APOD stories remain in Favorites.";
 "offline.media.rebuild.success" = "Offline media refreshed for your saved APOD items.";
+"app.shell.story_title" = "NASA stories, framed with calm.";
+"app.shell.story_subtitle" = "Today, archive, saved.";
+"saved.library.eyebrow" = "Saved Library";
+"archive.browser.eyebrow" = "Archive Browser";

@@ -407,3 +407,7 @@
 "offline.media.clear.confirmation.message" = "Esto elimina los archivos de imagen guardados y los archivos de vista previa de este dispositivo, pero no quita elementos de Favoritos.";
 "offline.media.clear.success" = "Se eliminaron los archivos sin conexion. Las historias APOD guardadas siguen en Favoritos.";
 "offline.media.rebuild.success" = "Se actualizaron los medios sin conexion para tus elementos APOD guardados.";
+"app.shell.story_title" = "Historias de la NASA, en un marco sereno.";
+"app.shell.story_subtitle" = "Hoy, archivo, guardados.";
+"saved.library.eyebrow" = "Biblioteca guardada";
+"archive.browser.eyebrow" = "Navegador del archivo";

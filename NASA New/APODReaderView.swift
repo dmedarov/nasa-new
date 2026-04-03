@@ -42,8 +42,9 @@ struct APODReaderView: View {
     }
 
     private var usesWideEditorialLayout: Bool {
+        let wideThreshold: CGFloat = appShellContext == .premiumRegularShell ? 1_260 : 940
         if availableWidth != nil {
-            return effectiveAvailableWidth >= 940 && !dynamicTypeSize.isAccessibilitySize
+            return effectiveAvailableWidth >= wideThreshold && !dynamicTypeSize.isAccessibilitySize
         }
         return horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
@@ -66,12 +67,26 @@ struct APODReaderView: View {
 
     private func readerStageWidths(for availableWidth: CGFloat) -> (media: CGFloat, details: CGFloat) {
         let usableWidth = min(max(availableWidth, 0), AppTheme.Metrics.readerStageMaxWidth)
-        let detailsWidth = min(
-            max(usableWidth * 0.34, 420),
+        let spacing = AppTheme.Spacing.xxl
+        let minimumMediaWidth: CGFloat = appShellContext == .premiumRegularShell ? 720 : 520
+        let minimumDetailsWidth: CGFloat = appShellContext == .premiumRegularShell ? 360 : 320
+        let idealDetailsWidth = min(
+            max(usableWidth * 0.33, minimumDetailsWidth),
             detailsColumnMaxWidth
         )
-        let mediaWidth = max(usableWidth - detailsWidth - AppTheme.Spacing.xxl, 520)
-        return (mediaWidth, detailsWidth)
+        let idealMediaWidth = usableWidth - idealDetailsWidth - spacing
+
+        if idealMediaWidth >= minimumMediaWidth {
+            return (idealMediaWidth, idealDetailsWidth)
+        }
+
+        let adjustedDetailsWidth = min(
+            max(usableWidth * 0.28, minimumDetailsWidth),
+            min(detailsColumnMaxWidth, 460)
+        )
+        let adjustedMediaWidth = max(usableWidth - adjustedDetailsWidth - spacing, 480)
+        let resolvedDetailsWidth = max(usableWidth - adjustedMediaWidth - spacing, minimumDetailsWidth)
+        return (adjustedMediaWidth, resolvedDetailsWidth)
     }
 
     private func resetImageState() {

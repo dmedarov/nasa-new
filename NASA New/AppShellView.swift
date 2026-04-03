@@ -50,10 +50,6 @@ struct AppShellView: View {
         .onChange(of: fetcher.favorites.map(\.id)) { _ in
             ensureRegularShellSelectionIfNeeded()
         }
-        .sheet(item: activePaywallBinding) { context in
-            MonetizationPaywallView(context: context)
-                .environmentObject(purchaseManager)
-        }
     }
 
     private var tabShell: some View {
@@ -81,7 +77,7 @@ struct AppShellView: View {
     private var splitShell: some View {
         GeometryReader { proxy in
             let railWidth = min(
-                max(proxy.size.width * 0.22, AppTheme.Metrics.shellRailMinimumWidth),
+                max(proxy.size.width * 0.18, AppTheme.Metrics.shellRailMinimumWidth),
                 AppTheme.Metrics.shellRailMaximumWidth
             )
             let contentWidth = max(
@@ -129,11 +125,11 @@ struct AppShellView: View {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                     SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
-                    Text(L10n.text("A calmer space for NASA stories.", default: "A calmer space for NASA stories."))
-                        .font(AppTheme.Typography.sectionTitle)
+                    Text(L10n.text("app.shell.story_title", default: "NASA stories, framed with calm."))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundStyle(AppTheme.inkPrimary(isDarkMode: true))
 
-                    Text(L10n.text("Today, archive, and saved.", default: "Today, archive, and saved."))
+                    Text(L10n.text("app.shell.story_subtitle", default: "Today, archive, saved."))
                         .font(AppTheme.Typography.footnote)
                         .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
                 }
@@ -320,7 +316,7 @@ struct AppShellView: View {
     private func regularArchiveStage(availableWidth: CGFloat) -> some View {
         let supportsDualPane = availableWidth >= AppTheme.Metrics.shellDualStageMinimumWidth
         let libraryWidth = min(
-            max(availableWidth * 0.38, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
+            max(availableWidth * 0.31, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
@@ -350,7 +346,7 @@ struct AppShellView: View {
     private func regularSavedStage(availableWidth: CGFloat) -> some View {
         let supportsDualPane = availableWidth >= AppTheme.Metrics.shellDualStageMinimumWidth
         let libraryWidth = min(
-            max(availableWidth * 0.38, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
+            max(availableWidth * 0.31, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
@@ -520,20 +516,6 @@ struct AppShellView: View {
             fetcher.selectFavorite(firstSavedItem)
         }
     }
-
-    private var activePaywallBinding: Binding<PaywallPresentation?> {
-        Binding(
-            get: { purchaseManager.activePaywall },
-            set: { newValue in
-                if let newValue {
-                    purchaseManager.activePaywall = newValue
-                } else {
-                    purchaseManager.dismissPaywall()
-                }
-            }
-        )
-    }
-
     private func trackArchiveVisitIfNeeded(for destination: AppDestination) {
         guard lastTrackedDestination != destination else { return }
         lastTrackedDestination = destination
@@ -561,10 +543,10 @@ private struct AppShellSidebarRow: View {
                             ? AppTheme.accentColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.28 : 0.16)
                             : Color.white.opacity(isDarkMode ? 0.08 : 0.42)
                     )
-                    .frame(width: 48, height: 48)
+                    .frame(width: 42, height: 42)
 
                 Image(systemName: destination.systemImage)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(
                         isSelected
                             ? AppTheme.Palette.accentHighlight
@@ -590,10 +572,10 @@ private struct AppShellSidebarRow: View {
                 )
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.vertical, AppTheme.Spacing.md)
+        .padding(.horizontal, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
                     isSelected
                         ? AppTheme.accentColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.24 : 0.14)
@@ -601,7 +583,7 @@ private struct AppShellSidebarRow: View {
                 )
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(
                     isSelected
                         ? AppTheme.Palette.accentHighlight.opacity(isDarkMode ? 0.6 : 0.38)
@@ -617,7 +599,7 @@ private struct AppShellSidebarRow: View {
             y: 10
         )
         .contentShape(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
     }
 }

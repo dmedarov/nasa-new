@@ -355,8 +355,61 @@ struct SavedScreenView: View {
 
     private var savedHeaderPanels: some View {
         LibraryPanelDeck {
-            savedOverviewPanel
-            savedControlsPanel
+            if embedInRegularShell {
+                savedMissionControlPanel
+            } else {
+                savedOverviewPanel
+                savedControlsPanel
+            }
+        }
+    }
+
+    private var savedMissionControlPanel: some View {
+        MissionSupportPanel(
+            eyebrow: L10n.text("saved.library.eyebrow", default: "Saved Library"),
+            title: L10n.format(
+                "saved.summary.count",
+                default: "%d saved APOD stories ready to revisit",
+                fetcher.favorites.count
+            ),
+            summary: savedResultsSummary,
+            tone: .favorite,
+            padding: AppTheme.Spacing.lg
+        ) {
+            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        savedStatusBadges
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        savedStatusBadges
+                    }
+                }
+            }
+
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search favorites", default: "Search favorites"),
+                accessibilityIdentifier: AccessibilityID.favoritesSearchField
+            )
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    savedFilterPicker
+                    Spacer(minLength: 0)
+                    if supportsGridPresentation {
+                        savedLayoutPicker
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    savedFilterPicker
+                    if supportsGridPresentation {
+                        savedLayoutPicker
+                    }
+                }
+            }
         }
     }
 
@@ -815,9 +868,65 @@ struct ArchiveScreenView: View {
 
     private var archiveHeaderPanels: some View {
         LibraryPanelDeck {
-            archiveOverviewPanel
-            archiveControlsPanel
-            archiveJumpPanel
+            if embedInRegularShell {
+                archiveMissionControlPanel
+            } else {
+                archiveOverviewPanel
+                archiveControlsPanel
+                archiveJumpPanel
+            }
+        }
+    }
+
+    private var archiveMissionControlPanel: some View {
+        MissionSupportPanel(
+            eyebrow: L10n.text("archive.browser.eyebrow", default: "Archive Browser"),
+            title: archiveSummaryTitle,
+            summary: archiveControlsSummary,
+            tone: .accent,
+            padding: AppTheme.Spacing.lg
+        ) {
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search archive", default: "Search archive"),
+                accessibilityIdentifier: AccessibilityID.archiveSearchField
+            )
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    archiveFilterPicker
+                    Spacer(minLength: 0)
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    archiveFilterPicker
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                Text(L10n.text("Jump to APOD date", default: "Jump to APOD date"))
+                    .font(AppTheme.Typography.sectionTitle)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
+                        archiveJumpDatePicker
+                        archiveJumpButton(compactNavigation: !usesSplitLayout)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                        archiveJumpDatePicker
+                        archiveJumpButton(compactNavigation: !usesSplitLayout)
+                    }
+                }
+            }
         }
     }
 

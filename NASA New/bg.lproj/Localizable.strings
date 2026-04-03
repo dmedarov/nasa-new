@@ -407,3 +407,7 @@
 "offline.media.clear.confirmation.message" = "Това премахва запазените файлове с изображения и preview файловете от това устройство, но не премахва елементите от Favorites.";
 "offline.media.clear.success" = "Офлайн файловете са премахнати. Запазените APOD истории остават във Favorites.";
 "offline.media.rebuild.success" = "Офлайн медията за запазените APOD елементи беше обновена.";
+"app.shell.story_title" = "NASA истории, поднесени спокойно.";
+"app.shell.story_subtitle" = "Днес, архив, запазени.";
+"saved.library.eyebrow" = "Запазена библиотека";
+"archive.browser.eyebrow" = "Архивен браузър";
