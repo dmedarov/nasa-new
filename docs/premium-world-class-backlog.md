@@ -136,7 +136,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Library Performance`
   Estimate: `1.0d`
   Depends on: `P2-01`
-  Status: `pending`
+  Status: `done`
   Scope: reduce main-thread work and view invalidation during archive search, jump-to-date, and grid/list rendering.
 
 - `P2-03` Saved-library scrolling performance pass
@@ -287,6 +287,6 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Suggested Next Three Tickets
 
-- `P2-02` because archive scrolling is now the first hot path that sits directly on top of the new async thumbnail pipeline.
-- `P2-03` because saved-library scrolling shares the same thumbnail and badge surfaces and should follow immediately after archive.
-- `P2-04` because reader transitions become the next visible performance differentiator once the library surfaces stop doing thumbnail decode work on the main thread.
+- `P2-03` because saved-library scrolling shares the same thumbnail and badge surfaces and is the next adjacent hot path after archive.
+- `P2-04` because reader transitions are now the most visible remaining media-performance surface once archive search and selection have been tightened.
+- `P2-05` because the performance baseline doc should lock in validation and before/after notes right after the remaining P2 surfaces are addressed.

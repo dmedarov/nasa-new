@@ -59,7 +59,7 @@ struct APODLibraryDisplayItem: Identifiable {
 struct ArchiveSection: Identifiable {
     let id: String
     let title: String
-    let items: [APODLibraryDisplayItem]
+    let itemIDs: [String]
 }
 
 struct SavedScreenView: View {
@@ -583,10 +583,14 @@ struct ArchiveScreenView: View {
     @State private var pushedArchiveItem: NASA?
     @State private var selectedArchiveItemID: String?
     @State private var searchQuery = ""
+    @State private var resolvedArchiveSearchQuery = ""
     @State private var archiveJumpDate = Date()
-    @State private var archiveDisplayItems = [APODLibraryDisplayItem]()
-    @State private var filteredArchiveItems = [APODLibraryDisplayItem]()
+    @State private var archiveDisplayItemsByID = [String: APODLibraryDisplayItem]()
+    @State private var archivePolicyItems = [ArchiveLibraryPolicy.Item]()
+    @State private var filteredArchiveItemIDs = [String]()
     @State private var archiveSections = [ArchiveSection]()
+    @State private var lockedArchiveItemIDs = Set<String>()
+    @State private var archiveSearchTask: Task<Void, Never>?
 
     init(embedInRegularShell: Bool = false) {
         self.embedInRegularShell = embedInRegularShell
@@ -626,9 +630,11 @@ struct ArchiveScreenView: View {
     }
 
     private var selectedArchiveItem: NASA? {
-        let preferredID = selectedArchiveItemID ?? router.selectedArchiveItemID
-        return filteredArchiveItems.first(where: { $0.id == preferredID })?.item
-            ?? archiveDisplayItems.first(where: { $0.id == preferredID })?.item
+        guard let preferredID = selectedArchiveItemID ?? router.selectedArchiveItemID else {
+            return nil
+        }
+
+        return archiveDisplayItemsByID[preferredID]?.item
     }
 
     private var archiveSummaryTitle: String {
@@ -657,13 +663,13 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveControlsSummary: String {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = resolvedArchiveSearchQuery
 
         if !trimmedQuery.isEmpty {
             return L10n.format(
                 "archive.controls.summary.search",
                 default: "Showing %d results for \"%@\".",
-                filteredArchiveItems.count,
+                filteredArchiveItemIDs.count,
                 trimmedQuery
             )
         }
@@ -672,7 +678,7 @@ struct ArchiveScreenView: View {
             return L10n.format(
                 "archive.controls.summary.filter",
                 default: "Showing %d entries in %@.",
-                filteredArchiveItems.count,
+                filteredArchiveItemIDs.count,
                 archiveFilter.localizedTitle
             )
         }
@@ -680,7 +686,7 @@ struct ArchiveScreenView: View {
         return L10n.format(
             "archive.controls.summary.default",
             default: "Search %d archived APOD entries by title, date, or credit line.",
-            filteredArchiveItems.count
+            filteredArchiveItemIDs.count
         )
     }
 
@@ -751,6 +757,7 @@ struct ArchiveScreenView: View {
             AccessibilityMarker(identifier: AccessibilityID.archiveSheetRoot)
         }
         .task {
+            resolvedArchiveSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildArchiveLibrarySnapshot()
             if purchaseManager.hasPro {
                 fetcher.prefetchArchiveIfNeeded()
@@ -769,7 +776,7 @@ struct ArchiveScreenView: View {
             syncArchiveJumpDate()
         }
         .onChange(of: searchQuery) { _ in
-            rebuildArchiveFiltering()
+            scheduleArchiveFiltering()
         }
         .onChange(of: archiveFilterRawValue) { _ in
             rebuildArchiveFiltering()
@@ -778,8 +785,14 @@ struct ArchiveScreenView: View {
             rebuildArchiveLibrarySnapshot()
         }
         .onChange(of: purchaseManager.hasPro) { hasPro in
-            guard hasPro else { return }
-            fetcher.prefetchArchiveIfNeeded()
+            rebuildArchiveAccessState()
+            if hasPro {
+                fetcher.prefetchArchiveIfNeeded()
+            }
+        }
+        .onDisappear {
+            archiveSearchTask?.cancel()
+            archiveSearchTask = nil
         }
     }
 
@@ -930,7 +943,7 @@ struct ArchiveScreenView: View {
             return
         }
         selectedArchiveItemID = selectedID
-        if let archiveItem = fetcher.archiveItems.first(where: { $0.id == selectedID }) {
+        if let archiveItem = archiveDisplayItemsByID[selectedID]?.item {
             fetcher.selectArchivedItem(archiveItem)
         }
     }
@@ -952,7 +965,7 @@ struct ArchiveScreenView: View {
 
     private func rebuildArchiveLibrarySnapshot() {
         let favoriteIDs = Set(fetcher.favorites.map(\.id))
-        archiveDisplayItems = fetcher.archiveItems.map { item in
+        let archiveDisplayItems = fetcher.archiveItems.map { item in
             APODLibraryDisplayItem(
                 item: item,
                 isSaved: favoriteIDs.contains(item.id),
@@ -960,25 +973,75 @@ struct ArchiveScreenView: View {
                 locale: locale
             )
         }
+
+        archiveDisplayItemsByID = Dictionary(uniqueKeysWithValues: archiveDisplayItems.map { ($0.id, $0) })
+        archivePolicyItems = archiveDisplayItems.map(\.archivePolicyItem)
+        rebuildArchiveAccessState()
         rebuildArchiveFiltering()
     }
 
     private func rebuildArchiveFiltering() {
-        let archiveItemsByID = Dictionary(uniqueKeysWithValues: archiveDisplayItems.map { ($0.id, $0) })
         let resolution = ArchiveLibraryPolicy.resolve(
-            items: archiveDisplayItems.map(\.archivePolicyItem),
+            items: archivePolicyItems,
             filter: archiveFilter,
-            searchQuery: searchQuery,
+            searchQuery: resolvedArchiveSearchQuery,
             locale: locale
         )
 
-        filteredArchiveItems = resolution.filteredItemIDs.compactMap { archiveItemsByID[$0] }
+        filteredArchiveItemIDs = resolution.filteredItemIDs
         archiveSections = resolution.sections.map { section in
             ArchiveSection(
                 id: section.id,
                 title: section.title,
-                items: section.itemIDs.compactMap { archiveItemsByID[$0] }
+                itemIDs: section.itemIDs
             )
+        }
+    }
+
+    private func rebuildArchiveAccessState() {
+        guard !purchaseManager.hasPro else {
+            lockedArchiveItemIDs = []
+            return
+        }
+
+        let earliestFreeArchiveDate = fetcher.apodDateString(
+            from: PremiumAccessPolicy.earliestFreeArchiveDate(
+                referenceDate: fetcher.maximumSelectableDate,
+                calendar: fetcher.calendar
+            )
+        )
+
+        lockedArchiveItemIDs = Set(
+            archivePolicyItems.compactMap { item in
+                guard let itemDate = item.date, itemDate < earliestFreeArchiveDate else {
+                    return nil
+                }
+
+                return item.id
+            }
+        )
+    }
+
+    private func scheduleArchiveFiltering() {
+        archiveSearchTask?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery != resolvedArchiveSearchQuery else { return }
+
+        guard !trimmedQuery.isEmpty else {
+            resolvedArchiveSearchQuery = ""
+            rebuildArchiveFiltering()
+            return
+        }
+
+        archiveSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                resolvedArchiveSearchQuery = trimmedQuery
+                rebuildArchiveFiltering()
+            }
         }
     }
 
@@ -999,8 +1062,7 @@ struct ArchiveScreenView: View {
     }
 
     private func canOpenArchiveItem(_ item: NASA) -> Bool {
-        guard let itemDate = fetcher.date(from: item.date) else { return true }
-        return canOpenArchiveDate(itemDate)
+        !lockedArchiveItemIDs.contains(item.id)
     }
 
     private func canOpenArchiveDate(_ date: Date) -> Bool {
@@ -1012,7 +1074,7 @@ struct ArchiveScreenView: View {
     }
 
     private func isLockedArchiveItem(_ displayItem: APODLibraryDisplayItem) -> Bool {
-        !canOpenArchiveItem(displayItem.item)
+        lockedArchiveItemIDs.contains(displayItem.id)
     }
 
     private func toggleArchiveFavorite(_ item: NASA) {
@@ -1159,25 +1221,27 @@ struct ArchiveScreenView: View {
             } else {
                 ForEach(archiveSections) { section in
                     Section(section.title) {
-                        ForEach(section.items) { displayItem in
-                            libraryRow(
-                                displayItem,
-                                isSelected: displayItem.id == selectedItemID,
-                                isLocked: isLockedArchiveItem(displayItem),
-                                selectionAction: selectionAction
-                            )
-                            .swipeActions(edge: .trailing) {
-                                let favoriteActionTitle = displayItem.isSaved
-                                    ? L10n.text("Remove Favorite", default: "Remove Favorite")
-                                    : L10n.text("Save Favorite", default: "Save Favorite")
-                                let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
+                        ForEach(section.itemIDs, id: \.self) { itemID in
+                            if let displayItem = archiveDisplayItemsByID[itemID] {
+                                libraryRow(
+                                    displayItem,
+                                    isSelected: displayItem.id == selectedItemID,
+                                    isLocked: isLockedArchiveItem(displayItem),
+                                    selectionAction: selectionAction
+                                )
+                                .swipeActions(edge: .trailing) {
+                                    let favoriteActionTitle = displayItem.isSaved
+                                        ? L10n.text("Remove Favorite", default: "Remove Favorite")
+                                        : L10n.text("Save Favorite", default: "Save Favorite")
+                                    let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
 
-                                Button {
-                                    toggleArchiveFavorite(displayItem.item)
-                                } label: {
-                                    Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
+                                    Button {
+                                        toggleArchiveFavorite(displayItem.item)
+                                    } label: {
+                                        Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
+                                    }
+                                    .tint(displayItem.isSaved ? .gray : AppTheme.Palette.favorite)
                                 }
-                                .tint(displayItem.isSaved ? .gray : AppTheme.Palette.favorite)
                             }
                         }
                     }
@@ -1231,14 +1295,16 @@ struct ArchiveScreenView: View {
                                     .padding(.horizontal, AppTheme.Spacing.lg)
 
                                 LazyVGrid(columns: archiveGridColumns, spacing: AppTheme.Spacing.md) {
-                                    ForEach(section.items) { displayItem in
-                                        ArchiveGridCard(
-                                            displayItem: displayItem,
-                                            isSelected: displayItem.id == selectedArchiveItemID,
-                                            isLocked: isLockedArchiveItem(displayItem),
-                                            action: { selectionAction(displayItem.item) }
-                                        )
-                                        .id(displayItem.id)
+                                    ForEach(section.itemIDs, id: \.self) { itemID in
+                                        if let displayItem = archiveDisplayItemsByID[itemID] {
+                                            ArchiveGridCard(
+                                                displayItem: displayItem,
+                                                isSelected: displayItem.id == selectedArchiveItemID,
+                                                isLocked: isLockedArchiveItem(displayItem),
+                                                action: { selectionAction(displayItem.item) }
+                                            )
+                                            .id(displayItem.id)
+                                        }
                                     }
                                 }
                                 .padding(.horizontal, AppTheme.Spacing.lg)

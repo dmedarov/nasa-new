@@ -183,6 +183,26 @@ final class MainViewStateTests: XCTestCase {
         )
     }
 
+    func testArchiveLibraryPolicyUsesPrecomputedSectionKeyAndTrimmedSearchQuery() {
+        let item = makeArchivePolicyItem(
+            date: "2025-02-10",
+            title: "Nebula Saved",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "European Space Agency"
+        )
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: [item],
+            filter: .all,
+            searchQuery: "  European Space Agency  ",
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+
+        XCTAssertEqual(item.sectionKey, "2025-02")
+        XCTAssertEqual(resolution.filteredItemIDs, [item.id])
+        XCTAssertEqual(resolution.sections.map(\.id), ["2025-02"])
+    }
+
     func testSavedLibraryPolicyFiltersSourceBackedEntriesAndPreservesSearchOrder() {
         let sourceBacked = makeSavedPolicyItem(
             id: "source-backed",

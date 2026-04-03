@@ -120,14 +120,37 @@ struct ArchiveLibraryPolicy {
         let creditLine: String
         let mediaKind: MediaKind
         let isSaved: Bool
+        let sectionKey: String
+        private let searchText: String
+
+        init(
+            id: String,
+            date: String?,
+            title: String,
+            creditLine: String,
+            mediaKind: MediaKind,
+            isSaved: Bool,
+            sectionKey: String? = nil,
+            searchText: String? = nil
+        ) {
+            self.id = id
+            self.date = date
+            self.title = title
+            self.creditLine = creditLine
+            self.mediaKind = mediaKind
+            self.isSaved = isSaved
+            self.sectionKey = sectionKey ?? ArchiveLibraryPolicy.sectionKey(for: date)
+            self.searchText = searchText ?? Self.makeSearchText(
+                title: title,
+                date: date,
+                creditLine: creditLine
+            )
+        }
 
         func matchesSearch(_ query: String) -> Bool {
-            let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedQuery.isEmpty else { return true }
+            guard !query.isEmpty else { return true }
 
-            return title.localizedCaseInsensitiveContains(trimmedQuery)
-                || (date ?? "").localizedCaseInsensitiveContains(trimmedQuery)
-                || creditLine.localizedCaseInsensitiveContains(trimmedQuery)
+            return searchText.localizedCaseInsensitiveContains(query)
         }
 
         func matchesFilter(_ filter: ArchiveFilter) -> Bool {
@@ -141,6 +164,16 @@ struct ArchiveLibraryPolicy {
             case .saved:
                 return isSaved
             }
+        }
+
+        private static func makeSearchText(
+            title: String,
+            date: String?,
+            creditLine: String
+        ) -> String {
+            [title, date ?? "", creditLine]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
         }
     }
 
@@ -161,12 +194,14 @@ struct ArchiveLibraryPolicy {
         searchQuery: String,
         locale: Locale
     ) -> Resolution {
+        let normalizedSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sectionTitleFormatter = makeSectionTitleFormatter(locale: locale)
         let filteredItems = items.filter { item in
-            item.matchesFilter(filter) && item.matchesSearch(searchQuery)
+            item.matchesFilter(filter) && item.matchesSearch(normalizedSearchQuery)
         }
 
         let groupedItems = Dictionary(grouping: filteredItems) { item in
-            sectionKey(for: item.date)
+            item.sectionKey
         }
 
         let sections = groupedItems.keys
@@ -174,7 +209,7 @@ struct ArchiveLibraryPolicy {
             .map { key in
                 Section(
                     id: key,
-                    title: sectionTitle(for: key, locale: locale),
+                    title: sectionTitle(for: key, formatter: sectionTitleFormatter),
                     itemIDs: groupedItems[key, default: []]
                         .sorted { ($0.date ?? "") > ($1.date ?? "") }
                         .map(\.id)
@@ -199,16 +234,23 @@ struct ArchiveLibraryPolicy {
     }
 
     static func sectionTitle(for key: String, locale: Locale) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        sectionTitle(for: key, formatter: makeSectionTitleFormatter(locale: locale))
+    }
 
+    private static func sectionTitle(for key: String, formatter: DateFormatter) -> String {
         guard key != "unknown",
               let parsedDate = DateFormatter.archiveSectionKeyFormatter.date(from: key) else {
             return L10n.text("Unknown", default: "Unknown")
         }
 
         return formatter.string(from: parsedDate)
+    }
+
+    private static func makeSectionTitleFormatter(locale: Locale) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return formatter
     }
 }
 
