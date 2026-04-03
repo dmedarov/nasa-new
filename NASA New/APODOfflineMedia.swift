@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -887,6 +888,199 @@ struct APODOfflineMediaManagementState: Equatable {
         case nil:
             return nil
         }
+    }
+}
+
+enum APODLocalMediaThumbnailSpec: String, Hashable {
+    case libraryGrid
+    case libraryRow
+
+    var targetPointSize: CGSize {
+        switch self {
+        case .libraryGrid:
+            return CGSize(width: 320, height: 256)
+        case .libraryRow:
+            return CGSize(width: 88, height: 88)
+        }
+    }
+
+    func maxPixelSize(displayScale: CGFloat) -> Int {
+        Int(ceil(max(targetPointSize.width, targetPointSize.height) * max(displayScale, 1)))
+    }
+}
+
+#if canImport(UIKit)
+private final class APODLocalMediaThumbnailCache {
+    static let shared = APODLocalMediaThumbnailCache()
+
+    let storage = NSCache<NSString, UIImage>()
+
+    private init() {
+        storage.countLimit = 256
+        storage.totalCostLimit = 64 * 1_024 * 1_024
+    }
+}
+
+private struct APODLocalMediaThumbnailPayload: @unchecked Sendable {
+    let image: UIImage
+}
+#endif
+
+enum APODLocalMediaThumbnailLoader {
+    @MainActor
+    static func image(
+        from fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) async -> Image? {
+#if canImport(UIKit)
+        guard let fileURL else { return nil }
+
+        let cacheKey = cacheKey(for: fileURL, spec: spec, displayScale: displayScale)
+        if let cachedImage = APODLocalMediaThumbnailCache.shared.storage.object(forKey: cacheKey as NSString) {
+            return Image(uiImage: cachedImage)
+        }
+
+        let maxPixelSize = spec.maxPixelSize(displayScale: displayScale)
+        let payload = await Task.detached(priority: .utility) {
+            downsampledPayload(from: fileURL, maxPixelSize: maxPixelSize)
+        }.value
+
+        guard let payload else {
+            return nil
+        }
+
+        APODLocalMediaThumbnailCache.shared.storage.setObject(
+            payload.image,
+            forKey: cacheKey as NSString,
+            cost: imageCost(payload.image)
+        )
+        return Image(uiImage: payload.image)
+#else
+        return nil
+#endif
+    }
+
+    static func maxPixelSize(
+        for spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) -> Int {
+        spec.maxPixelSize(displayScale: displayScale)
+    }
+
+#if canImport(UIKit)
+    static func downsampledImage(from fileURL: URL, maxPixelSize: Int) -> UIImage? {
+        guard maxPixelSize > 0 else { return nil }
+
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions) else {
+            return UIImage(contentsOfFile: fileURL.path)
+        }
+
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+
+        if let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, thumbnailOptions) {
+            return UIImage(cgImage: cgImage)
+        }
+
+        return UIImage(contentsOfFile: fileURL.path)
+    }
+
+    @MainActor
+    private static func cacheKey(
+        for fileURL: URL,
+        spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) -> String {
+        let resourceValues = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let modifiedAt = resourceValues?.contentModificationDate?.timeIntervalSinceReferenceDate ?? 0
+        let fileSize = resourceValues?.fileSize ?? 0
+
+        return [
+            fileURL.path,
+            spec.rawValue,
+            String(maxPixelSize(for: spec, displayScale: displayScale)),
+            String(fileSize),
+            String(modifiedAt)
+        ].joined(separator: "|")
+    }
+
+    private static func downsampledPayload(from fileURL: URL, maxPixelSize: Int) -> APODLocalMediaThumbnailPayload? {
+        guard let image = downsampledImage(from: fileURL, maxPixelSize: maxPixelSize) else {
+            return nil
+        }
+
+        return APODLocalMediaThumbnailPayload(image: image)
+    }
+
+    private static func imageCost(_ image: UIImage) -> Int {
+        let pixelWidth = Int(image.size.width * image.scale)
+        let pixelHeight = Int(image.size.height * image.scale)
+        return max(pixelWidth * pixelHeight * 4, 1)
+    }
+#endif
+}
+
+struct APODAsyncLocalThumbnailView<Placeholder: View>: View {
+    let fileURL: URL?
+    let spec: APODLocalMediaThumbnailSpec
+    let placeholder: () -> Placeholder
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var localThumbnailImage: Image?
+
+    init(
+        fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.fileURL = fileURL
+        self.spec = spec
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        Group {
+            if let localThumbnailImage {
+                localThumbnailImage
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: taskIdentifier) {
+            await loadThumbnail()
+        }
+    }
+
+    private var taskIdentifier: String {
+        [
+            fileURL?.path ?? "nil",
+            spec.rawValue,
+            String(describing: displayScale)
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func loadThumbnail() async {
+        guard fileURL != nil else {
+            localThumbnailImage = nil
+            return
+        }
+
+        localThumbnailImage = nil
+        localThumbnailImage = await APODLocalMediaThumbnailLoader.image(
+            from: fileURL,
+            spec: spec,
+            displayScale: displayScale
+        )
     }
 }
 

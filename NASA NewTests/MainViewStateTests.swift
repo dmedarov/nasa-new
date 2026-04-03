@@ -1,5 +1,8 @@
 import XCTest
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 final class MainViewStateTests: XCTestCase {
     private var calendar: Calendar {
@@ -951,6 +954,39 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertFalse(state.canRebuild)
         XCTAssertNil(state.actionMessage)
     }
+
+    func testAPODLocalMediaThumbnailSpecResolvesPixelSizesForLibrarySurfaces() {
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .libraryRow, displayScale: 2),
+            176
+        )
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .libraryGrid, displayScale: 2),
+            640
+        )
+    }
+
+#if canImport(UIKit)
+    func testAPODLocalMediaThumbnailLoaderDownsamplesLargeLocalImage() throws {
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 800)).image { context in
+            UIColor.systemBlue.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 1200, height: 800))
+        }
+        guard let pngData = sourceImage.pngData() else {
+            XCTFail("Expected a PNG payload for the local image thumbnail test.")
+            return
+        }
+
+        let fileURL = try temporaryFileURL(named: "local-thumbnail-source.png", data: pngData)
+        let downsampledImage = APODLocalMediaThumbnailLoader.downsampledImage(
+            from: fileURL,
+            maxPixelSize: 200
+        )
+
+        XCTAssertNotNil(downsampledImage)
+        XCTAssertLessThanOrEqual(max(downsampledImage?.size.width ?? 0, downsampledImage?.size.height ?? 0), 200.0)
+    }
+#endif
 
     func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
         let service = PhotoExportService()

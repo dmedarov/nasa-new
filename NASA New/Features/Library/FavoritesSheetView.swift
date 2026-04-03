@@ -1462,31 +1462,16 @@ private struct ArchiveGridThumbnailView: View {
         }
     }
 
-    private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMediaState.localPreviewURL)
-    }
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
 
-            if let localThumbnailImage {
-                localThumbnailImage
-                    .resizable()
-                    .scaledToFill()
-            } else if displayItem.item.mediaType == .image, let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        fallbackIcon
-                    }
-                }
-            } else {
-                fallbackIcon
+            APODAsyncLocalThumbnailView(
+                fileURL: displayItem.offlineMediaState.localPreviewURL,
+                spec: APODLocalMediaThumbnailSpec.libraryGrid
+            ) {
+                remoteThumbnailContent
             }
 
             if displayItem.item.mediaType == .video {
@@ -1503,6 +1488,23 @@ private struct ArchiveGridThumbnailView: View {
                 .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
         }
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var remoteThumbnailContent: some View {
+        if displayItem.item.mediaType == .image, let thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    fallbackIcon
+                }
+            }
+        } else {
+            fallbackIcon
+        }
     }
 
     private var fallbackIcon: some View {
@@ -1610,31 +1612,16 @@ private struct APODLibraryThumbnailView: View {
         }
     }
 
-    private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMediaState.localPreviewURL)
-    }
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
 
-            if let localThumbnailImage {
-                localThumbnailImage
-                    .resizable()
-                    .scaledToFill()
-            } else if displayItem.item.mediaType == .image, let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        fallbackIcon
-                    }
-                }
-            } else {
-                fallbackIcon
+            APODAsyncLocalThumbnailView(
+                fileURL: displayItem.offlineMediaState.localPreviewURL,
+                spec: APODLocalMediaThumbnailSpec.libraryRow
+            ) {
+                remoteThumbnailContent
             }
 
             if displayItem.item.mediaType == .video {
@@ -1651,6 +1638,23 @@ private struct APODLibraryThumbnailView: View {
                 .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
         }
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var remoteThumbnailContent: some View {
+        if displayItem.item.mediaType == .image, let thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    fallbackIcon
+                }
+            }
+        } else {
+            fallbackIcon
+        }
     }
 
     private var fallbackIcon: some View {

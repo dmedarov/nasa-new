@@ -129,7 +129,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Media Performance`
   Estimate: `2.0d`
   Depends on: `P1-03`, `P1-07`
-  Status: `pending`
+  Status: `done`
   Scope: replace synchronous `UIImage(contentsOfFile:)` style loading in library surfaces with async decode/downsample flow.
 
 - `P2-02` Archive scrolling performance pass
@@ -287,6 +287,6 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Suggested Next Three Tickets
 
-- `P2-01` because the async thumbnail pipeline is now the highest-visibility performance win once the architecture path is in place.
-- `P2-02` because archive scrolling is the next user-visible performance surface once offline media state and thumbnails are on the safer path.
-- `P2-03` because saved-library scrolling now depends on the same thumbnail and badge pipeline and becomes the next high-signal follow-through after `P2-01`.
+- `P2-02` because archive scrolling is now the first hot path that sits directly on top of the new async thumbnail pipeline.
+- `P2-03` because saved-library scrolling shares the same thumbnail and badge surfaces and should follow immediately after archive.
+- `P2-04` because reader transitions become the next visible performance differentiator once the library surfaces stop doing thumbnail decode work on the main thread.
