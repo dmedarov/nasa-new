@@ -599,11 +599,23 @@ enum APODOfflineMediaStatusPolicy {
         asset: APODOfflineMediaAsset?,
         isSaved: Bool
     ) -> APODOfflineMediaStatusPresentation? {
+        presentation(
+            mediaType: nasa.mediaType,
+            state: asset?.state ?? .sourceRequired(remoteSourceURL: nil),
+            isSaved: isSaved
+        )
+    }
+
+    static func presentation(
+        mediaType: MediaType,
+        state: APODOfflineMediaState,
+        isSaved: Bool
+    ) -> APODOfflineMediaStatusPresentation? {
         guard isSaved else { return nil }
 
-        switch asset?.state ?? .sourceRequired(remoteSourceURL: nil) {
+        switch state {
         case .full:
-            if nasa.mediaType == .video {
+            if mediaType == .video {
                 return APODOfflineMediaStatusPresentation(
                     title: L10n.text("offline.media.available", default: "Available Offline"),
                     systemImage: "arrow.down.circle.fill",
@@ -668,6 +680,212 @@ enum APODOfflineMediaStatusPolicy {
                     default: "This saved entry keeps its story and credits on device, but the media still comes from the original source."
                 )
             )
+        }
+    }
+}
+
+struct APODOfflineMediaItemState: Equatable {
+    let mediaType: MediaType
+    let state: APODOfflineMediaState
+    let isSaved: Bool
+
+    init(mediaType: MediaType, asset: APODOfflineMediaAsset?, isSaved: Bool) {
+        self.mediaType = mediaType
+        state = asset?.state ?? .sourceRequired(remoteSourceURL: nil)
+        self.isSaved = isSaved
+    }
+
+    var localPreviewURL: URL? {
+        state.localPreviewURL
+    }
+
+    var localAssetURL: URL? {
+        state.localAssetURL
+    }
+
+    var localVideoURL: URL? {
+        guard mediaType == .video,
+              case .full(let localAssetURL, _) = state else {
+            return nil
+        }
+
+        return localAssetURL
+    }
+
+    var statusPresentation: APODOfflineMediaStatusPresentation? {
+        APODOfflineMediaStatusPolicy.presentation(
+            mediaType: mediaType,
+            state: state,
+            isSaved: isSaved
+        )
+    }
+
+    var savedLibraryStorageState: SavedLibraryPolicy.Item.StorageState {
+        switch state {
+        case .full:
+            return .full
+        case .preview:
+            return .preview
+        case .sourceRequired, .saving, .failed:
+            return .sourceBacked
+        }
+    }
+}
+
+struct APODOfflineMediaLibraryBadge: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let tone: AppTheme.SurfaceTone
+}
+
+struct APODOfflineMediaLibraryState: Equatable {
+    let summary: APODOfflineMediaStorageSummary
+
+    var showsSavedStatusBadges: Bool {
+        !savedStatusBadges.isEmpty
+    }
+
+    var savedStatusBadges: [APODOfflineMediaLibraryBadge] {
+        var badges = [APODOfflineMediaLibraryBadge]()
+
+        if summary.fullyOfflineCount > 0 {
+            badges.append(
+                APODOfflineMediaLibraryBadge(
+                    id: "offline",
+                    title: L10n.format(
+                        "saved.summary.offline_count",
+                        default: "%d offline",
+                        summary.fullyOfflineCount
+                    ),
+                    systemImage: "arrow.down.circle.fill",
+                    tone: .accent
+                )
+            )
+        }
+
+        if summary.previewCount > 0 {
+            badges.append(
+                APODOfflineMediaLibraryBadge(
+                    id: "preview",
+                    title: L10n.format(
+                        "saved.summary.preview_count",
+                        default: "%d preview",
+                        summary.previewCount
+                    ),
+                    systemImage: "photo.badge.arrow.down",
+                    tone: .neutral
+                )
+            )
+        }
+
+        return badges
+    }
+}
+
+enum APODOfflineMediaManagementOperation: Equatable {
+    case idle
+    case clearing
+    case rebuilding
+}
+
+enum APODOfflineMediaManagementCompletedAction: Equatable {
+    case cleared
+    case rebuilt
+}
+
+struct APODOfflineMediaManagementMetric: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let value: String
+}
+
+struct APODOfflineMediaManagementState: Equatable {
+    let summary: APODOfflineMediaStorageSummary
+    let operation: APODOfflineMediaManagementOperation
+    let lastUpdatedText: String
+    let lastCompletedAction: APODOfflineMediaManagementCompletedAction?
+
+    var metrics: [APODOfflineMediaManagementMetric] {
+        var items = [
+            APODOfflineMediaManagementMetric(
+                id: "saved-offline",
+                title: L10n.text("Saved Offline Items", default: "Saved Offline Items"),
+                value: String(summary.fullyOfflineCount)
+            ),
+            APODOfflineMediaManagementMetric(
+                id: "saved-preview",
+                title: L10n.text("Saved Preview Items", default: "Saved Preview Items"),
+                value: String(summary.previewCount)
+            ),
+            APODOfflineMediaManagementMetric(
+                id: "source-required",
+                title: L10n.text("Source Required Items", default: "Source Required Items"),
+                value: String(summary.remoteOnlyCount)
+            )
+        ]
+
+        if summary.syncingCount > 0 {
+            items.append(
+                APODOfflineMediaManagementMetric(
+                    id: "syncing",
+                    title: L10n.text("Offline Sync In Progress", default: "Offline Sync In Progress"),
+                    value: String(summary.syncingCount)
+                )
+            )
+        }
+
+        if summary.failedCount > 0 {
+            items.append(
+                APODOfflineMediaManagementMetric(
+                    id: "failed",
+                    title: L10n.text("Offline Save Failures", default: "Offline Save Failures"),
+                    value: String(summary.failedCount)
+                )
+            )
+        }
+
+        items.append(
+            APODOfflineMediaManagementMetric(
+                id: "media-size",
+                title: L10n.text("Offline Media Size", default: "Offline Media Size"),
+                value: ByteCountFormatter.string(fromByteCount: summary.totalByteCount, countStyle: .file)
+            )
+        )
+
+        items.append(
+            APODOfflineMediaManagementMetric(
+                id: "last-updated",
+                title: L10n.text("Last Offline Update", default: "Last Offline Update"),
+                value: lastUpdatedText
+            )
+        )
+
+        return items
+    }
+
+    var canClear: Bool {
+        summary.canClearStorage && operation == .idle
+    }
+
+    var canRebuild: Bool {
+        summary.totalManagedItemCount > 0 && operation == .idle
+    }
+
+    var actionMessage: String? {
+        switch lastCompletedAction {
+        case .cleared:
+            return L10n.text(
+                "offline.media.clear.success",
+                default: "Offline files removed. Saved APOD stories remain in Favorites."
+            )
+        case .rebuilt:
+            return L10n.text(
+                "offline.media.rebuild.success",
+                default: "Offline media refreshed for your saved APOD items."
+            )
+        case nil:
+            return nil
         }
     }
 }

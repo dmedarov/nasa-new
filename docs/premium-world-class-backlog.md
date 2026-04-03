@@ -120,7 +120,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Offline Media`
   Estimate: `2.0d`
   Depends on: `P1-01`
-  Status: `pending`
+  Status: `done`
   Scope: move user-visible offline states toward explicit derived state instead of scattered booleans.
 
 ## Phase 2: Performance and Rendering
@@ -287,6 +287,6 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Suggested Next Three Tickets
 
-- `P1-07` because offline media state still spans multiple surfaces and should be extracted before the performance pass.
 - `P2-01` because the async thumbnail pipeline is now the highest-visibility performance win once the architecture path is in place.
 - `P2-02` because archive scrolling is the next user-visible performance surface once offline media state and thumbnails are on the safer path.
+- `P2-03` because saved-library scrolling now depends on the same thumbnail and badge pipeline and becomes the next high-signal follow-through after `P2-01`.

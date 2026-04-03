@@ -124,12 +124,12 @@ struct APODDetailsView: View {
             : AppBrandingPolicy.entrySourceLinkSummary()
     }
 
+    private var offlineMediaState: APODOfflineMediaItemState {
+        fetcher.offlineMediaState(for: nasa, isSaved: isFavorite)
+    }
+
     private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
-        APODOfflineMediaStatusPolicy.presentation(
-            for: nasa,
-            asset: fetcher.offlineMediaAsset(for: nasa),
-            isSaved: isFavorite
-        )
+        offlineMediaState.statusPresentation
     }
 
     private var canOfferPhotoExport: Bool {

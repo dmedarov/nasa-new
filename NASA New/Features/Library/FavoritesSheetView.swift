@@ -4,26 +4,28 @@ import SwiftUI
 struct APODLibraryDisplayItem: Identifiable {
     let item: NASA
     let isSaved: Bool
-    let offlineMedia: APODOfflineMediaAsset?
+    let offlineMediaState: APODOfflineMediaItemState
     let title: String
     let dateText: String
     let creditLine: String
-    let offlineStatusPresentation: APODOfflineMediaStatusPresentation?
 
     var id: String { item.id }
 
     init(item: NASA, isSaved: Bool, offlineMedia: APODOfflineMediaAsset?, locale: Locale) {
         self.item = item
         self.isSaved = isSaved
-        self.offlineMedia = offlineMedia
-        title = item.title ?? L10n.text("Untitled", default: "Untitled")
-        dateText = APODDateDisplayPolicy.displayString(for: item.date, locale: locale)
-        creditLine = APODAttributionPolicy.creditLine(for: item)
-        offlineStatusPresentation = APODOfflineMediaStatusPolicy.presentation(
-            for: item,
+        offlineMediaState = APODOfflineMediaItemState(
+            mediaType: item.mediaType,
             asset: offlineMedia,
             isSaved: isSaved
         )
+        title = item.title ?? L10n.text("Untitled", default: "Untitled")
+        dateText = APODDateDisplayPolicy.displayString(for: item.date, locale: locale)
+        creditLine = APODAttributionPolicy.creditLine(for: item)
+    }
+
+    var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
+        offlineMediaState.statusPresentation
     }
 
     var mediaBadgeTitle: String { item.mediaType.localizedDisplayName }
@@ -44,24 +46,12 @@ struct APODLibraryDisplayItem: Identifiable {
     }
 
     var savedPolicyItem: SavedLibraryPolicy.Item {
-        let offlineState = offlineMedia?.state ?? .sourceRequired(remoteSourceURL: nil)
-        let storageState: SavedLibraryPolicy.Item.StorageState
-
-        switch offlineState {
-        case .full:
-            storageState = .full
-        case .preview:
-            storageState = .preview
-        case .sourceRequired, .saving, .failed:
-            storageState = .sourceBacked
-        }
-
         return SavedLibraryPolicy.Item(
             id: id,
             date: item.date,
             title: title,
             creditLine: creditLine,
-            storageState: storageState
+            storageState: offlineMediaState.savedLibraryStorageState
         )
     }
 }
@@ -299,7 +289,9 @@ struct SavedScreenView: View {
     }
 
     private var savedMissionControlPanel: some View {
-        MissionSupportPanel(
+        let offlineLibraryState = fetcher.offlineMediaLibraryState
+
+        return MissionSupportPanel(
             eyebrow: L10n.text("saved.library.eyebrow", default: "Saved Library"),
             title: L10n.format(
                 "saved.summary.count",
@@ -310,14 +302,14 @@ struct SavedScreenView: View {
             tone: .favorite,
             padding: AppTheme.Spacing.lg
         ) {
-            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+            if offlineLibraryState.showsSavedStatusBadges {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
                 }
             }
@@ -348,7 +340,9 @@ struct SavedScreenView: View {
     }
 
     private var savedOverviewPanel: some View {
-        MissionSupportPanel(
+        let offlineLibraryState = fetcher.offlineMediaLibraryState
+
+        return MissionSupportPanel(
             eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
             title: L10n.format(
                 "saved.summary.count",
@@ -362,14 +356,14 @@ struct SavedScreenView: View {
             tone: .favorite,
             padding: AppTheme.Spacing.lg
         ) {
-            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+            if offlineLibraryState.showsSavedStatusBadges {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
                 }
             }
@@ -441,28 +435,12 @@ struct SavedScreenView: View {
     }
 
     @ViewBuilder
-    private var savedStatusBadges: some View {
-        if fetcher.savedOfflineItemCount > 0 {
+    private func savedStatusBadges(_ offlineLibraryState: APODOfflineMediaLibraryState) -> some View {
+        ForEach(offlineLibraryState.savedStatusBadges) { badge in
             MissionBadge(
-                title: L10n.format(
-                    "saved.summary.offline_count",
-                    default: "%d offline",
-                    fetcher.savedOfflineItemCount
-                ),
-                systemImage: "arrow.down.circle.fill",
-                tone: .accent
-            )
-        }
-
-        if fetcher.savedPreviewItemCount > 0 {
-            MissionBadge(
-                title: L10n.format(
-                    "saved.summary.preview_count",
-                    default: "%d preview",
-                    fetcher.savedPreviewItemCount
-                ),
-                systemImage: "photo.badge.arrow.down",
-                tone: .neutral
+                title: badge.title,
+                systemImage: badge.systemImage,
+                tone: badge.tone
             )
         }
     }
@@ -1485,7 +1463,7 @@ private struct ArchiveGridThumbnailView: View {
     }
 
     private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMedia?.localPreviewURL)
+        APODLocalMediaImageLoader.image(from: displayItem.offlineMediaState.localPreviewURL)
     }
 
     var body: some View {
@@ -1633,7 +1611,7 @@ private struct APODLibraryThumbnailView: View {
     }
 
     private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMedia?.localPreviewURL)
+        APODLocalMediaImageLoader.image(from: displayItem.offlineMediaState.localPreviewURL)
     }
 
     var body: some View {

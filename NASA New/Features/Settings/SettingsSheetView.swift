@@ -502,45 +502,17 @@ private struct SettingsStorageDiagnosticsSection: View {
 }
 
 private struct SettingsOfflineMediaSection: View {
-    let offlineMediaSummary: APODOfflineMediaStorageSummary
-    let canClearOfflineMedia: Bool
-    let canRebuildOfflineMedia: Bool
-    let lastOfflineUpdateText: String
-    let offlineMediaActionMessage: String
+    let state: APODOfflineMediaManagementState
     let onClearTap: () -> Void
     let onRebuildTap: () -> Void
 
-    private var formattedOfflineMediaSize: String {
-        ByteCountFormatter.string(fromByteCount: offlineMediaSummary.totalByteCount, countStyle: .file)
-    }
-
     var body: some View {
         Section(L10n.text("Offline Media", default: "Offline Media")) {
-            LabeledContent(L10n.text("Saved Offline Items", default: "Saved Offline Items")) {
-                Text(String(offlineMediaSummary.fullyOfflineCount))
-            }
-            LabeledContent(L10n.text("Saved Preview Items", default: "Saved Preview Items")) {
-                Text(String(offlineMediaSummary.previewCount))
-            }
-            LabeledContent(L10n.text("Source Required Items", default: "Source Required Items")) {
-                Text(String(offlineMediaSummary.remoteOnlyCount))
-            }
-            if offlineMediaSummary.syncingCount > 0 {
-                LabeledContent(L10n.text("Offline Sync In Progress", default: "Offline Sync In Progress")) {
-                    Text(String(offlineMediaSummary.syncingCount))
+            ForEach(state.metrics) { metric in
+                LabeledContent(metric.title) {
+                    Text(metric.value)
+                        .multilineTextAlignment(.trailing)
                 }
-            }
-            if offlineMediaSummary.failedCount > 0 {
-                LabeledContent(L10n.text("Offline Save Failures", default: "Offline Save Failures")) {
-                    Text(String(offlineMediaSummary.failedCount))
-                }
-            }
-            LabeledContent(L10n.text("Offline Media Size", default: "Offline Media Size")) {
-                Text(formattedOfflineMediaSize)
-            }
-            LabeledContent(L10n.text("Last Offline Update", default: "Last Offline Update")) {
-                Text(lastOfflineUpdateText)
-                    .multilineTextAlignment(.trailing)
             }
 
             Button(role: .destructive, action: onClearTap) {
@@ -549,7 +521,7 @@ private struct SettingsOfflineMediaSection: View {
                     systemImage: "trash"
                 )
             }
-            .disabled(!canClearOfflineMedia)
+            .disabled(!state.canClear)
             .accessibilityIdentifier(AccessibilityID.clearOfflineMediaButton)
 
             Button(action: onRebuildTap) {
@@ -558,7 +530,7 @@ private struct SettingsOfflineMediaSection: View {
                     systemImage: "arrow.clockwise"
                 )
             }
-            .disabled(!canRebuildOfflineMedia)
+            .disabled(!state.canRebuild)
             .accessibilityIdentifier(AccessibilityID.rebuildOfflineMediaButton)
 
             SettingsSupportingTextRow(
@@ -569,9 +541,9 @@ private struct SettingsOfflineMediaSection: View {
                 accessibilityIdentifier: nil
             )
 
-            if !offlineMediaActionMessage.isEmpty {
+            if let actionMessage = state.actionMessage {
                 SettingsSupportingTextRow(
-                    text: offlineMediaActionMessage,
+                    text: actionMessage,
                     accessibilityIdentifier: AccessibilityID.offlineMediaActionStatus
                 )
             }
@@ -579,26 +551,14 @@ private struct SettingsOfflineMediaSection: View {
     }
 }
 
-private struct SettingsAboutSection: View {
-    var body: some View {
-        Section(L10n.text("About, Source & Rights", default: "About, Source & Rights")) {
-            AboutSourceRightsPanel(
-                sourceURL: AppBrandingPolicy.officialAPODHomeURL(),
-                sourceTitle: AppBrandingPolicy.officialSourceLinkTitle(),
-                sourceSummary: AppBrandingPolicy.officialSourceLinkSummary(),
-                tone: .neutral
-            )
-            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-            .listRowBackground(Color.clear)
-        }
-    }
+private enum SettingsOfflineMediaDialog {
+    case clearConfirmation
 }
 
 struct SettingsSheetView: View {
-    @State private var isClearingOfflineMedia = false
-    @State private var isRebuildingOfflineMedia = false
-    @State private var showClearOfflineMediaConfirmation = false
-    @State private var offlineMediaActionMessage = ""
+    @State private var offlineMediaOperation: APODOfflineMediaManagementOperation = .idle
+    @State private var pendingOfflineMediaDialog: SettingsOfflineMediaDialog?
+    @State private var lastCompletedOfflineMediaAction: APODOfflineMediaManagementCompletedAction?
     @Binding var appearancePreference: AppAppearancePreference
     @Binding var preferImages: Bool
     @Binding var allowVideoPlayback: Bool
@@ -631,12 +591,24 @@ struct SettingsSheetView: View {
     let onClearOfflineMedia: () async -> Void
     let onRebuildOfflineMedia: () async -> Void
 
-    private var canClearOfflineMedia: Bool {
-        offlineMediaSummary.canClearStorage && !isClearingOfflineMedia && !isRebuildingOfflineMedia
+    private var offlineMediaManagementState: APODOfflineMediaManagementState {
+        APODOfflineMediaManagementState(
+            summary: offlineMediaSummary,
+            operation: offlineMediaOperation,
+            lastUpdatedText: formattedRequestDate(offlineMediaSummary.lastUpdatedAt),
+            lastCompletedAction: lastCompletedOfflineMediaAction
+        )
     }
 
-    private var canRebuildOfflineMedia: Bool {
-        offlineMediaSummary.totalManagedItemCount > 0 && !isClearingOfflineMedia && !isRebuildingOfflineMedia
+    private var showClearOfflineMediaConfirmation: Binding<Bool> {
+        Binding(
+            get: { pendingOfflineMediaDialog == .clearConfirmation },
+            set: { isPresented in
+                if !isPresented {
+                    pendingOfflineMediaDialog = nil
+                }
+            }
+        )
     }
 
     var body: some View {
@@ -694,11 +666,7 @@ struct SettingsSheetView: View {
                 )
 
                 SettingsOfflineMediaSection(
-                    offlineMediaSummary: offlineMediaSummary,
-                    canClearOfflineMedia: canClearOfflineMedia,
-                    canRebuildOfflineMedia: canRebuildOfflineMedia,
-                    lastOfflineUpdateText: formattedRequestDate(offlineMediaSummary.lastUpdatedAt),
-                    offlineMediaActionMessage: offlineMediaActionMessage,
+                    state: offlineMediaManagementState,
                     onClearTap: requestOfflineMediaClearConfirmation,
                     onRebuildTap: requestOfflineMediaRebuild
                 )
@@ -729,7 +697,7 @@ struct SettingsSheetView: View {
             }
             .confirmationDialog(
                 L10n.text("offline.media.clear.confirmation.title", default: "Clear downloaded offline media?"),
-                isPresented: $showClearOfflineMediaConfirmation,
+                isPresented: showClearOfflineMediaConfirmation,
                 titleVisibility: .visible
             ) {
                 Button(
@@ -754,7 +722,7 @@ struct SettingsSheetView: View {
     }
 
     private func requestOfflineMediaClearConfirmation() {
-        showClearOfflineMediaConfirmation = true
+        pendingOfflineMediaDialog = .clearConfirmation
     }
 
     private func requestOfflineMediaRebuild() {
@@ -770,25 +738,37 @@ struct SettingsSheetView: View {
 
     @MainActor
     private func clearOfflineMedia() async {
-        isClearingOfflineMedia = true
-        defer { isClearingOfflineMedia = false }
+        pendingOfflineMediaDialog = nil
+        lastCompletedOfflineMediaAction = nil
+        offlineMediaOperation = .clearing
+        defer { offlineMediaOperation = .idle }
 
         await onClearOfflineMedia()
-        offlineMediaActionMessage = L10n.text(
-            "offline.media.clear.success",
-            default: "Offline files removed. Saved APOD stories remain in Favorites."
-        )
+        lastCompletedOfflineMediaAction = .cleared
     }
 
     @MainActor
     private func rebuildOfflineMedia() async {
-        isRebuildingOfflineMedia = true
-        defer { isRebuildingOfflineMedia = false }
+        lastCompletedOfflineMediaAction = nil
+        offlineMediaOperation = .rebuilding
+        defer { offlineMediaOperation = .idle }
 
         await onRebuildOfflineMedia()
-        offlineMediaActionMessage = L10n.text(
-            "offline.media.rebuild.success",
-            default: "Offline media refreshed for your saved APOD items."
-        )
+        lastCompletedOfflineMediaAction = .rebuilt
+    }
+}
+
+private struct SettingsAboutSection: View {
+    var body: some View {
+        Section(L10n.text("About, Source & Rights", default: "About, Source & Rights")) {
+            AboutSourceRightsPanel(
+                sourceURL: AppBrandingPolicy.officialAPODHomeURL(),
+                sourceTitle: AppBrandingPolicy.officialSourceLinkTitle(),
+                sourceSummary: AppBrandingPolicy.officialSourceLinkSummary(),
+                tone: .neutral
+            )
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+        }
     }
 }

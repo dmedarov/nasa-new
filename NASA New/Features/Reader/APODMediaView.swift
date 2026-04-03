@@ -97,25 +97,20 @@ struct MediaView: View {
         fetcher.isFavorite(nasa)
     }
 
-    private var offlineMediaAsset: APODOfflineMediaAsset? {
-        fetcher.offlineMediaAsset(for: nasa)
+    private var offlineMediaState: APODOfflineMediaItemState {
+        fetcher.offlineMediaState(for: nasa, isSaved: isSaved)
     }
 
     private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
-        APODOfflineMediaStatusPolicy.presentation(
-            for: nasa,
-            asset: offlineMediaAsset,
-            isSaved: isSaved
-        )
+        offlineMediaState.statusPresentation
     }
 
     private var localImage: Image? {
-        APODLocalMediaImageLoader.image(from: offlineMediaAsset?.state.localPreviewURL)
+        APODLocalMediaImageLoader.image(from: offlineMediaState.localPreviewURL)
     }
 
     private var localVideoURL: URL? {
-        guard case .full(let localAssetURL, _) = offlineMediaAsset?.state else { return nil }
-        return localAssetURL
+        offlineMediaState.localVideoURL
     }
 
     private var imagePanGesture: some Gesture {

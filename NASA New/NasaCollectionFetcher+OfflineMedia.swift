@@ -15,8 +15,20 @@ extension NasaCollectionFetcher {
         }
     }
 
+    var offlineMediaLibraryState: APODOfflineMediaLibraryState {
+        APODOfflineMediaLibraryState(summary: offlineMediaStorageSummary)
+    }
+
     func offlineMediaAsset(for nasa: NASA) -> APODOfflineMediaAsset? {
         offlineMediaAssetsByID[nasa.id]
+    }
+
+    func offlineMediaState(for nasa: NASA, isSaved: Bool? = nil) -> APODOfflineMediaItemState {
+        APODOfflineMediaItemState(
+            mediaType: nasa.mediaType,
+            asset: offlineMediaAsset(for: nasa),
+            isSaved: isSaved ?? isFavorite(nasa)
+        )
     }
 
     func localMediaURL(for nasa: NASA) -> URL? {

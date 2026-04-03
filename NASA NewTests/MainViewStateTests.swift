@@ -873,6 +873,85 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(summary.totalByteCount, 1_280)
     }
 
+    func testAPODOfflineMediaItemStateDerivesSavedPresentationAndStorageState() {
+        let asset = APODOfflineMediaAsset(
+            apodID: "video",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localAssetRelativePath: "offline/video.mp4",
+            availability: .availableOffline
+        )
+        let state = APODOfflineMediaItemState(mediaType: .video, asset: asset, isSaved: true)
+
+        XCTAssertEqual(state.savedLibraryStorageState, .full)
+        XCTAssertEqual(state.statusPresentation?.title, "Available Offline")
+        XCTAssertEqual(state.localVideoURL?.lastPathComponent, "video.mp4")
+    }
+
+    func testAPODOfflineMediaLibraryStateBuildsSavedStatusBadgesFromSummary() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 2,
+            previewCount: 1,
+            remoteOnlyCount: 3,
+            syncingCount: 0,
+            failedCount: 0,
+            totalByteCount: 4_096,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaLibraryState(summary: summary)
+
+        XCTAssertTrue(state.showsSavedStatusBadges)
+        XCTAssertEqual(state.savedStatusBadges.map(\.title), ["2 offline", "1 preview"])
+    }
+
+    func testAPODOfflineMediaManagementStateDerivesMetricsAndCompletionMessage() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 1,
+            previewCount: 2,
+            remoteOnlyCount: 4,
+            syncingCount: 1,
+            failedCount: 1,
+            totalByteCount: 2_048,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaManagementState(
+            summary: summary,
+            operation: .idle,
+            lastUpdatedText: "Apr 4, 2026 at 2:40 AM",
+            lastCompletedAction: .rebuilt
+        )
+
+        XCTAssertTrue(state.canClear)
+        XCTAssertTrue(state.canRebuild)
+        XCTAssertEqual(
+            state.metrics.map(\.id),
+            ["saved-offline", "saved-preview", "source-required", "syncing", "failed", "media-size", "last-updated"]
+        )
+        XCTAssertEqual(state.actionMessage, "Offline media refreshed for your saved APOD items.")
+    }
+
+    func testAPODOfflineMediaManagementStateDisablesActionsWhileOperationRuns() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 0,
+            previewCount: 0,
+            remoteOnlyCount: 2,
+            syncingCount: 0,
+            failedCount: 0,
+            totalByteCount: 0,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaManagementState(
+            summary: summary,
+            operation: .clearing,
+            lastUpdatedText: "Not available",
+            lastCompletedAction: nil
+        )
+
+        XCTAssertFalse(state.canClear)
+        XCTAssertFalse(state.canRebuild)
+        XCTAssertNil(state.actionMessage)
+    }
+
     func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
         let service = PhotoExportService()
         let nasa = NASA(
