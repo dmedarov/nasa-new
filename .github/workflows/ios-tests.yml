@@ -44,12 +44,65 @@ jobs:
       - name: Show Xcode Version
         run: xcodebuild -version
 
+      - name: Show Available Simulators
+        run: xcrun simctl list devices available
+
+      - name: Show Available Xcode Destinations
+        run: >
+          xcodebuild
+          -project 'NASA New.xcodeproj'
+          -scheme 'NASA New'
+          -showdestinations
+
+      - name: Resolve iPad Simulator Destination
+        run: |
+          set -euo pipefail
+
+          available_destinations="$(
+            xcodebuild \
+              -project 'NASA New.xcodeproj' \
+              -scheme 'NASA New' \
+              -showdestinations 2>/dev/null
+          )"
+
+          preferred_names=(
+            "iPad Air 13-inch (M4)"
+            "iPad Air 13-inch (M3)"
+            "iPad Air 13-inch (M2)"
+            "iPad Pro 13-inch (M5)"
+            "iPad Pro 13-inch (M4)"
+          )
+
+          for name in "${preferred_names[@]}"; do
+            if grep -Fq "name:${name}" <<<"$available_destinations"; then
+              echo "Selected iPad simulator: ${name}"
+              echo "CI_IPAD_DESTINATION=platform=iOS Simulator,name=${name},OS=latest" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          fallback_name="$(
+            grep -Eo 'name:iPad[^}]+' <<<"$available_destinations" |
+              sed -E 's/^name:|[[:space:]]+$//g' |
+              head -n 1
+          )"
+
+          if [[ -n "${fallback_name}" ]]; then
+            echo "Falling back to first available iPad simulator: ${fallback_name}"
+            echo "CI_IPAD_DESTINATION=platform=iOS Simulator,name=${fallback_name},OS=latest" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Unable to resolve an available iPad simulator destination."
+          echo "$available_destinations"
+          exit 1
+
       - name: Run iPad Split-Shell Smoke Tests
         run: >
           xcodebuild test
           -project 'NASA New.xcodeproj'
           -scheme 'NASA New'
-          -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4),OS=latest'
+          -destination "$CI_IPAD_DESTINATION"
           -derivedDataPath "$RUNNER_TEMP/DerivedData-iPad"
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadSplitShellArchiveSelectionFlow'
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadSavedSelectionUpdatesDetail'
