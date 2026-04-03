@@ -274,6 +274,62 @@ struct PremiumDualPaneStage<Primary: View, Secondary: View>: View {
     }
 }
 
+struct PremiumLibrarySplitStage<Library: View, Detail: View>: View {
+    let hasItems: Bool
+    let supportsDualPane: Bool
+    let primaryWidth: CGFloat?
+    let showsLibraryWhenCompact: Bool
+    let showsDetailWhenCompact: Bool
+    let libraryTone: AppTheme.SurfaceTone
+    let detailTone: AppTheme.SurfaceTone
+    private let library: Library
+    private let detail: Detail
+
+    init(
+        hasItems: Bool,
+        supportsDualPane: Bool,
+        primaryWidth: CGFloat? = nil,
+        showsLibraryWhenCompact: Bool,
+        showsDetailWhenCompact: Bool,
+        libraryTone: AppTheme.SurfaceTone = .neutral,
+        detailTone: AppTheme.SurfaceTone = .neutral,
+        @ViewBuilder library: () -> Library,
+        @ViewBuilder detail: () -> Detail
+    ) {
+        self.hasItems = hasItems
+        self.supportsDualPane = supportsDualPane
+        self.primaryWidth = primaryWidth
+        self.showsLibraryWhenCompact = showsLibraryWhenCompact
+        self.showsDetailWhenCompact = showsDetailWhenCompact
+        self.libraryTone = libraryTone
+        self.detailTone = detailTone
+        self.library = library()
+        self.detail = detail()
+    }
+
+    var body: some View {
+        if !hasItems {
+            PremiumShellStage(tone: libraryTone) {
+                library
+            }
+        } else {
+            PremiumDualPaneStage(primaryWidth: supportsDualPane ? primaryWidth : nil) {
+                if supportsDualPane || showsLibraryWhenCompact {
+                    PremiumShellStage(tone: libraryTone) {
+                        library
+                    }
+                }
+            } secondary: {
+                if supportsDualPane || showsDetailWhenCompact {
+                    PremiumShellStage(tone: detailTone) {
+                        detail
+                    }
+                }
+            }
+        }
+    }
+}
+
 extension View {
     func appScreenChrome() -> some View {
         modifier(AppScreenChromeModifier())

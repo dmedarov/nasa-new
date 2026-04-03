@@ -106,6 +106,174 @@ enum AppDestination: String, CaseIterable, Identifiable, Hashable, Codable {
     }
 }
 
+struct AppShellSelectionPolicy {
+    struct Resolution {
+        let normalizedSelectionID: String?
+        let selectedItem: NASA?
+        let fallbackItem: NASA?
+
+        var hasDetailContent: Bool {
+            selectedItem != nil || fallbackItem != nil
+        }
+    }
+
+    static func resolveArchive(
+        selectedID: String?,
+        selectionClearedByUser: Bool,
+        archiveItems: [NASA],
+        favoriteItems: [NASA]
+    ) -> Resolution {
+        resolve(
+            selectedID: selectedID,
+            selectionClearedByUser: selectionClearedByUser,
+            primaryItems: archiveItems,
+            secondaryItems: favoriteItems
+        )
+    }
+
+    static func resolveSaved(
+        selectedID: String?,
+        selectionClearedByUser: Bool,
+        favoriteItems: [NASA]
+    ) -> Resolution {
+        resolve(
+            selectedID: selectedID,
+            selectionClearedByUser: selectionClearedByUser,
+            primaryItems: favoriteItems,
+            secondaryItems: []
+        )
+    }
+
+    private static func resolve(
+        selectedID: String?,
+        selectionClearedByUser: Bool,
+        primaryItems: [NASA],
+        secondaryItems: [NASA]
+    ) -> Resolution {
+        guard !selectionClearedByUser else {
+            return Resolution(
+                normalizedSelectionID: nil,
+                selectedItem: nil,
+                fallbackItem: nil
+            )
+        }
+
+        let selectedItem = selectedID.flatMap { targetID in
+            primaryItems.first(where: { $0.id == targetID })
+                ?? secondaryItems.first(where: { $0.id == targetID })
+        }
+
+        return Resolution(
+            normalizedSelectionID: selectedItem?.id,
+            selectedItem: selectedItem,
+            fallbackItem: primaryItems.first
+        )
+    }
+}
+
+struct AppShellSelectionFlags: Equatable {
+    var archiveSelectionClearedByUser = false
+    var savedSelectionClearedByUser = false
+}
+
+struct AppShellRouteSelectionContract {
+    struct Synchronization {
+        let archiveResolution: AppShellSelectionPolicy.Resolution
+        let savedResolution: AppShellSelectionPolicy.Resolution
+        let normalizedArchiveSelectionID: String?
+        let normalizedSavedSelectionID: String?
+        let archiveSelectedItemForFetcher: NASA?
+        let savedSelectedItemForFetcher: NASA?
+    }
+
+    static func flagsAfterNavigating(
+        to destination: AppDestination,
+        current: AppShellSelectionFlags
+    ) -> AppShellSelectionFlags {
+        var updated = current
+
+        if destination != .archive {
+            updated.archiveSelectionClearedByUser = false
+        }
+        if destination != .saved {
+            updated.savedSelectionClearedByUser = false
+        }
+
+        return updated
+    }
+
+    static func flagsAfterSelectionChange(
+        for destination: AppDestination,
+        selectedID: String?,
+        current: AppShellSelectionFlags
+    ) -> AppShellSelectionFlags {
+        guard selectedID != nil else { return current }
+
+        var updated = current
+        switch destination {
+        case .today:
+            break
+        case .archive:
+            updated.archiveSelectionClearedByUser = false
+        case .saved:
+            updated.savedSelectionClearedByUser = false
+        }
+
+        return updated
+    }
+
+    static func flagsAfterExplicitClear(
+        for destination: AppDestination,
+        current: AppShellSelectionFlags
+    ) -> AppShellSelectionFlags {
+        var updated = current
+        switch destination {
+        case .today:
+            break
+        case .archive:
+            updated.archiveSelectionClearedByUser = true
+        case .saved:
+            updated.savedSelectionClearedByUser = true
+        }
+
+        return updated
+    }
+
+    static func synchronize(
+        destination: AppDestination,
+        archiveSelectedID: String?,
+        savedSelectedID: String?,
+        flags: AppShellSelectionFlags,
+        archiveItems: [NASA],
+        favoriteItems: [NASA]
+    ) -> Synchronization {
+        let archiveResolution = AppShellSelectionPolicy.resolveArchive(
+            selectedID: archiveSelectedID,
+            selectionClearedByUser: flags.archiveSelectionClearedByUser,
+            archiveItems: archiveItems,
+            favoriteItems: favoriteItems
+        )
+        let savedResolution = AppShellSelectionPolicy.resolveSaved(
+            selectedID: savedSelectedID,
+            selectionClearedByUser: flags.savedSelectionClearedByUser,
+            favoriteItems: favoriteItems
+        )
+
+        return Synchronization(
+            archiveResolution: archiveResolution,
+            savedResolution: savedResolution,
+            normalizedArchiveSelectionID: destination == .archive
+                ? archiveResolution.normalizedSelectionID
+                : archiveSelectedID,
+            normalizedSavedSelectionID: destination == .saved
+                ? savedResolution.normalizedSelectionID
+                : savedSelectedID,
+            archiveSelectedItemForFetcher: destination == .archive ? archiveResolution.selectedItem : nil,
+            savedSelectedItemForFetcher: destination == .saved ? savedResolution.selectedItem : nil
+        )
+    }
+}
+
 struct AppRoute: Codable, Equatable {
     let destination: AppDestination
     let apodDate: String?

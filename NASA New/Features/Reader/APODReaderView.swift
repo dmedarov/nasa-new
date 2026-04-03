@@ -1,22 +1,9 @@
 import SwiftUI
-import AVKit
-import YouTubePlayerKit
 
 struct APODReaderView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.appShellContext) private var appShellContext
-    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
-    @State private var imageScale: CGFloat = 1
-    @State private var imageOffset: CGSize = .zero
-    @State private var isVideoLoading = false
-    @StateObject private var networkStatus = NetworkStatusMonitor()
-
-    @AppStorage("allowVideoPlayback") private var allowVideoPlayback: Bool = true
-    @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
-    @AppStorage("preferHDImages") private var preferHDImages: Bool = true
-    @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
 
     let nasa: NASA
     let isFavorite: Bool
@@ -37,10 +24,6 @@ struct APODReaderView: View {
         return max(availableWidth, 0)
     }
 
-    private var effectiveReduceMotion: Bool {
-        appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
-    }
-
     private var usesWideEditorialLayout: Bool {
         let wideThreshold: CGFloat = appShellContext == .premiumRegularShell ? 1_260 : 940
         if availableWidth != nil {
@@ -56,13 +39,6 @@ struct APODReaderView: View {
         case .premiumRegularShell:
             return AppTheme.Metrics.regularDetailsColumnMaxWidth
         }
-    }
-
-    private var effectivePreferHDImages: Bool {
-        DataSaverPreferencePolicy.resolvedPreferHDImages(
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
     }
 
     private func readerStageWidths(for availableWidth: CGFloat) -> (media: CGFloat, details: CGFloat) {
@@ -89,11 +65,6 @@ struct APODReaderView: View {
         return (adjustedMediaWidth, resolvedDetailsWidth)
     }
 
-    private func resetImageState() {
-        imageScale = 1
-        imageOffset = .zero
-    }
-
     var body: some View {
         Group {
             if usesWideEditorialLayout {
@@ -116,78 +87,15 @@ struct APODReaderView: View {
                 }
             }
         }
-        .onChange(of: nasa.id) { _ in
-            resetImageState()
-            isVideoLoading = nasa.mediaType == .video
-        }
     }
 
     private var mediaSection: some View {
-        MediaView(
-            nasa: nasa,
-            imageScale: $imageScale,
-            imageOffset: $imageOffset,
-            isVideoLoading: $isVideoLoading,
-            allowVideoPlayback: allowVideoPlayback,
-            wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
-            isOnWiFiConnection: networkStatus.connectionKind == .wifi,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: effectivePreferHDImages,
-            reduceMotion: effectiveReduceMotion,
-            resetImageState: resetImageState,
-            extractYouTubeID: Self.extractYouTubeID,
-            videoThumbnailURL: Self.videoThumbnailURL(for:)
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(AccessibilityID.apodMediaSection)
+        APODReaderMediaSection(nasa: nasa)
     }
 
     private var detailsSection: some View {
-        APODDetailsView(
-            nasa: nasa,
-            isFavorite: isFavorite,
-            nasaPageURL: APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url),
-            preferredMediaSourceURL: APODSourceLinkPolicy.preferredMediaURL(
-                for: nasa,
-                dataSaverMode: dataSaverMode,
-                preferHDImages: effectivePreferHDImages
-            ),
-            preferredMediaSourceTitle: APODSourceLinkPolicy.preferredMediaTitle(
-                for: nasa,
-                dataSaverMode: dataSaverMode,
-                preferHDImages: effectivePreferHDImages
-            ),
-            preferredMediaSourceDescription: APODSourceLinkPolicy.preferredMediaDescription(
-                for: nasa,
-                dataSaverMode: dataSaverMode,
-                preferHDImages: effectivePreferHDImages
-            ),
-            preferredMediaSourceSystemImage: APODSourceLinkPolicy.preferredMediaSystemImage(for: nasa)
-        )
+        APODDetailsView(nasa: nasa, isFavorite: isFavorite)
         .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
-    }
-
-    private static func extractYouTubeID(from url: URL?) -> String? {
-        guard let url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return nil
-        }
-
-        let youtubeHosts = ["youtube.com", "youtu.be", "www.youtube.com"]
-        if youtubeHosts.contains(where: { url.host?.contains($0) == true }) {
-            if url.host?.contains("youtu.be") == true || url.path.contains("/embed/") || url.path.contains("/v/"),
-               let path = components.path.components(separatedBy: "/").last,
-               !path.isEmpty {
-                return path
-            }
-
-            return components.queryItems?.first(where: { $0.name == "v" })?.value
-        }
-
-        return nil
-    }
-
-    private static func videoThumbnailURL(for videoID: String) -> URL? {
-        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
     }
 }
 
@@ -199,6 +107,8 @@ struct APODRecordDetailView: View {
     let destination: AppDestination
 
     @State private var showShareSheet = false
+    @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
+    @AppStorage("preferHDImages") private var preferHDImages: Bool = true
 
     private var detailStageMaxWidth: CGFloat {
         appShellContext == .premiumRegularShell
@@ -267,10 +177,17 @@ struct APODRecordDetailView: View {
     }
 
     private var shareItems: [Any] {
-        let primaryURL = APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url) ?? nasa.url
         return APODSharePolicy.shareItems(
             for: nasa,
-            sourceURL: primaryURL
+            sourceURL: APODReaderSourceContext(
+                nasa: nasa,
+                dataSaverMode: dataSaverMode,
+                preferHDImages: DataSaverPreferencePolicy.resolvedPreferHDImages(
+                    dataSaverMode: dataSaverMode,
+                    preferHDImages: preferHDImages
+                )
+            ).nasaPageURL ?? nasa.url,
+            mediaItem: APODMediaPresentationPolicy.shareMediaItem(for: nasa)
         )
     }
 

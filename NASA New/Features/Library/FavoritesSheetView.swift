@@ -1,76 +1,7 @@
 import Combine
 import SwiftUI
 
-private enum ArchiveFilter: String, CaseIterable, Identifiable {
-    case all
-    case image
-    case video
-    case saved
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .all:
-            return L10n.text("All", default: "All")
-        case .image:
-            return L10n.text("Images", default: "Images")
-        case .video:
-            return L10n.text("Videos", default: "Videos")
-        case .saved:
-            return L10n.text("Saved", default: "Saved")
-        }
-    }
-}
-
-private enum ArchivePresentationMode: String, CaseIterable, Identifiable {
-    case grid
-    case list
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .grid:
-            return L10n.text("Grid", default: "Grid")
-        case .list:
-            return L10n.text("List", default: "List")
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .grid:
-            return "square.grid.2x2"
-        case .list:
-            return "list.bullet.rectangle"
-        }
-    }
-}
-
-private enum SavedFilter: String, CaseIterable, Identifiable {
-    case all
-    case offline
-    case preview
-    case sourceRequired
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .all:
-            return L10n.text("All", default: "All")
-        case .offline:
-            return L10n.text("Offline", default: "Offline")
-        case .preview:
-            return L10n.text("Preview", default: "Preview")
-        case .sourceRequired:
-            return L10n.text("Source", default: "Source")
-        }
-    }
-}
-
-private struct APODLibraryDisplayItem: Identifiable {
+struct APODLibraryDisplayItem: Identifiable {
     let item: NASA
     let isSaved: Bool
     let offlineMedia: APODOfflineMediaAsset?
@@ -101,51 +32,41 @@ private struct APODLibraryDisplayItem: Identifiable {
         item.mediaType == .video ? "play.rectangle.fill" : "photo.fill"
     }
 
-    func matchesSearch(_ query: String) -> Bool {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return true }
-
-        return title.localizedCaseInsensitiveContains(trimmedQuery)
-            || (item.date ?? "").localizedCaseInsensitiveContains(trimmedQuery)
-            || creditLine.localizedCaseInsensitiveContains(trimmedQuery)
+    var archivePolicyItem: ArchiveLibraryPolicy.Item {
+        ArchiveLibraryPolicy.Item(
+            id: id,
+            date: item.date,
+            title: title,
+            creditLine: creditLine,
+            mediaKind: .init(item.mediaType),
+            isSaved: isSaved
+        )
     }
 
-    func matchesArchiveFilter(_ filter: ArchiveFilter) -> Bool {
-        switch filter {
-        case .all:
-            return true
-        case .image:
-            return item.mediaType == .image
-        case .video:
-            return item.mediaType == .video
-        case .saved:
-            return isSaved
-        }
-    }
-
-    func matchesSavedFilter(_ filter: SavedFilter) -> Bool {
+    var savedPolicyItem: SavedLibraryPolicy.Item {
         let offlineState = offlineMedia?.state ?? .sourceRequired(remoteSourceURL: nil)
+        let storageState: SavedLibraryPolicy.Item.StorageState
 
-        switch filter {
-        case .all:
-            return true
-        case .offline:
-            if case .full = offlineState {
-                return true
-            }
-            return false
+        switch offlineState {
+        case .full:
+            storageState = .full
         case .preview:
-            if case .preview = offlineState {
-                return true
-            }
-            return false
-        case .sourceRequired:
-            return offlineState.countsAsSourceBacked
+            storageState = .preview
+        case .sourceRequired, .saving, .failed:
+            storageState = .sourceBacked
         }
+
+        return SavedLibraryPolicy.Item(
+            id: id,
+            date: item.date,
+            title: title,
+            creditLine: creditLine,
+            storageState: storageState
+        )
     }
 }
 
-private struct ArchiveSection: Identifiable {
+struct ArchiveSection: Identifiable {
     let id: String
     let title: String
     let items: [APODLibraryDisplayItem]
@@ -171,19 +92,32 @@ struct SavedScreenView: View {
     }
 
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular && !embedInRegularShell
+        LibraryLayoutPolicy.usesSplitLayout(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var supportsGridPresentation: Bool {
-        usesSplitLayout
+        LibraryLayoutPolicy.supportsGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var savedPresentationMode: ArchivePresentationMode {
-        ArchivePresentationMode(rawValue: savedPresentationModeRawValue) ?? .list
+        LibraryLayoutPolicy.resolvedPresentationMode(
+            from: savedPresentationModeRawValue,
+            fallback: .list
+        )
     }
 
     private var usesGridPresentation: Bool {
-        supportsGridPresentation && savedPresentationMode == .grid
+        LibraryLayoutPolicy.usesGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell,
+            presentationMode: savedPresentationMode
+        )
     }
 
     private var savedFilter: SavedFilter {
@@ -581,7 +515,10 @@ struct SavedScreenView: View {
     }
 
     private func syncSavedSelectionFromRouter() {
-        guard let selectedID = router.selectedSavedItemID else { return }
+        guard let selectedID = router.selectedSavedItemID else {
+            selectedFavoriteID = nil
+            return
+        }
         selectedFavoriteID = selectedID
         if let favorite = fetcher.favorites.first(where: { $0.id == selectedID }) {
             fetcher.selectFavorite(favorite)
@@ -601,9 +538,14 @@ struct SavedScreenView: View {
     }
 
     private func rebuildSavedFiltering() {
-        filteredFavoriteItems = savedDisplayItems.filter { item in
-            item.matchesSavedFilter(savedFilter) && item.matchesSearch(searchQuery)
-        }
+        let savedItemsByID = Dictionary(uniqueKeysWithValues: savedDisplayItems.map { ($0.id, $0) })
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: savedDisplayItems.map(\.savedPolicyItem),
+            filter: savedFilter,
+            searchQuery: searchQuery
+        )
+
+        filteredFavoriteItems = filteredIDs.compactMap { savedItemsByID[$0] }
     }
 
     private var favoritesEmptyState: some View {
@@ -673,11 +615,17 @@ struct ArchiveScreenView: View {
     }
 
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular && !embedInRegularShell
+        LibraryLayoutPolicy.usesSplitLayout(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var archivePresentationMode: ArchivePresentationMode {
-        ArchivePresentationMode(rawValue: archivePresentationModeRawValue) ?? .grid
+        LibraryLayoutPolicy.resolvedPresentationMode(
+            from: archivePresentationModeRawValue,
+            fallback: .grid
+        )
     }
 
     private var archiveFilter: ArchiveFilter {
@@ -685,11 +633,18 @@ struct ArchiveScreenView: View {
     }
 
     private var supportsGridPresentation: Bool {
-        usesSplitLayout
+        LibraryLayoutPolicy.supportsGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var usesGridPresentation: Bool {
-        supportsGridPresentation && archivePresentationMode == .grid
+        LibraryLayoutPolicy.usesGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell,
+            presentationMode: archivePresentationMode
+        )
     }
 
     private var selectedArchiveItem: NASA? {
@@ -992,7 +947,10 @@ struct ArchiveScreenView: View {
     }
 
     private func syncArchiveSelectionFromRouter() {
-        guard let selectedID = router.selectedArchiveItemID else { return }
+        guard let selectedID = router.selectedArchiveItemID else {
+            selectedArchiveItemID = nil
+            return
+        }
         selectedArchiveItemID = selectedID
         if let archiveItem = fetcher.archiveItems.first(where: { $0.id == selectedID }) {
             fetcher.selectArchivedItem(archiveItem)
@@ -1028,23 +986,22 @@ struct ArchiveScreenView: View {
     }
 
     private func rebuildArchiveFiltering() {
-        filteredArchiveItems = archiveDisplayItems.filter { item in
-            item.matchesArchiveFilter(archiveFilter) && item.matchesSearch(searchQuery)
-        }
+        let archiveItemsByID = Dictionary(uniqueKeysWithValues: archiveDisplayItems.map { ($0.id, $0) })
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: archiveDisplayItems.map(\.archivePolicyItem),
+            filter: archiveFilter,
+            searchQuery: searchQuery,
+            locale: locale
+        )
 
-        let groupedItems = Dictionary(grouping: filteredArchiveItems) { item in
-            archiveSectionKey(for: item.item.date)
+        filteredArchiveItems = resolution.filteredItemIDs.compactMap { archiveItemsByID[$0] }
+        archiveSections = resolution.sections.map { section in
+            ArchiveSection(
+                id: section.id,
+                title: section.title,
+                items: section.itemIDs.compactMap { archiveItemsByID[$0] }
+            )
         }
-
-        archiveSections = groupedItems.keys
-            .sorted(by: >)
-            .map { key in
-                ArchiveSection(
-                    id: key,
-                    title: archiveSectionTitle(for: key),
-                    items: groupedItems[key, default: []].sorted { ($0.item.date ?? "") > ($1.item.date ?? "") }
-                )
-            }
     }
 
     private func jumpToArchiveDate(compactNavigation: Bool) {
@@ -1423,29 +1380,6 @@ struct ArchiveScreenView: View {
         )
     }
 
-    private func archiveSectionKey(for apiDateString: String?) -> String {
-        guard
-            let apiDateString,
-            let parsedDate = DateFormatter.archiveAPODDateFormatter.date(from: apiDateString)
-        else {
-            return "unknown"
-        }
-
-        return DateFormatter.archiveSectionKeyFormatter.string(from: parsedDate)
-    }
-
-    private func archiveSectionTitle(for key: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-
-        guard key != "unknown",
-              let parsedDate = DateFormatter.archiveSectionKeyFormatter.date(from: key) else {
-            return L10n.text("Unknown", default: "Unknown")
-        }
-
-        return formatter.string(from: parsedDate)
-    }
 }
 
 private struct ArchiveGridCard: View {
@@ -1747,24 +1681,4 @@ private struct APODLibraryThumbnailView: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-private extension DateFormatter {
-    static let archiveAPODDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
-
-    static let archiveSectionKeyFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM"
-        formatter.isLenient = false
-        return formatter
-    }()
 }

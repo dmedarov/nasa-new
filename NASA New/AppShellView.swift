@@ -12,6 +12,7 @@ struct AppShellView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(StorageKey.destination) private var persistedDestinationRawValue = AppDestination.today.rawValue
     @State private var lastTrackedDestination: AppDestination?
+    @State private var selectionFlags = AppShellSelectionFlags()
 
     private var usesSplitShell: Bool {
         horizontalSizeClass == .regular
@@ -40,9 +41,27 @@ struct AppShellView: View {
             }
         }
         .onChange(of: router.destination) { newValue in
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterNavigating(
+                to: newValue,
+                current: selectionFlags
+            )
             persistDestination(newValue)
             ensureRegularShellSelectionIfNeeded()
             trackArchiveVisitIfNeeded(for: newValue)
+        }
+        .onChange(of: router.selectedArchiveItemID) { newValue in
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+                for: .archive,
+                selectedID: newValue,
+                current: selectionFlags
+            )
+        }
+        .onChange(of: router.selectedSavedItemID) { newValue in
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+                for: .saved,
+                selectedID: newValue,
+                current: selectionFlags
+            )
         }
         .onChange(of: fetcher.archiveItems.map(\.id)) { _ in
             ensureRegularShellSelectionIfNeeded()
@@ -294,23 +313,37 @@ struct AppShellView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    private var archiveSelectionResolution: AppShellSelectionPolicy.Resolution {
+        AppShellSelectionPolicy.resolveArchive(
+            selectedID: router.selectedArchiveItemID,
+            selectionClearedByUser: selectionFlags.archiveSelectionClearedByUser,
+            archiveItems: fetcher.archiveItems,
+            favoriteItems: fetcher.favorites
+        )
+    }
+
+    private var savedSelectionResolution: AppShellSelectionPolicy.Resolution {
+        AppShellSelectionPolicy.resolveSaved(
+            selectedID: router.selectedSavedItemID,
+            selectionClearedByUser: selectionFlags.savedSelectionClearedByUser,
+            favoriteItems: fetcher.favorites
+        )
+    }
+
     private var selectedArchiveItem: NASA? {
-        guard let selectedID = router.selectedArchiveItemID else { return nil }
-        return fetcher.archiveItems.first(where: { $0.id == selectedID })
-            ?? fetcher.favorites.first(where: { $0.id == selectedID })
+        archiveSelectionResolution.selectedItem
     }
 
     private var fallbackArchiveItem: NASA? {
-        fetcher.archiveItems.first
+        archiveSelectionResolution.fallbackItem
     }
 
     private var selectedSavedItem: NASA? {
-        guard let selectedID = router.selectedSavedItemID else { return nil }
-        return fetcher.favorites.first(where: { $0.id == selectedID })
+        savedSelectionResolution.selectedItem
     }
 
     private var fallbackSavedItem: NASA? {
-        fetcher.favorites.first
+        savedSelectionResolution.fallbackItem
     }
 
     private func regularArchiveStage(availableWidth: CGFloat) -> some View {
@@ -320,27 +353,19 @@ struct AppShellView: View {
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
-        guard !fetcher.archiveItems.isEmpty else {
-            return AnyView(
-                PremiumShellStage {
-                    archiveRoot(embedInRegularShell: true)
-                }
-            )
+        return PremiumLibrarySplitStage(
+            hasItems: !fetcher.archiveItems.isEmpty,
+            supportsDualPane: supportsDualPane,
+            primaryWidth: libraryWidth,
+            showsLibraryWhenCompact: !archiveSelectionResolution.hasDetailContent || selectedArchiveItem == nil,
+            showsDetailWhenCompact: archiveSelectionResolution.hasDetailContent,
+            libraryTone: .neutral,
+            detailTone: .accent
+        ) {
+            archiveRoot(embedInRegularShell: true)
+        } detail: {
+            archiveDetailContent(showsBackButton: true)
         }
-
-        return AnyView(PremiumDualPaneStage(primaryWidth: supportsDualPane ? libraryWidth : nil) {
-            if supportsDualPane || selectedArchiveItem == nil {
-                PremiumShellStage {
-                    archiveRoot(embedInRegularShell: true)
-                }
-            }
-        } secondary: {
-            if supportsDualPane || selectedArchiveItem != nil || fallbackArchiveItem != nil {
-                PremiumShellStage(tone: .accent) {
-                    archiveDetailContent(showsBackButton: !supportsDualPane)
-                }
-            }
-        })
     }
 
     private func regularSavedStage(availableWidth: CGFloat) -> some View {
@@ -350,27 +375,19 @@ struct AppShellView: View {
             AppTheme.Metrics.shellLibraryPaneMaximumWidth
         )
 
-        guard !fetcher.favorites.isEmpty else {
-            return AnyView(
-                PremiumShellStage(tone: .favorite) {
-                    savedRoot(embedInRegularShell: true)
-                }
-            )
+        return PremiumLibrarySplitStage(
+            hasItems: !fetcher.favorites.isEmpty,
+            supportsDualPane: supportsDualPane,
+            primaryWidth: libraryWidth,
+            showsLibraryWhenCompact: !savedSelectionResolution.hasDetailContent || selectedSavedItem == nil,
+            showsDetailWhenCompact: savedSelectionResolution.hasDetailContent,
+            libraryTone: .favorite,
+            detailTone: .favorite
+        ) {
+            savedRoot(embedInRegularShell: true)
+        } detail: {
+            savedDetailContent(showsBackButton: true)
         }
-
-        return AnyView(PremiumDualPaneStage(primaryWidth: supportsDualPane ? libraryWidth : nil) {
-            if supportsDualPane || selectedSavedItem == nil {
-                PremiumShellStage(tone: .favorite) {
-                    savedRoot(embedInRegularShell: true)
-                }
-            }
-        } secondary: {
-            if supportsDualPane || selectedSavedItem != nil || fallbackSavedItem != nil {
-                PremiumShellStage(tone: .favorite) {
-                    savedDetailContent(showsBackButton: !supportsDualPane)
-                }
-            }
-        })
     }
 
     @ViewBuilder
@@ -386,6 +403,7 @@ struct AppShellView: View {
                                 } label: {
                                     Label(L10n.text("Archive", default: "Archive"), systemImage: "chevron.left")
                                 }
+                                .accessibilityIdentifier(AccessibilityID.archiveDetailBackButton)
                             }
                         }
                     }
@@ -419,6 +437,7 @@ struct AppShellView: View {
                                 } label: {
                                     Label(L10n.text("Saved", default: "Saved"), systemImage: "chevron.left")
                                 }
+                                .accessibilityIdentifier(AccessibilityID.savedDetailBackButton)
                             }
                         }
                     }
@@ -475,47 +494,48 @@ struct AppShellView: View {
     }
 
     private func clearArchiveSelection() {
+        selectionFlags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .archive,
+            current: selectionFlags
+        )
         router.selectedArchiveItemID = nil
     }
 
     private func clearSavedSelection() {
+        selectionFlags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .saved,
+            current: selectionFlags
+        )
         router.selectedSavedItemID = nil
     }
 
     private func ensureRegularShellSelectionIfNeeded() {
         guard usesSplitShell else { return }
 
-        switch router.destination {
-        case .today:
-            break
-        case .archive:
-            guard let firstArchiveItem = fetcher.archiveItems.first else {
-                router.selectedArchiveItemID = nil
-                return
-            }
+        let synchronization = AppShellRouteSelectionContract.synchronize(
+            destination: router.destination,
+            archiveSelectedID: router.selectedArchiveItemID,
+            savedSelectedID: router.selectedSavedItemID,
+            flags: selectionFlags,
+            archiveItems: fetcher.archiveItems,
+            favoriteItems: fetcher.favorites
+        )
 
-            if let selectedID = router.selectedArchiveItemID,
-               fetcher.archiveItems.contains(where: { $0.id == selectedID }) {
-                return
-            }
+        if router.selectedArchiveItemID != synchronization.normalizedArchiveSelectionID {
+            router.selectedArchiveItemID = synchronization.normalizedArchiveSelectionID
+        }
+        if router.selectedSavedItemID != synchronization.normalizedSavedSelectionID {
+            router.selectedSavedItemID = synchronization.normalizedSavedSelectionID
+        }
 
-            router.selectedArchiveItemID = firstArchiveItem.id
-            fetcher.selectArchivedItem(firstArchiveItem)
-        case .saved:
-            guard let firstSavedItem = fetcher.favorites.first else {
-                router.selectedSavedItemID = nil
-                return
-            }
-
-            if let selectedID = router.selectedSavedItemID,
-               fetcher.favorites.contains(where: { $0.id == selectedID }) {
-                return
-            }
-
-            router.selectedSavedItemID = firstSavedItem.id
-            fetcher.selectFavorite(firstSavedItem)
+        if let archiveItem = synchronization.archiveSelectedItemForFetcher {
+            fetcher.selectArchivedItem(archiveItem)
+        }
+        if let favorite = synchronization.savedSelectedItemForFetcher {
+            fetcher.selectFavorite(favorite)
         }
     }
+
     private func trackArchiveVisitIfNeeded(for destination: AppDestination) {
         guard lastTrackedDestination != destination else { return }
         lastTrackedDestination = destination

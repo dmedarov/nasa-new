@@ -116,6 +116,132 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(APODDateDisplayPolicy.displayString(for: " "), "Unknown date")
     }
 
+    func testArchiveLibraryPolicyFiltersSavedItemsAndBuildsNewestSectionsFirst() {
+        let locale = Locale(identifier: "en_US_POSIX")
+        let newestSaved = makeArchivePolicyItem(
+            date: "2025-02-10",
+            title: "Nebula Saved",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "NASA"
+        )
+        let olderSaved = makeArchivePolicyItem(
+            date: "2025-02-01",
+            title: "Nebula Earlier",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "NASA"
+        )
+        let januarySaved = makeArchivePolicyItem(
+            date: "2025-01-20",
+            title: "Nebula January",
+            mediaKind: .video,
+            isSaved: true,
+            creditLine: "ESA"
+        )
+        let unsavedMatch = makeArchivePolicyItem(
+            date: "2025-02-12",
+            title: "Nebula Unsaved",
+            mediaKind: .image,
+            isSaved: false,
+            creditLine: "NASA"
+        )
+
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: [januarySaved, unsavedMatch, olderSaved, newestSaved],
+            filter: .saved,
+            searchQuery: "Nebula",
+            locale: locale
+        )
+
+        XCTAssertEqual(resolution.filteredItemIDs, [januarySaved.id, olderSaved.id, newestSaved.id])
+        XCTAssertEqual(resolution.sections.map(\.id), ["2025-02", "2025-01"])
+        XCTAssertEqual(resolution.sections.first?.itemIDs, [newestSaved.id, olderSaved.id])
+    }
+
+    func testArchiveLibraryPolicyBuildsLocalizedSectionTitles() {
+        XCTAssertEqual(
+            ArchiveLibraryPolicy.sectionTitle(
+                for: "2025-01",
+                locale: Locale(identifier: "en_US_POSIX")
+            ),
+            "January 2025"
+        )
+    }
+
+    func testArchiveLibraryPolicyFallsBackToUnknownSectionForMissingDate() {
+        XCTAssertEqual(ArchiveLibraryPolicy.sectionKey(for: nil), "unknown")
+        XCTAssertEqual(
+            ArchiveLibraryPolicy.sectionTitle(
+                for: "unknown",
+                locale: Locale(identifier: "en_US_POSIX")
+            ),
+            "Unknown"
+        )
+    }
+
+    func testSavedLibraryPolicyFiltersSourceBackedEntriesAndPreservesSearchOrder() {
+        let sourceBacked = makeSavedPolicyItem(
+            id: "source-backed",
+            date: "2025-02-10",
+            title: "Nebula Source",
+            creditLine: "NASA",
+            storageState: .sourceBacked
+        )
+        let preview = makeSavedPolicyItem(
+            id: "preview",
+            date: "2025-02-09",
+            title: "Nebula Preview",
+            creditLine: "NASA",
+            storageState: .preview
+        )
+        let secondSourceBacked = makeSavedPolicyItem(
+            id: "second-source",
+            date: "2025-02-08",
+            title: "Nebula Source Backup",
+            creditLine: "ESA",
+            storageState: .sourceBacked
+        )
+
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: [sourceBacked, preview, secondSourceBacked],
+            filter: .sourceRequired,
+            searchQuery: "Nebula"
+        )
+
+        XCTAssertEqual(filteredIDs, [sourceBacked.id, secondSourceBacked.id])
+    }
+
+    func testLibraryLayoutPolicyOnlyUsesGridInRegularStandaloneLayout() {
+        XCTAssertTrue(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: true, embedInRegularShell: false)
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: true, embedInRegularShell: true)
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: false, embedInRegularShell: false)
+        )
+        XCTAssertEqual(
+            LibraryLayoutPolicy.resolvedPresentationMode(from: "unexpected", fallback: .list),
+            .list
+        )
+        XCTAssertTrue(
+            LibraryLayoutPolicy.usesGridPresentation(
+                isRegularWidth: true,
+                embedInRegularShell: false,
+                presentationMode: .grid
+            )
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesGridPresentation(
+                isRegularWidth: true,
+                embedInRegularShell: true,
+                presentationMode: .grid
+            )
+        )
+    }
+
     func testAPODExplanationDisplayPolicyOffersExpansionForLongText() {
         let longText = String(repeating: "Galaxy ", count: 40)
         XCTAssertTrue(APODExplanationDisplayPolicy.shouldOfferExpansion(for: longText))
@@ -822,6 +948,39 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertFalse(message.contains("Official APOD source"))
     }
 
+    func testAPODMediaPresentationPolicyUsesYouTubeThumbnailForVideoShareMedia() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            mediaType: .video,
+            title: "Video Share",
+            url: URL(string: "https://www.youtube.com/watch?v=abc123xyz")
+        )
+
+        let mediaItem = APODMediaPresentationPolicy.shareMediaItem(for: nasa) as? URL
+
+        XCTAssertEqual(mediaItem?.absoluteString, "https://img.youtube.com/vi/abc123xyz/hqdefault.jpg")
+    }
+
+    func testAPODReaderSourceContextPrefersHDImageWhenAllowed() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "HD Context",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        let context = APODReaderSourceContext(
+            nasa: nasa,
+            dataSaverMode: false,
+            preferHDImages: true
+        )
+
+        XCTAssertEqual(context.nasaPageURL?.absoluteString, "https://apod.nasa.gov/apod/ap250115.html")
+        XCTAssertEqual(context.preferredMediaSourceURL, nasa.hdurl)
+        XCTAssertEqual(context.preferredMediaSourceTitle, "Open HD Image")
+    }
+
     private func isolatedUserDefaults(name: String) -> UserDefaults {
         let suiteName = "MainViewStateTests.\(name).\(UUID().uuidString)"
         guard let userDefaults = UserDefaults(suiteName: suiteName) else {
@@ -871,6 +1030,39 @@ final class MainViewStateTests: XCTestCase {
             try? FileManager.default.removeItem(at: fileURL)
         }
         return fileURL
+    }
+
+    private func makeArchivePolicyItem(
+        date: String,
+        title: String,
+        mediaKind: ArchiveLibraryPolicy.Item.MediaKind,
+        isSaved: Bool,
+        creditLine: String
+    ) -> ArchiveLibraryPolicy.Item {
+        ArchiveLibraryPolicy.Item(
+            id: "\(date)-\(title)",
+            date: date,
+            title: title,
+            creditLine: creditLine,
+            mediaKind: mediaKind,
+            isSaved: isSaved
+        )
+    }
+
+    private func makeSavedPolicyItem(
+        id: String,
+        date: String,
+        title: String,
+        creditLine: String,
+        storageState: SavedLibraryPolicy.Item.StorageState
+    ) -> SavedLibraryPolicy.Item {
+        SavedLibraryPolicy.Item(
+            id: id,
+            date: date,
+            title: title,
+            creditLine: creditLine,
+            storageState: storageState
+        )
     }
 }
 

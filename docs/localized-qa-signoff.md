@@ -8,9 +8,8 @@ Key hygiene note: new localization work should use stable semantic keys such as 
 
 ## Signoff Gate
 - [ ] `python3 scripts/check_localizations.py` passes locally before merge.
-- [ ] GitHub Actions `iOS Tests` workflow is green for the release branch.
-- [ ] Local `xcodebuild test` passes on the release simulator target.
-- [ ] iPad smoke coverage passes on the split-shell simulator target.
+- [ ] GitHub Actions `iOS Tests` workflow is green for `Localization Parity`, `iPhone Smoke Tests`, and `iPad Smoke Tests`.
+- [ ] The release-blocking commands in `docs/stabilization-smoke-matrix.md` pass on the chosen release simulators.
 
 ## Locale Matrix
 | Scenario | en | bg | es | Notes |

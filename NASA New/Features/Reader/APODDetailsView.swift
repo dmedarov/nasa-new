@@ -13,13 +13,10 @@ struct APODDetailsView: View {
     @State private var isExplanationExpanded = false
     @State private var isSavingToPhotos = false
     @State private var photoExportNotice: PhotoExportNotice?
+    @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
+    @AppStorage("preferHDImages") private var preferHDImages: Bool = true
     let nasa: NASA
     let isFavorite: Bool
-    let nasaPageURL: URL?
-    let preferredMediaSourceURL: URL?
-    let preferredMediaSourceTitle: String
-    let preferredMediaSourceDescription: String
-    let preferredMediaSourceSystemImage: String
 
     private var isDarkMode: Bool {
         colorScheme == .dark
@@ -49,12 +46,19 @@ struct APODDetailsView: View {
     }
 
     private var showsSeparateMediaAction: Bool {
-        guard let preferredMediaSourceURL else { return false }
-        return preferredMediaSourceURL != nasaPageURL
+        guard let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL else { return false }
+        return preferredMediaSourceURL != sourceContext.nasaPageURL
     }
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
+    }
+
+    private var effectivePreferHDImages: Bool {
+        DataSaverPreferencePolicy.resolvedPreferHDImages(
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
     }
 
     private var creditLine: String {
@@ -88,26 +92,34 @@ struct APODDetailsView: View {
 
     private let photoExportService = PhotoExportService()
 
+    private var sourceContext: APODReaderSourceContext {
+        APODReaderSourceContext(
+            nasa: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: effectivePreferHDImages
+        )
+    }
+
     private var archiveEntryTitle: String {
         APODSourceLinkPolicy.archiveEntryTitle(for: nasa.date)
     }
 
     private var archiveHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: nasaPageURL)
+        APODSourceLinkPolicy.hostLabel(for: sourceContext.nasaPageURL)
     }
 
     private var preferredMediaHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: preferredMediaSourceURL)
+        APODSourceLinkPolicy.hostLabel(for: sourceContext.preferredMediaSourceURL)
     }
 
     private var aboutPanelSourceTitle: String {
-        nasaPageURL == nil
+        sourceContext.nasaPageURL == nil
             ? AppBrandingPolicy.officialSourceLinkTitle()
             : archiveEntryTitle
     }
 
     private var aboutPanelSourceSummary: String {
-        nasaPageURL == nil
+        sourceContext.nasaPageURL == nil
             ? AppBrandingPolicy.officialSourceLinkSummary()
             : AppBrandingPolicy.entrySourceLinkSummary()
     }
@@ -159,12 +171,12 @@ struct APODDetailsView: View {
 
                 explanationSection
 
-                if nasaPageURL != nil || showsSeparateMediaAction {
+                if sourceContext.nasaPageURL != nil || showsSeparateMediaAction {
                     sourceSection
                 }
 
                 AboutSourceRightsPanel(
-                    sourceURL: nasaPageURL,
+                    sourceURL: sourceContext.nasaPageURL,
                     sourceTitle: aboutPanelSourceTitle,
                     sourceSummary: aboutPanelSourceSummary,
                     tone: .neutral
@@ -375,7 +387,7 @@ struct APODDetailsView: View {
                     .accessibilityIdentifier(AccessibilityID.saveToPhotosButton)
             }
 
-            if let nasaPageURL {
+            if let nasaPageURL = sourceContext.nasaPageURL {
                 APODSourceCard(
                     title: archiveEntryTitle,
                     subtitle: APODSourceLinkPolicy.archiveEntrySummary(),
@@ -388,12 +400,12 @@ struct APODDetailsView: View {
                 .accessibilityHint(L10n.text("Opens the official APOD page in the browser", default: "Opens the official APOD page in the browser"))
             }
 
-            if showsSeparateMediaAction, let preferredMediaSourceURL {
+            if showsSeparateMediaAction, let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL {
                 APODSourceCard(
-                    title: preferredMediaSourceTitle,
-                    subtitle: preferredMediaSourceDescription,
+                    title: sourceContext.preferredMediaSourceTitle,
+                    subtitle: sourceContext.preferredMediaSourceDescription,
                     host: preferredMediaHostLabel,
-                    systemImage: preferredMediaSourceSystemImage,
+                    systemImage: sourceContext.preferredMediaSourceSystemImage,
                     tone: .neutral,
                     destination: preferredMediaSourceURL
                 )

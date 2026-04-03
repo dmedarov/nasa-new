@@ -46,6 +46,8 @@
 		E10000192F80001900000019 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
 		E100001A2F80001A0000001A /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001A2F80001A0000001A /* PurchaseManager.swift */; };
 		E100001B2F80001B0000001B /* MonetizationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001B2F80001B0000001B /* MonetizationLogger.swift */; };
+		E100001D2F80001D0000001D /* LibraryPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001D2F80001D0000001D /* LibraryPolicies.swift */; };
+		E100001E2F80001E0000001E /* APODReaderMediaSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001E2F80001E0000001E /* APODReaderMediaSection.swift */; };
 		E30010012F80010100000001 /* NASA_New_Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30020012F80020100000001 /* NASA_New_Widget.swift */; };
 		E30010022F80010200000002 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DCCE8DE2F77CE82009C8476 /* Localizable.strings */; };
 		E30010032F80010300000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E30020042F80020400000004 /* PrivacyInfo.xcprivacy */; };
@@ -69,6 +71,7 @@
 		F10000162F81001600000016 /* APODDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192F80001900000019 /* APODDownloadService.swift */; };
 		F10000172F81001700000017 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001A2F80001A0000001A /* PurchaseManager.swift */; };
 		F10000182F81001800000018 /* MonetizationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001B2F80001B0000001B /* MonetizationLogger.swift */; };
+		F10000192F81001900000019 /* LibraryPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001D2F80001D0000001D /* LibraryPolicies.swift */; };
 		AA1000012F00000100000001 /* NasaModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000022F00000100000001 /* NasaModelTests.swift */; };
 		AA1000022F00000100000001 /* NasaCollectionFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000032F00000100000001 /* NasaCollectionFetcherTests.swift */; };
 		AA1000032F00000100000001 /* NasaModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE45BF228D515C200B5C13B /* NasaModel.swift */; };
@@ -164,6 +167,8 @@
 		E20000192F80001900000019 /* APODDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODDownloadService.swift; sourceTree = "<group>"; };
 		E200001A2F80001A0000001A /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
 		E200001B2F80001B0000001B /* MonetizationLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonetizationLogger.swift; sourceTree = "<group>"; };
+		E200001D2F80001D0000001D /* LibraryPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPolicies.swift; sourceTree = "<group>"; };
+		E200001E2F80001E0000001E /* APODReaderMediaSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APODReaderMediaSection.swift; sourceTree = "<group>"; };
 		E30020012F80020100000001 /* NASA_New_Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NASA_New_Widget.swift; sourceTree = "<group>"; };
 		E30020022F80020200000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E30020042F80020400000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -239,17 +244,8 @@
 			isa = PBXGroup;
 			children = (
 				2DE45BE428D5157500B5C13B /* NASA_NewApp.swift */,
-				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
-				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
-				E20000072F80000700000007 /* MainViewSupport.swift */,
-				E200001C2F80001C0000001C /* ScreenPrimitives.swift */,
-				E20000012F80000100000001 /* MainHeaderBar.swift */,
-				E20000022F80000200000002 /* APODDetailsView.swift */,
-				E20000032F80000300000003 /* FavoritesSheetView.swift */,
-				E20000042F80000400000004 /* SettingsSheetView.swift */,
-				E20000052F80000500000005 /* APIRequestFeedbackViews.swift */,
-				E20000062F80000600000006 /* APODMediaView.swift */,
-				D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */,
+				F10000012F90000100000001 /* Features */,
+				F10000072F90000700000007 /* Shared UI */,
 				2DE45BF428D5163A00B5C13B /* NasaCollectionFetcher.swift */,
 				E200000D2F80000D0000000D /* NasaCollectionFetcher+Fetching.swift */,
 				E200000E2F80000E0000000E /* NasaCollectionFetcher+Favorites.swift */,
@@ -258,21 +254,17 @@
 				E20000112F80001100000011 /* AppRouter.swift */,
 				E20000122F80001200000012 /* AppDiscovery.swift */,
 				E20000132F80001300000013 /* AppShellView.swift */,
-					E20000142F80001400000014 /* APODReaderView.swift */,
-					E20000152F80001500000015 /* AppIntents.swift */,
-					E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
-					E20000172F80001700000017 /* APODOfflineMedia.swift */,
-					E20000192F80001900000019 /* APODDownloadService.swift */,
-					E200001A2F80001A0000001A /* PurchaseManager.swift */,
-					E200001B2F80001B0000001B /* MonetizationLogger.swift */,
-					E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */,
-					E200000A2F80000A0000000A /* APODService.swift */,
-					E200000B2F80000B0000000B /* APODStores.swift */,
+				E20000152F80001500000015 /* AppIntents.swift */,
+				E20000162F80001600000016 /* AppSharedInfrastructure.swift */,
+				E20000172F80001700000017 /* APODOfflineMedia.swift */,
+				E20000192F80001900000019 /* APODDownloadService.swift */,
+				E20000182F80001800000018 /* NasaCollectionFetcher+OfflineMedia.swift */,
+				E200000A2F80000A0000000A /* APODService.swift */,
+				E200000B2F80000B0000000B /* APODStores.swift */,
 				E200000C2F80000C0000000C /* APODRequestDiagnostics.swift */,
 				E20000082F80000800000008 /* NotificationScheduler.swift */,
 				E20000092F80000900000009 /* NetworkStatusMonitor.swift */,
 				D1A000032F70000300000003 /* APODDateRestoration.swift */,
-				D1A000062F70000600000006 /* MainViewPolicies.swift */,
 				2DE45BF228D515C200B5C13B /* NasaModel.swift */,
 				2DE45BE828D5157500B5C13B /* Assets.xcassets */,
 				2DE45BEA28D5157500B5C13B /* Preview Content */,
@@ -283,6 +275,77 @@
 				E30020042F80020400000004 /* PrivacyInfo.xcprivacy */,
 			);
 			path = "NASA New";
+			sourceTree = "<group>";
+		};
+		F10000012F90000100000001 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				F10000022F90000200000002 /* Today */,
+				F10000032F90000300000003 /* Library */,
+				F10000042F90000400000004 /* Reader */,
+				F10000052F90000500000005 /* Settings */,
+				F10000062F90000600000006 /* Monetization */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		F10000022F90000200000002 /* Today */ = {
+			isa = PBXGroup;
+			children = (
+				2D9702FF28D6070D00800A71 /* SplashScreenView.swift */,
+				2DE45BFC28D51CB000B5C13B /* MainView.swift */,
+				E20000072F80000700000007 /* MainViewSupport.swift */,
+				D1A000062F70000600000006 /* MainViewPolicies.swift */,
+				E20000012F80000100000001 /* MainHeaderBar.swift */,
+			);
+			path = Today;
+			sourceTree = "<group>";
+		};
+		F10000032F90000300000003 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				E200001D2F80001D0000001D /* LibraryPolicies.swift */,
+				E20000032F80000300000003 /* FavoritesSheetView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		F10000042F90000400000004 /* Reader */ = {
+			isa = PBXGroup;
+			children = (
+				E20000142F80001400000014 /* APODReaderView.swift */,
+				E200001E2F80001E0000001E /* APODReaderMediaSection.swift */,
+				E20000022F80000200000002 /* APODDetailsView.swift */,
+				E20000062F80000600000006 /* APODMediaView.swift */,
+			);
+			path = Reader;
+			sourceTree = "<group>";
+		};
+		F10000052F90000500000005 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				E20000042F80000400000004 /* SettingsSheetView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		F10000062F90000600000006 /* Monetization */ = {
+			isa = PBXGroup;
+			children = (
+				E200001A2F80001A0000001A /* PurchaseManager.swift */,
+				E200001B2F80001B0000001B /* MonetizationLogger.swift */,
+			);
+			path = Monetization;
+			sourceTree = "<group>";
+		};
+		F10000072F90000700000007 /* Shared UI */ = {
+			isa = PBXGroup;
+			children = (
+				D1A0000A2F70000A0000000A /* AccessibilityIdentifiers.swift */,
+				E20000052F80000500000005 /* APIRequestFeedbackViews.swift */,
+				E200001C2F80001C0000001C /* ScreenPrimitives.swift */,
+			);
+			path = SharedUI;
 			sourceTree = "<group>";
 		};
 		E30030012F80030100000001 /* NASA New Widget */ = {
@@ -508,8 +571,10 @@
 				2D6A37032F5B8F7900953EBA /* Localized.swift in Sources */,
 				E10000122F80001200000012 /* AppDiscovery.swift in Sources */,
 				E10000032F80000300000003 /* FavoritesSheetView.swift in Sources */,
+				E100001D2F80001D0000001D /* LibraryPolicies.swift in Sources */,
 				E10000012F80000100000001 /* MainHeaderBar.swift in Sources */,
 				E10000142F80001400000014 /* APODReaderView.swift in Sources */,
+				E100001E2F80001E0000001E /* APODReaderMediaSection.swift in Sources */,
 				2DE45BFD28D51CB000B5C13B /* MainView.swift in Sources */,
 				E10000072F80000700000007 /* MainViewSupport.swift in Sources */,
 				E100001C2F80001C0000001C /* ScreenPrimitives.swift in Sources */,
@@ -568,8 +633,9 @@
 					AA1000012F00000100000001 /* NasaModelTests.swift in Sources */,
 					F10000162F81001600000016 /* APODDownloadService.swift in Sources */,
 					F10000172F81001700000017 /* PurchaseManager.swift in Sources */,
-					F10000182F81001800000018 /* MonetizationLogger.swift in Sources */,
-					2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
+				F10000182F81001800000018 /* MonetizationLogger.swift in Sources */,
+				F10000192F81001900000019 /* LibraryPolicies.swift in Sources */,
+				2DB51D612F6C976C00625967 /* MainViewStateTests.swift in Sources */,
 					AA1000062F00000100000006 /* AppRouterTests.swift in Sources */,
 					F10000142F81001400000014 /* APODOfflineMedia.swift in Sources */,
 					AA1000052F00000100000001 /* Localized.swift in Sources */,

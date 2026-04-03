@@ -621,6 +621,41 @@ struct APODMediaInteractionPolicy {
     }
 }
 
+struct APODMediaPresentationPolicy {
+    static func embeddedYouTubeID(from url: URL?) -> String? {
+        guard let url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let youtubeHosts = ["youtube.com", "youtu.be", "www.youtube.com"]
+        if youtubeHosts.contains(where: { url.host?.contains($0) == true }) {
+            if url.host?.contains("youtu.be") == true || url.path.contains("/embed/") || url.path.contains("/v/"),
+               let path = components.path.components(separatedBy: "/").last,
+               !path.isEmpty {
+                return path
+            }
+
+            return components.queryItems?.first(where: { $0.name == "v" })?.value
+        }
+
+        return nil
+    }
+
+    static func videoThumbnailURL(for videoID: String) -> URL? {
+        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
+    }
+
+    static func shareMediaItem(for nasa: NASA) -> Any? {
+        if nasa.mediaType == .video,
+           let videoID = embeddedYouTubeID(from: nasa.url),
+           let thumbnailURL = videoThumbnailURL(for: videoID) {
+            return thumbnailURL
+        }
+
+        return nasa.hdurl ?? nasa.url
+    }
+}
+
 struct APODSourceLinkPolicy {
     private static let apiDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -791,6 +826,34 @@ struct APODSourceLinkPolicy {
         case .other:
             return "arrow.up.forward.square"
         }
+    }
+}
+
+struct APODReaderSourceContext {
+    let nasaPageURL: URL?
+    let preferredMediaSourceURL: URL?
+    let preferredMediaSourceTitle: String
+    let preferredMediaSourceDescription: String
+    let preferredMediaSourceSystemImage: String
+
+    init(nasa: NASA, dataSaverMode: Bool, preferHDImages: Bool) {
+        nasaPageURL = APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url)
+        preferredMediaSourceURL = APODSourceLinkPolicy.preferredMediaURL(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceTitle = APODSourceLinkPolicy.preferredMediaTitle(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceDescription = APODSourceLinkPolicy.preferredMediaDescription(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceSystemImage = APODSourceLinkPolicy.preferredMediaSystemImage(for: nasa)
     }
 }
 

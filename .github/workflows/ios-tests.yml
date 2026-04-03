@@ -16,8 +16,8 @@ jobs:
       - name: Check localization parity
         run: python3 scripts/check_localizations.py
 
-  test:
-    name: Build and Test
+  iphone-smoke:
+    name: iPhone Smoke Tests
     runs-on: macos-15
     timeout-minutes: 30
     needs: localization-parity
@@ -32,13 +32,91 @@ jobs:
       - name: Show Xcode Version
         run: xcodebuild -version
 
-      - name: Run Simulator Tests
+      - name: Show Available Xcode Destinations
+        run: >
+          xcodebuild
+          -project 'NASA New.xcodeproj'
+          -scheme 'NASA New'
+          -showdestinations
+
+      - name: Resolve iPhone Simulator Destination
+        run: |
+          set -euo pipefail
+
+          available_destinations="$(
+            xcodebuild \
+              -project 'NASA New.xcodeproj' \
+              -scheme 'NASA New' \
+              -showdestinations 2>/dev/null
+          )"
+
+          preferred_names=(
+            "iPhone 17 Pro"
+            "iPhone 17"
+            "iPhone 17 Pro Max"
+            "iPhone Air"
+            "iPhone 17e"
+          )
+
+          resolve_destination_id() {
+            local name="$1"
+            local line
+            line="$(
+              grep 'platform:iOS Simulator' <<<"$available_destinations" |
+                grep -F "name:${name}" |
+                head -n 1
+            )"
+
+            if [[ -z "${line}" ]]; then
+              return 1
+            fi
+
+            sed -nE 's/.*id:([^,}]+).*/\1/p' <<<"$line" | head -n 1
+          }
+
+          for name in "${preferred_names[@]}"; do
+            if destination_id="$(resolve_destination_id "$name")" && [[ -n "${destination_id}" ]]; then
+              echo "Selected iPhone simulator: ${name} (${destination_id})"
+              echo "CI_IPHONE_DESTINATION=id=${destination_id}" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          fallback_line="$(
+            grep 'platform:iOS Simulator' <<<"$available_destinations" |
+              grep 'name:iPhone' |
+              head -n 1
+          )"
+
+          if [[ -n "${fallback_line}" ]]; then
+            fallback_id="$(sed -nE 's/.*id:([^,}]+).*/\1/p' <<<"$fallback_line" | head -n 1)"
+            fallback_name="$(sed -nE 's/.*name:([^}]+).*/\1/p' <<<"$fallback_line" | sed -E 's/[[:space:]]+$//g')"
+
+            if [[ -n "${fallback_id}" ]]; then
+              echo "Falling back to first available iPhone simulator: ${fallback_name} (${fallback_id})"
+              echo "CI_IPHONE_DESTINATION=id=${fallback_id}" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          echo "Unable to resolve an available iPhone simulator destination."
+          echo "$available_destinations"
+          exit 1
+
+      - name: Run iPhone Smoke Tests and Unit Tests
         run: >
           xcodebuild test
           -project 'NASA New.xcodeproj'
           -scheme 'NASA New'
-          -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest'
+          -destination "$CI_IPHONE_DESTINATION"
           -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -only-testing:'NASA NewTests'
+          -only-testing:'NASA NewUITests/NASANewUITests/testMainScreenCriticalControlsAndSnapshot'
+          -only-testing:'NASA NewUITests/NASANewUITests/testArchiveSearchAndSelectionFlow'
+          -only-testing:'NASA NewUITests/NASANewUITests/testFavoritesSearchAndSwipeDeleteFlow'
+          -only-testing:'NASA NewUITests/NASANewUITests/testFreeUserOpeningLockedArchiveEntryShowsPaywall'
+          -only-testing:'NASA NewUITests/NASANewUITests/testDirectVideoAutoplayPolicyRequiresManualPlaybackOffWiFi'
+          -only-testing:'NASA NewUITests/NASANewUITests/testSettingsShowsNotificationGuidanceAndAboutPanel'
           CODE_SIGNING_ALLOWED=NO
 
   ipad-smoke:
@@ -87,23 +165,37 @@ jobs:
           )
 
           for name in "${preferred_names[@]}"; do
-            if grep -Fq "name:${name}" <<<"$available_destinations"; then
-              echo "Selected iPad simulator: ${name}"
-              echo "CI_IPAD_DESTINATION=platform=iOS Simulator,name=${name},OS=latest" >> "$GITHUB_ENV"
-              exit 0
+            selected_line="$(
+              grep 'platform:iOS Simulator' <<<"$available_destinations" |
+                grep -F "name:${name}" |
+                head -n 1
+            )"
+
+            if [[ -n "${selected_line}" ]]; then
+              selected_id="$(sed -nE 's/.*id:([^,}]+).*/\1/p' <<<"$selected_line" | head -n 1)"
+              if [[ -n "${selected_id}" ]]; then
+                echo "Selected iPad simulator: ${name} (${selected_id})"
+                echo "CI_IPAD_DESTINATION=id=${selected_id}" >> "$GITHUB_ENV"
+                exit 0
+              fi
             fi
           done
 
-          fallback_name="$(
-            grep -Eo 'name:iPad[^}]+' <<<"$available_destinations" |
-              sed -E 's/^name:|[[:space:]]+$//g' |
+          fallback_line="$(
+            grep 'platform:iOS Simulator' <<<"$available_destinations" |
+              grep 'name:iPad' |
               head -n 1
           )"
 
-          if [[ -n "${fallback_name}" ]]; then
-            echo "Falling back to first available iPad simulator: ${fallback_name}"
-            echo "CI_IPAD_DESTINATION=platform=iOS Simulator,name=${fallback_name},OS=latest" >> "$GITHUB_ENV"
-            exit 0
+          if [[ -n "${fallback_line}" ]]; then
+            fallback_id="$(sed -nE 's/.*id:([^,}]+).*/\1/p' <<<"$fallback_line" | head -n 1)"
+            fallback_name="$(sed -nE 's/.*name:([^}]+).*/\1/p' <<<"$fallback_line" | sed -E 's/[[:space:]]+$//g')"
+
+            if [[ -n "${fallback_id}" ]]; then
+              echo "Falling back to first available iPad simulator: ${fallback_name} (${fallback_id})"
+              echo "CI_IPAD_DESTINATION=id=${fallback_id}" >> "$GITHUB_ENV"
+              exit 0
+            fi
           fi
 
           echo "Unable to resolve an available iPad simulator destination."
@@ -118,6 +210,7 @@ jobs:
           -destination "$CI_IPAD_DESTINATION"
           -derivedDataPath "$RUNNER_TEMP/DerivedData-iPad"
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadSplitShellArchiveSelectionFlow'
+          -only-testing:'NASA NewUITests/NASANewUITests/testIPadSplitShellArchiveBackClearsSelection'
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadSavedSelectionUpdatesDetail'
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadPendingArchiveRouteFocusesExactDate'
           -only-testing:'NASA NewUITests/NASANewUITests/testIPadSidebarDestinationPersistsAcrossRelaunch'

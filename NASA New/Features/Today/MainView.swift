@@ -1,8 +1,4 @@
 import SwiftUI
-import UIKit
-import YouTubePlayerKit
-import SafariServices
-import AVKit
 import UserNotifications
 import Network
 
@@ -14,7 +10,6 @@ struct UITestPolicy {
 
 struct MainView: View {
     private enum ViewConstants {
-        static let minImageScale: CGFloat = 1
         static let dateSelectionDebounceNanoseconds: UInt64 = 250_000_000
         static let shareExplanationMaxLength: Int = 100
         static let selectedDateSceneStorageKey = "MainView.selectedAPODDate"
@@ -29,12 +24,9 @@ struct MainView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
-    @State private var imageScale: CGFloat = ViewConstants.minImageScale
-    @State private var imageOffset: CGSize = .zero
     @State private var showShareSheet = false
     @State private var showSettingsSheet = false
     @State private var isMediaAnimating = false
-    @State private var isVideoLoading = false
     @State private var selectedDate = Date()
     @State private var isSyncingSelectedDateFromModel = false
     @State private var dateSelectionTask: Task<Void, Never>?
@@ -144,41 +136,6 @@ struct MainView: View {
         }
     }
 
-    private func resetImageState() {
-        let updates = {
-            imageScale = ViewConstants.minImageScale
-            imageOffset = .zero
-        }
-        if effectiveReduceMotion {
-            updates()
-        } else {
-            withAnimation(.spring()) {
-                updates()
-            }
-        }
-    }
-    
-    private func extractYouTubeID(from url: URL?) -> String? {
-        guard let url = url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        let youtubeHosts = ["youtube.com", "youtu.be", "www.youtube.com"]
-        if youtubeHosts.contains(where: { url.host?.contains($0) == true }) {
-            if url.host?.contains("youtu.be") == true || url.path.contains("/embed/") || url.path.contains("/v/"),
-               let path = components.path.components(separatedBy: "/").last, !path.isEmpty {
-                return path
-            }
-            return components.queryItems?.first(where: { $0.name == "v" })?.value
-        }
-        return nil
-    }
-    
-    private func apodURL(for date: String?) -> URL? {
-        APODSourceLinkPolicy.nasaPageURL(for: date, fallbackURL: fetcher.currentNasa.url)
-    }
-    
-    private func videoThumbnailURL(for videoID: String) -> URL? {
-        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
-    }
-    
     private func syncSelectedDateWithCurrentItem() {
         guard let dateString = fetcher.currentNasa.date, let modelDate = fetcher.date(from: dateString) else { return }
         guard !fetcher.isSameAPODDay(selectedDate, modelDate) else { return }
@@ -247,14 +204,6 @@ struct MainView: View {
         )
         guard !fetcher.isSameAPODDay(selectedDate, clampedDate) else { return }
         attemptDateSelection(clampedDate, trigger: .todayDateSelection)
-    }
-
-    private func applyCurrentSelectionState(syncSelectedDate: Bool) {
-        isVideoLoading = fetcher.currentNasa.mediaType == .video
-        resetImageState()
-        if syncSelectedDate {
-            syncSelectedDateWithCurrentItem()
-        }
     }
 
     private func restoreSceneSelectionIfNeeded() {
@@ -566,23 +515,7 @@ struct MainView: View {
     }
 
     private var mediaSection: some View {
-        MediaView(
-            nasa: fetcher.currentNasa,
-            imageScale: $imageScale,
-            imageOffset: $imageOffset,
-            isVideoLoading: $isVideoLoading,
-            allowVideoPlayback: allowVideoPlayback,
-            wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
-            isOnWiFiConnection: networkStatus.connectionKind == .wifi,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages,
-            reduceMotion: effectiveReduceMotion,
-            resetImageState: resetImageState,
-            extractYouTubeID: extractYouTubeID,
-            videoThumbnailURL: videoThumbnailURL
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(AccessibilityID.apodMediaSection)
+        APODReaderMediaSection(nasa: fetcher.currentNasa)
         .opacity(effectiveReduceMotion ? 1 : (isMediaAnimating ? 1 : 0))
         .onAppear {
             if let animation = AppTheme.Motion.reveal(reduceMotion: effectiveReduceMotion) {
@@ -602,20 +535,12 @@ struct MainView: View {
             requestAPOD(for: date)
         }
         .onChange(of: fetcher.currentNasa.date) { _ in
-            applyCurrentSelectionState(syncSelectedDate: true)
+            syncSelectedDateWithCurrentItem()
         }
     }
 
     private var detailsSection: some View {
-        APODDetailsView(
-            nasa: fetcher.currentNasa,
-            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-            nasaPageURL: nasaPageURL,
-            preferredMediaSourceURL: preferredMediaSourceURL,
-            preferredMediaSourceTitle: preferredMediaSourceTitle,
-            preferredMediaSourceDescription: preferredMediaSourceDescription,
-            preferredMediaSourceSystemImage: preferredMediaSourceSystemImage
-        )
+        APODDetailsView(nasa: fetcher.currentNasa, isFavorite: fetcher.isFavorite(fetcher.currentNasa))
         .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
         .accessibilitySortPriority(70)
     }
@@ -623,7 +548,7 @@ struct MainView: View {
     private func randomizeSelection() {
         fetcher.selectRandom(preferImagesOnly: preferImages)
         randomizeFeedbackToken += 1
-        applyCurrentSelectionState(syncSelectedDate: true)
+        syncSelectedDateWithCurrentItem()
     }
 
     private func toggleFavorite() {
@@ -663,56 +588,15 @@ struct MainView: View {
     }
     
     private var shareItems: [Any] {
-        let media: Any? = {
-            if fetcher.currentNasa.mediaType == .video,
-               let id = extractYouTubeID(from: fetcher.currentNasa.url),
-               let thumb = videoThumbnailURL(for: id) {
-                return thumb
-            }
-            return fetcher.currentNasa.hdurl ?? fetcher.currentNasa.url
-        }()
         return APODSharePolicy.shareItems(
             for: fetcher.currentNasa,
-            sourceURL: shareURL,
-            mediaItem: media,
+            sourceURL: APODSourceLinkPolicy.nasaPageURL(
+                for: fetcher.currentNasa.date,
+                fallbackURL: fetcher.currentNasa.url
+            ),
+            mediaItem: APODMediaPresentationPolicy.shareMediaItem(for: fetcher.currentNasa),
             explanationMaxLength: ViewConstants.shareExplanationMaxLength
         )
-    }
-
-    private var shareURL: URL? {
-        nasaPageURL
-    }
-
-    private var nasaPageURL: URL? {
-        apodURL(for: fetcher.currentNasa.date)
-    }
-
-    private var preferredMediaSourceURL: URL? {
-        APODSourceLinkPolicy.preferredMediaURL(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceTitle: String {
-        APODSourceLinkPolicy.preferredMediaTitle(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceDescription: String {
-        APODSourceLinkPolicy.preferredMediaDescription(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceSystemImage: String {
-        APODSourceLinkPolicy.preferredMediaSystemImage(for: fetcher.currentNasa)
     }
 }
 

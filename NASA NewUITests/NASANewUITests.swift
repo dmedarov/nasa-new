@@ -29,6 +29,8 @@ final class NASANewUITests: XCTestCase {
         static let favoritesSearchField = "favoritesSearchField"
         static let archiveSheetRoot = "archiveSheetRoot"
         static let archiveSearchField = "archiveSearchField"
+        static let archiveDetailBackButton = "archiveDetailBackButton"
+        static let savedDetailBackButton = "savedDetailBackButton"
         static let favoriteAPODButton = "favoriteAPODButton"
         static let jumpToLatestAPODDateButton = "jumpToLatestAPODDateButton"
         static let previousAPODDateButton = "previousAPODDateButton"
@@ -606,12 +608,20 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let autoplayPolicyValue = app.staticTexts[UIElementID.autoplayPolicyValue]
+        let networkConnectionValue = element(UIElementID.networkConnectionValue)
+        revealElement(networkConnectionValue)
+        XCTAssertTrue(networkConnectionValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(networkConnectionValue, substring: "Cellular", timeout: 5.0))
+
+        let meteredNetworkValue = element(UIElementID.meteredNetworkValue)
+        revealElement(meteredNetworkValue)
+        XCTAssertTrue(meteredNetworkValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(meteredNetworkValue, substring: "Yes", timeout: 5.0))
+
+        let autoplayPolicyValue = element(UIElementID.autoplayPolicyValue)
         revealElement(autoplayPolicyValue)
         XCTAssertTrue(autoplayPolicyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(autoplayPolicyValue, substring: "Manual play required off Wi-Fi", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.networkConnectionValue].label.contains("Cellular"))
-        XCTAssertTrue(app.staticTexts[UIElementID.meteredNetworkValue].label.contains("Yes"))
     }
 
     func testDirectVideoAutoplayPolicyAllowsPlaybackOnWiFi() {
@@ -627,11 +637,15 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let autoplayPolicyValue = app.staticTexts[UIElementID.autoplayPolicyValue]
+        let networkConnectionValue = element(UIElementID.networkConnectionValue)
+        revealElement(networkConnectionValue)
+        XCTAssertTrue(networkConnectionValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(networkConnectionValue, substring: "Wi-Fi", timeout: 5.0))
+
+        let autoplayPolicyValue = element(UIElementID.autoplayPolicyValue)
         revealElement(autoplayPolicyValue)
         XCTAssertTrue(autoplayPolicyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(autoplayPolicyValue, substring: "Autoplay allowed on Wi-Fi", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.networkConnectionValue].label.contains("Wi-Fi"))
     }
 
     func testConstrainedNetworkShowsMaximumSavingsDiagnostics() {
@@ -649,11 +663,15 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let networkEfficiencyValue = app.staticTexts[UIElementID.networkEfficiencyValue]
+        let lowDataModeValue = element(UIElementID.lowDataModeValue)
+        revealElement(lowDataModeValue)
+        XCTAssertTrue(lowDataModeValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(lowDataModeValue, substring: "Yes", timeout: 5.0))
+
+        let networkEfficiencyValue = element(UIElementID.networkEfficiencyValue)
         revealElement(networkEfficiencyValue)
         XCTAssertTrue(networkEfficiencyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(networkEfficiencyValue, substring: "Maximum savings. App data saver and Low Data Mode are both active.", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.lowDataModeValue].label.contains("Yes"))
     }
 
     func testSettingsShowsNotificationGuidanceAndAboutPanel() {
@@ -1047,6 +1065,38 @@ final class NASANewUITests: XCTestCase {
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
+    }
+
+    func testIPadSplitShellArchiveBackClearsSelection() throws {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        try requireSplitShell()
+
+        tapSidebarDestination("archive")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available in split shell.")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-14\n")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-14"))
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
+        archiveRow.tap()
+
+        let backButton = element(UIElementID.archiveDetailBackButton)
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(backButton, timeout: 5.0))
+        backButton.tap()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+        XCTAssertNotNil(waitForArchiveSearchInput(timeout: 2.0))
+        XCTAssertTrue(waitForElementToDisappear(backButton, timeout: 5.0))
     }
 
     func testIPadSavedSelectionUpdatesDetail() throws {
