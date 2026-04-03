@@ -30,6 +30,8 @@
 "source.image_media_summary" = "Direct image file referenced by the APOD archive story.";
 "source.video_media_summary" = "Original video source referenced by the APOD story. Playback rights can depend on the host.";
 "source.generic_media_summary" = "Original media source referenced by the APOD story.";
+"splash.status.preparing" = "Preparing today's briefing";
+"splash.status.detail" = "Loading the latest APOD, archive context, and source details.";
 "api.key.warning.unconfigured" = "NASA_API_KEY is not configured. Space Briefing is using DEMO_KEY, which is shared and may hit rate limits sooner.";
 "api.payload.decode_failed" = "Failed to decode NASA API payload.";
 "error.bad_request" = "Unable to load APOD data right now. Please try again.";

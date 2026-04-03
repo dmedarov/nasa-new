@@ -6,6 +6,8 @@
 "Space Briefing" = "Resumen espacial";
 "Astronomy Picture of the Day" = "Imagen astronomica del dia";
 "splash.subtitle" = "Imagenes espaciales diarias, contexto editorial y enlaces de origen del archivo APOD de la NASA.";
+"splash.status.preparing" = "Preparando el resumen de hoy";
+"splash.status.detail" = "Cargando el APOD mas reciente, el contexto del archivo y los detalles de origen.";
 "brand.independent_notice" = "Aplicacion independiente que usa el servicio publico APOD de la NASA. No esta afiliada ni respaldada por la NASA.";
 "brand.data_source_notice" = "Las imagenes, descripciones y metadatos provienen del servicio Astronomy Picture of the Day de la NASA. Los derechos del material que no sea de la NASA siguen perteneciendo al creador acreditado.";
 "Refresh" = "Actualizar";

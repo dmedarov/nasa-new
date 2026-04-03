@@ -55,6 +55,11 @@ enum AppTheme {
     enum Typography {
         static let splashTitle = Font.system(size: 30, weight: .bold, design: .serif)
         static let splashCaption = Font.system(size: 15, weight: .semibold, design: .rounded)
+        static let splashDisplayCompact = Font.system(size: 42, weight: .bold, design: .serif)
+        static let splashDisplayRegular = Font.system(size: 56, weight: .bold, design: .serif)
+        static let splashLeadCompact = Font.system(size: 18, weight: .semibold, design: .rounded)
+        static let splashLeadRegular = Font.system(size: 21, weight: .semibold, design: .rounded)
+        static let splashStatus = Font.system(.callout, design: .rounded).weight(.semibold)
         static let heroEyebrow = Font.system(.caption, design: .rounded).weight(.bold)
         static let heroTitle = Font.system(size: 32, weight: .bold, design: .serif)
         static let heroSubtitle = Font.system(.subheadline, design: .rounded).weight(.medium)
