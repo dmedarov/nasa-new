@@ -10,9 +10,9 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Current Status
 
-- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`
+- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`, `P1-02`, `P1-03`, `P1-04`, `P1-05`, `P1-06`, `P1-07`, `P2-01`, `P2-02`, `P2-03`
 - In progress: `none`
-- Next recommended ticket: `P1-02`
+- Next recommended ticket: `P2-04`
 
 ## Phase 0: Stabilization Foundation
 
@@ -143,7 +143,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Library Performance`
   Estimate: `1.0d`
   Depends on: `P2-01`
-  Status: `pending`
+  Status: `done`
   Scope: improve saved grid/list scrolling, selection responsiveness, and offline badge rendering.
 
 - `P2-04` Reader media transition optimization
@@ -287,6 +287,6 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Suggested Next Three Tickets
 
-- `P2-03` because saved-library scrolling shares the same thumbnail and badge surfaces and is the next adjacent hot path after archive.
-- `P2-04` because reader transitions are now the most visible remaining media-performance surface once archive search and selection have been tightened.
+- `P2-04` because reader transitions are now the most visible remaining media-performance surface once archive and saved performance have both been tightened.
 - `P2-05` because the performance baseline doc should lock in validation and before/after notes right after the remaining P2 surfaces are addressed.
+- `P3-01` because the Today editorial pass becomes the highest-value premium surface as soon as the reader transition work is green.

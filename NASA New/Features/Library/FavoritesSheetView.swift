@@ -74,8 +74,11 @@ struct SavedScreenView: View {
     @State private var pushedFavorite: NASA?
     @State private var selectedFavoriteID: String?
     @State private var searchQuery = ""
-    @State private var savedDisplayItems = [APODLibraryDisplayItem]()
-    @State private var filteredFavoriteItems = [APODLibraryDisplayItem]()
+    @State private var resolvedSavedSearchQuery = ""
+    @State private var savedDisplayItemsByID = [String: APODLibraryDisplayItem]()
+    @State private var savedPolicyItems = [SavedLibraryPolicy.Item]()
+    @State private var filteredFavoriteItemIDs = [String]()
+    @State private var savedSearchTask: Task<Void, Never>?
 
     init(embedInRegularShell: Bool = false) {
         self.embedInRegularShell = embedInRegularShell
@@ -115,19 +118,21 @@ struct SavedScreenView: View {
     }
 
     private var selectedFavorite: NASA? {
-        let preferredID = selectedFavoriteID ?? router.selectedSavedItemID
-        return filteredFavoriteItems.first(where: { $0.id == preferredID })?.item
-            ?? savedDisplayItems.first(where: { $0.id == preferredID })?.item
+        guard let preferredID = selectedFavoriteID ?? router.selectedSavedItemID else {
+            return nil
+        }
+
+        return savedDisplayItemsByID[preferredID]?.item
     }
 
     private var savedResultsSummary: String {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = resolvedSavedSearchQuery
         if trimmedQuery.isEmpty {
             if savedFilter != .all {
                 return L10n.format(
                     "saved.search.summary.filtered_by_mode",
                     default: "Showing %d saved stories in %@.",
-                    filteredFavoriteItems.count,
+                    filteredFavoriteItemIDs.count,
                     savedFilter.localizedTitle
                 )
             }
@@ -135,15 +140,15 @@ struct SavedScreenView: View {
             return L10n.format(
                 "saved.search.summary.default",
                 default: "Search %d saved APOD stories by title, date, or credit line.",
-                savedDisplayItems.count
+                savedPolicyItems.count
             )
         }
 
         return L10n.format(
             "saved.search.summary.filtered",
             default: "Showing %d of %d saved stories for \"%@\".",
-            filteredFavoriteItems.count,
-            savedDisplayItems.count,
+            filteredFavoriteItemIDs.count,
+            savedPolicyItems.count,
             trimmedQuery
         )
     }
@@ -199,6 +204,7 @@ struct SavedScreenView: View {
             AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
         }
         .task {
+            resolvedSavedSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildSavedLibrarySnapshot()
             syncSavedSelectionFromRouter()
         }
@@ -209,7 +215,7 @@ struct SavedScreenView: View {
             syncSavedSelectionFromRouter()
         }
         .onChange(of: searchQuery) { _ in
-            rebuildSavedFiltering()
+            scheduleSavedFiltering()
         }
         .onChange(of: savedFilterRawValue) { _ in
             rebuildSavedFiltering()
@@ -222,6 +228,10 @@ struct SavedScreenView: View {
                !fetcher.favorites.contains(where: { $0.id == selectedFavoriteID }) {
                 self.selectedFavoriteID = nil
             }
+        }
+        .onDisappear {
+            savedSearchTask?.cancel()
+            savedSearchTask = nil
         }
     }
 
@@ -252,23 +262,25 @@ struct SavedScreenView: View {
             savedHeaderPanels
                 .libraryHeaderRowStyle()
 
-            if filteredFavoriteItems.isEmpty {
+            if filteredFavoriteItemIDs.isEmpty {
                 searchEmptyState
                     .libraryStateRowStyle()
             } else {
-                ForEach(filteredFavoriteItems) { displayItem in
-                    libraryRow(
-                        displayItem,
-                        isSelected: displayItem.id == selectedItemID,
-                        selectionAction: selectionAction
-                    )
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            fetcher.removeFavorite(displayItem.item)
-                        } label: {
-                            Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
+                ForEach(filteredFavoriteItemIDs, id: \.self) { itemID in
+                    if let displayItem = savedDisplayItemsByID[itemID] {
+                        libraryRow(
+                            displayItem,
+                            isSelected: displayItem.id == selectedItemID,
+                            selectionAction: selectionAction
+                        )
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                fetcher.removeFavorite(displayItem.item)
+                            } label: {
+                                Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
+                            }
+                            .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: displayItem.item))
                         }
-                        .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: displayItem.item))
                     }
                 }
             }
@@ -451,19 +463,21 @@ struct SavedScreenView: View {
                 LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                     savedHeaderPanels
 
-                    if filteredFavoriteItems.isEmpty {
+                    if filteredFavoriteItemIDs.isEmpty {
                         searchEmptyState
                             .padding(.horizontal, AppTheme.Spacing.lg)
                     } else {
                         LazyVGrid(columns: savedGridColumns, spacing: AppTheme.Spacing.md) {
-                            ForEach(filteredFavoriteItems) { displayItem in
-                                ArchiveGridCard(
-                                    displayItem: displayItem,
-                                    isSelected: displayItem.id == selectedFavoriteID,
-                                    isLocked: false,
-                                    action: { selectionAction(displayItem.item) }
-                                )
-                                .id(displayItem.id)
+                            ForEach(filteredFavoriteItemIDs, id: \.self) { itemID in
+                                if let displayItem = savedDisplayItemsByID[itemID] {
+                                    ArchiveGridCard(
+                                        displayItem: displayItem,
+                                        isSelected: displayItem.id == selectedFavoriteID,
+                                        isLocked: false,
+                                        action: { selectionAction(displayItem.item) }
+                                    )
+                                    .id(displayItem.id)
+                                }
                             }
                         }
                         .padding(.horizontal, AppTheme.Spacing.lg)
@@ -498,13 +512,13 @@ struct SavedScreenView: View {
             return
         }
         selectedFavoriteID = selectedID
-        if let favorite = fetcher.favorites.first(where: { $0.id == selectedID }) {
+        if let favorite = savedDisplayItemsByID[selectedID]?.item {
             fetcher.selectFavorite(favorite)
         }
     }
 
     private func rebuildSavedLibrarySnapshot() {
-        savedDisplayItems = fetcher.favorites.map {
+        let savedDisplayItems = fetcher.favorites.map {
             APODLibraryDisplayItem(
                 item: $0,
                 isSaved: true,
@@ -512,18 +526,43 @@ struct SavedScreenView: View {
                 locale: locale
             )
         }
+
+        savedDisplayItemsByID = Dictionary(uniqueKeysWithValues: savedDisplayItems.map { ($0.id, $0) })
+        savedPolicyItems = savedDisplayItems.map(\.savedPolicyItem)
         rebuildSavedFiltering()
     }
 
     private func rebuildSavedFiltering() {
-        let savedItemsByID = Dictionary(uniqueKeysWithValues: savedDisplayItems.map { ($0.id, $0) })
         let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
-            items: savedDisplayItems.map(\.savedPolicyItem),
+            items: savedPolicyItems,
             filter: savedFilter,
-            searchQuery: searchQuery
+            searchQuery: resolvedSavedSearchQuery
         )
 
-        filteredFavoriteItems = filteredIDs.compactMap { savedItemsByID[$0] }
+        filteredFavoriteItemIDs = filteredIDs
+    }
+
+    private func scheduleSavedFiltering() {
+        savedSearchTask?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery != resolvedSavedSearchQuery else { return }
+
+        guard !trimmedQuery.isEmpty else {
+            resolvedSavedSearchQuery = ""
+            rebuildSavedFiltering()
+            return
+        }
+
+        savedSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                resolvedSavedSearchQuery = trimmedQuery
+                rebuildSavedFiltering()
+            }
+        }
     }
 
     private var favoritesEmptyState: some View {

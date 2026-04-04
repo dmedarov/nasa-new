@@ -267,14 +267,32 @@ struct SavedLibraryPolicy {
         let title: String
         let creditLine: String
         let storageState: StorageState
+        private let searchText: String
+
+        init(
+            id: String,
+            date: String?,
+            title: String,
+            creditLine: String,
+            storageState: StorageState,
+            searchText: String? = nil
+        ) {
+            self.id = id
+            self.date = date
+            self.title = title
+            self.creditLine = creditLine
+            self.storageState = storageState
+            self.searchText = searchText ?? Self.makeSearchText(
+                title: title,
+                date: date,
+                creditLine: creditLine
+            )
+        }
 
         func matchesSearch(_ query: String) -> Bool {
-            let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedQuery.isEmpty else { return true }
+            guard !query.isEmpty else { return true }
 
-            return title.localizedCaseInsensitiveContains(trimmedQuery)
-                || (date ?? "").localizedCaseInsensitiveContains(trimmedQuery)
-                || creditLine.localizedCaseInsensitiveContains(trimmedQuery)
+            return searchText.localizedCaseInsensitiveContains(query)
         }
 
         func matchesFilter(_ filter: SavedFilter) -> Bool {
@@ -289,6 +307,16 @@ struct SavedLibraryPolicy {
                 return storageState == .sourceBacked
             }
         }
+
+        private static func makeSearchText(
+            title: String,
+            date: String?,
+            creditLine: String
+        ) -> String {
+            [title, date ?? "", creditLine]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        }
     }
 
     static func filteredItemIDs(
@@ -296,8 +324,10 @@ struct SavedLibraryPolicy {
         filter: SavedFilter,
         searchQuery: String
     ) -> [String] {
-        items
-            .filter { $0.matchesFilter(filter) && $0.matchesSearch(searchQuery) }
+        let normalizedSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return items
+            .filter { $0.matchesFilter(filter) && $0.matchesSearch(normalizedSearchQuery) }
             .map(\.id)
     }
 }

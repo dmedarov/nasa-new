@@ -235,6 +235,24 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(filteredIDs, [sourceBacked.id, secondSourceBacked.id])
     }
 
+    func testSavedLibraryPolicyUsesTrimmedSearchQueryAgainstCreditLine() {
+        let sourceBacked = makeSavedPolicyItem(
+            id: "source-backed",
+            date: "2025-02-10",
+            title: "Nebula Source",
+            creditLine: "European Space Agency",
+            storageState: .sourceBacked
+        )
+
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: [sourceBacked],
+            filter: .all,
+            searchQuery: "  European Space Agency  "
+        )
+
+        XCTAssertEqual(filteredIDs, [sourceBacked.id])
+    }
+
     func testLibraryLayoutPolicyOnlyUsesGridInRegularStandaloneLayout() {
         XCTAssertTrue(
             LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: true, embedInRegularShell: false)
