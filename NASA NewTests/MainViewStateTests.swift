@@ -1004,6 +1004,17 @@ final class MainViewStateTests: XCTestCase {
         )
     }
 
+    func testAPODLocalMediaThumbnailSpecResolvesPixelSizesForReaderHeroSurface() {
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .readerHero, displayScale: 1),
+            1_600
+        )
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .readerHero, displayScale: 2),
+            3_200
+        )
+    }
+
 #if canImport(UIKit)
     func testAPODLocalMediaThumbnailLoaderDownsamplesLargeLocalImage() throws {
         let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 800)).image { context in
@@ -1132,6 +1143,40 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertEqual(context.nasaPageURL?.absoluteString, "https://apod.nasa.gov/apod/ap250115.html")
         XCTAssertEqual(context.preferredMediaSourceURL, nasa.hdurl)
         XCTAssertEqual(context.preferredMediaSourceTitle, "Open HD Image")
+    }
+
+    func testAPODReaderPresentationPolicyBuildsSharedReaderState() {
+        let nasa = NASA(
+            copyright: "ESA/Hubble",
+            date: "2025-01-15",
+            explanation: "A brilliant nebula.",
+            hdurl: URL(string: "https://media.example.com/nebula-hd.jpg"),
+            mediaType: .image,
+            title: "Shared Reader State",
+            url: URL(string: "https://media.example.com/nebula.jpg")
+        )
+        let offlineMediaState = APODOfflineMediaItemState(
+            mediaType: .image,
+            asset: nil,
+            isSaved: true
+        )
+
+        let presentation = APODReaderPresentationPolicy.resolve(
+            nasa: nasa,
+            isFavorite: true,
+            dataSaverMode: false,
+            preferHDImages: true,
+            offlineMediaState: offlineMediaState
+        )
+
+        XCTAssertEqual(presentation.nasa, nasa)
+        XCTAssertTrue(presentation.isFavorite)
+        XCTAssertEqual(presentation.sourceContext.preferredMediaSourceURL, nasa.hdurl)
+        XCTAssertEqual(presentation.archiveHostLabel, "apod.nasa.gov")
+        XCTAssertEqual(presentation.preferredMediaHostLabel, "media.example.com")
+        XCTAssertEqual(presentation.offlineStatusPresentation?.title, "Source Required")
+        XCTAssertTrue(presentation.showsSeparateMediaAction)
+        XCTAssertTrue(presentation.mediaIntegritySummary.contains("credit line"))
     }
 
     private func isolatedUserDefaults(name: String) -> UserDefaults {

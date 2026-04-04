@@ -857,6 +857,62 @@ struct APODReaderSourceContext {
     }
 }
 
+extension APODReaderSourceContext: Equatable {}
+
+struct APODReaderPresentation: Equatable {
+    let nasa: NASA
+    let isFavorite: Bool
+    let sourceContext: APODReaderSourceContext
+    let offlineMediaState: APODOfflineMediaItemState
+    let offlineStatusPresentation: APODOfflineMediaStatusPresentation?
+    let archiveHostLabel: String?
+    let preferredMediaHostLabel: String?
+    let mediaIntegritySummary: String
+    let mediaInteractionHint: String?
+    let showsSeparateMediaAction: Bool
+}
+
+enum APODReaderPresentationPolicy {
+    static func resolve(
+        nasa: NASA,
+        isFavorite: Bool,
+        dataSaverMode: Bool,
+        preferHDImages: Bool,
+        offlineMediaState: APODOfflineMediaItemState
+    ) -> APODReaderPresentation {
+        let sourceContext = APODReaderSourceContext(
+            nasa: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        let archiveHostLabel = APODSourceLinkPolicy.hostLabel(for: sourceContext.nasaPageURL)
+        let preferredMediaHostLabel = APODSourceLinkPolicy.hostLabel(for: sourceContext.preferredMediaSourceURL)
+        let showsSeparateMediaAction: Bool
+        if let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL {
+            showsSeparateMediaAction = preferredMediaSourceURL != sourceContext.nasaPageURL
+        } else {
+            showsSeparateMediaAction = false
+        }
+
+        return APODReaderPresentation(
+            nasa: nasa,
+            isFavorite: isFavorite,
+            sourceContext: sourceContext,
+            offlineMediaState: offlineMediaState,
+            offlineStatusPresentation: offlineMediaState.statusPresentation,
+            archiveHostLabel: archiveHostLabel,
+            preferredMediaHostLabel: preferredMediaHostLabel,
+            mediaIntegritySummary: APODSourceLinkPolicy.mediaIntegritySummary(
+                for: nasa,
+                dataSaverMode: dataSaverMode,
+                preferHDImages: preferHDImages
+            ),
+            mediaInteractionHint: APODSourceLinkPolicy.mediaInteractionHint(for: nasa),
+            showsSeparateMediaAction: showsSeparateMediaAction
+        )
+    }
+}
+
 struct APODAttributionPolicy {
     enum RightsStatus: Equatable {
         case nasaContentLikely

@@ -587,7 +587,7 @@ private enum APODOfflineMediaPlanningPolicy {
     }
 }
 
-struct APODOfflineMediaStatusPresentation {
+struct APODOfflineMediaStatusPresentation: Equatable {
     let title: String
     let systemImage: String
     let tone: AppTheme.SurfaceTone
@@ -894,6 +894,7 @@ struct APODOfflineMediaManagementState: Equatable {
 enum APODLocalMediaThumbnailSpec: String, Hashable {
     case libraryGrid
     case libraryRow
+    case readerHero
 
     var targetPointSize: CGSize {
         switch self {
@@ -901,6 +902,8 @@ enum APODLocalMediaThumbnailSpec: String, Hashable {
             return CGSize(width: 320, height: 256)
         case .libraryRow:
             return CGSize(width: 88, height: 88)
+        case .readerHero:
+            return CGSize(width: 1_600, height: 1_200)
         }
     }
 
@@ -1084,15 +1087,60 @@ struct APODAsyncLocalThumbnailView<Placeholder: View>: View {
     }
 }
 
-enum APODLocalMediaImageLoader {
-    static func image(from fileURL: URL?) -> Image? {
-#if canImport(UIKit)
-        guard let fileURL, let uiImage = UIImage(contentsOfFile: fileURL.path) else {
-            return nil
+struct APODAsyncLocalImagePhaseView<Content: View, Placeholder: View>: View {
+    let fileURL: URL?
+    let spec: APODLocalMediaThumbnailSpec
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var localImage: Image?
+
+    init(
+        fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        @ViewBuilder content: @escaping (Image) -> Content,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.fileURL = fileURL
+        self.spec = spec
+        self.content = content
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        Group {
+            if let localImage {
+                content(localImage)
+            } else {
+                placeholder()
+            }
         }
-        return Image(uiImage: uiImage)
-#else
-        return nil
-#endif
+        .task(id: taskIdentifier) {
+            await loadImage()
+        }
+    }
+
+    private var taskIdentifier: String {
+        [
+            fileURL?.path ?? "nil",
+            spec.rawValue,
+            String(describing: displayScale)
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard fileURL != nil else {
+            localImage = nil
+            return
+        }
+
+        localImage = nil
+        localImage = await APODLocalMediaThumbnailLoader.image(
+            from: fileURL,
+            spec: spec,
+            displayScale: displayScale
+        )
     }
 }

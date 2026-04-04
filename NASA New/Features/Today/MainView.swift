@@ -83,6 +83,25 @@ struct MainView: View {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
     }
 
+    private var effectivePreferHDImages: Bool {
+        DataSaverPreferencePolicy.resolvedPreferHDImages(
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+    }
+
+    private var currentReaderPresentation: APODReaderPresentation {
+        let currentNasa = fetcher.currentNasa
+        let isFavorite = fetcher.isFavorite(currentNasa)
+        return APODReaderPresentationPolicy.resolve(
+            nasa: currentNasa,
+            isFavorite: isFavorite,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: effectivePreferHDImages,
+            offlineMediaState: fetcher.offlineMediaState(for: currentNasa, isSaved: isFavorite)
+        )
+    }
+
     private var usesWideEditorialLayout: Bool {
         horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
@@ -515,7 +534,7 @@ struct MainView: View {
     }
 
     private var mediaSection: some View {
-        APODReaderMediaSection(nasa: fetcher.currentNasa)
+        APODReaderMediaSection(presentation: currentReaderPresentation)
         .opacity(effectiveReduceMotion ? 1 : (isMediaAnimating ? 1 : 0))
         .onAppear {
             if let animation = AppTheme.Motion.reveal(reduceMotion: effectiveReduceMotion) {
@@ -540,7 +559,7 @@ struct MainView: View {
     }
 
     private var detailsSection: some View {
-        APODDetailsView(nasa: fetcher.currentNasa, isFavorite: fetcher.isFavorite(fetcher.currentNasa))
+        APODDetailsView(presentation: currentReaderPresentation)
         .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
         .accessibilitySortPriority(70)
     }

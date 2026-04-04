@@ -10,9 +10,9 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Current Status
 
-- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`, `P1-02`, `P1-03`, `P1-04`, `P1-05`, `P1-06`, `P1-07`, `P2-01`, `P2-02`, `P2-03`
+- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`, `P1-02`, `P1-03`, `P1-04`, `P1-05`, `P1-06`, `P1-07`, `P2-01`, `P2-02`, `P2-03`, `P2-04`
 - In progress: `none`
-- Next recommended ticket: `P2-04`
+- Next recommended ticket: `P2-05`
 
 ## Phase 0: Stabilization Foundation
 
@@ -150,7 +150,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Reader Experience`, `Media Performance`
   Estimate: `1.5d`
   Depends on: `P1-04`
-  Status: `pending`
+  Status: `done`
   Scope: smooth image/video transitions, reduce re-layout churn, and minimize blocking work during detail presentation.
 
 - `P2-05` Performance baseline documentation
@@ -287,6 +287,6 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Suggested Next Three Tickets
 
-- `P2-04` because reader transitions are now the most visible remaining media-performance surface once archive and saved performance have both been tightened.
-- `P2-05` because the performance baseline doc should lock in validation and before/after notes right after the remaining P2 surfaces are addressed.
-- `P3-01` because the Today editorial pass becomes the highest-value premium surface as soon as the reader transition work is green.
+- `P2-05` because the performance baseline doc should lock in validation and before/after notes immediately after the full P2 performance pass is green.
+- `P3-01` because the Today editorial pass becomes the highest-value premium surface now that the reader transition work is green.
+- `P3-02` because a unified premium state system is the next broad product-quality multiplier once the core reading surfaces are fast and stable.

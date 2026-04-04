@@ -5,18 +5,19 @@ struct APODReaderView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.appShellContext) private var appShellContext
 
-    let nasa: NASA
-    let isFavorite: Bool
+    let presentation: APODReaderPresentation
     let availableWidth: CGFloat?
 
     init(
-        nasa: NASA,
-        isFavorite: Bool,
+        presentation: APODReaderPresentation,
         availableWidth: CGFloat? = nil
     ) {
-        self.nasa = nasa
-        self.isFavorite = isFavorite
+        self.presentation = presentation
         self.availableWidth = availableWidth
+    }
+
+    private var nasa: NASA {
+        presentation.nasa
     }
 
     private var effectiveAvailableWidth: CGFloat {
@@ -90,11 +91,11 @@ struct APODReaderView: View {
     }
 
     private var mediaSection: some View {
-        APODReaderMediaSection(nasa: nasa)
+        APODReaderMediaSection(presentation: presentation)
     }
 
     private var detailsSection: some View {
-        APODDetailsView(nasa: nasa, isFavorite: isFavorite)
+        APODDetailsView(presentation: presentation)
         .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
     }
 }
@@ -124,8 +125,7 @@ struct APODRecordDetailView: View {
         GeometryReader { proxy in
             ScrollView {
                 APODReaderView(
-                    nasa: nasa,
-                    isFavorite: fetcher.isFavorite(nasa),
+                    presentation: readerPresentation,
                     availableWidth: min(
                         max(proxy.size.width - (detailHorizontalPadding * 2), 0),
                         detailStageMaxWidth
@@ -169,11 +169,24 @@ struct APODRecordDetailView: View {
         }
         .task(id: nasa.id) {
             fetcher.recordPresentedItem(nasa)
-            AppDiscoveryCoordinator.refreshSearchIndex(archive: fetcher.archiveItems, favorites: fetcher.favorites)
         }
         .userActivity(SpaceBriefingUserActivityType.apod, isActive: true) { activity in
             AppDiscoveryCoordinator.configure(activity: activity, for: nasa, destination: destination)
         }
+    }
+
+    private var readerPresentation: APODReaderPresentation {
+        let isFavorite = fetcher.isFavorite(nasa)
+        return APODReaderPresentationPolicy.resolve(
+            nasa: nasa,
+            isFavorite: isFavorite,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: DataSaverPreferencePolicy.resolvedPreferHDImages(
+                dataSaverMode: dataSaverMode,
+                preferHDImages: preferHDImages
+            ),
+            offlineMediaState: fetcher.offlineMediaState(for: nasa, isSaved: isFavorite)
+        )
     }
 
     private var shareItems: [Any] {

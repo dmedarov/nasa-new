@@ -3,11 +3,10 @@ import AVKit
 import YouTubePlayerKit
 
 struct MediaView: View {
-    @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.appShellContext) private var appShellContext
-    let nasa: NASA
+    let presentation: APODReaderPresentation
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
     @Binding var isVideoLoading: Bool
@@ -19,12 +18,18 @@ struct MediaView: View {
     let reduceMotion: Bool
     let resetImageState: () -> Void
     let extractYouTubeID: (URL?) -> String?
-    let videoThumbnailURL: (String) -> URL?
     @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
     @State private var showWebVideoSheet = false
     @State private var directVideoPlayer: AVPlayer?
+    @State private var activeDirectVideoURL: URL?
+    @State private var inlineYouTubePlayer: YouTubePlayer?
+    @State private var activeYouTubeVideoID: String?
     @State private var magnificationStartScale: CGFloat?
+
+    private var nasa: NASA {
+        presentation.nasa
+    }
 
     private var isDarkMode: Bool {
         colorScheme == .dark
@@ -51,39 +56,39 @@ struct MediaView: View {
     }
 
     private var preferredMediaURL: URL? {
-        APODSourceLinkPolicy.preferredMediaURL(
-            for: nasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
+        presentation.sourceContext.preferredMediaSourceURL
     }
 
     private var preferredImageURL: URL? {
         preferredMediaURL
     }
 
-    private var archiveEntryURL: URL? {
-        APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url)
-    }
-
     private var archiveHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: archiveEntryURL)
+        presentation.archiveHostLabel
     }
 
     private var preferredMediaHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: preferredMediaURL)
+        presentation.preferredMediaHostLabel
     }
 
     private var mediaIntegritySummary: String {
-        APODSourceLinkPolicy.mediaIntegritySummary(
-            for: nasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
+        presentation.mediaIntegritySummary
     }
 
     private var mediaInteractionHint: String? {
-        APODSourceLinkPolicy.mediaInteractionHint(for: nasa)
+        presentation.mediaInteractionHint
+    }
+
+    private var offlineMediaState: APODOfflineMediaItemState {
+        presentation.offlineMediaState
+    }
+
+    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
+        presentation.offlineStatusPresentation
+    }
+
+    private var localVideoURL: URL? {
+        offlineMediaState.localVideoURL
     }
 
     private var shouldAutoplayVideo: Bool {
@@ -91,26 +96,6 @@ struct MediaView: View {
             return true
         }
         return isOnWiFiConnection
-    }
-
-    private var isSaved: Bool {
-        fetcher.isFavorite(nasa)
-    }
-
-    private var offlineMediaState: APODOfflineMediaItemState {
-        fetcher.offlineMediaState(for: nasa, isSaved: isSaved)
-    }
-
-    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
-        offlineMediaState.statusPresentation
-    }
-
-    private var localImage: Image? {
-        APODLocalMediaImageLoader.image(from: offlineMediaState.localPreviewURL)
-    }
-
-    private var localVideoURL: URL? {
-        offlineMediaState.localVideoURL
     }
 
     private var imagePanGesture: some Gesture {
@@ -195,13 +180,20 @@ struct MediaView: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let localImage {
+        if let localPreviewURL = offlineMediaState.localPreviewURL {
             mediaHero(tone: .accent) {
-                interactiveImageView(localImage)
-                    .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
+                APODAsyncLocalImagePhaseView(
+                    fileURL: localPreviewURL,
+                    spec: .readerHero
+                ) { image in
+                    interactiveImageView(image)
+                        .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
+                } placeholder: {
+                    localImageLoadingPlaceholder
+                }
             }
         } else if let preferredImageURL {
-            AsyncImage(url: preferredImageURL) { phase in
+            AsyncImage(url: preferredImageURL, transaction: Transaction(animation: nil)) { phase in
                 if let image = phase.image {
                     mediaHero(tone: .accent) {
                         interactiveImageView(image)
@@ -285,27 +277,7 @@ struct MediaView: View {
         } else if let localVideoURL, supportsInlineDirectVideo(localVideoURL) {
             directVideoHero(for: localVideoURL, autoplay: true, showsAutoplayBadge: false)
         } else if let videoID = extractYouTubeID(nasa.url) {
-            let player = YouTubePlayer(source: .video(id: videoID))
-            mediaHero(tone: .accent) {
-                YouTubePlayerView(player)
-                    .frame(height: videoHeroHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
-                    .padding(AppTheme.Spacing.sm)
-                    .overlay {
-                        if isVideoLoading {
-                            ProgressView()
-                                .tint(AppTheme.accentColor(isDarkMode: isDarkMode))
-                        }
-                    }
-                    .task(id: videoID) {
-                        isVideoLoading = true
-                        try? await Task.sleep(nanoseconds: 1_200_000_000)
-                        isVideoLoading = false
-                    }
-                    .onDisappear {
-                        isVideoLoading = false
-                    }
-            }
+            youTubeVideoHero(for: videoID)
         } else if let videoURL = nasa.url, supportsInlineDirectVideo(videoURL) {
             directVideoHero(for: videoURL, autoplay: shouldAutoplayVideo, showsAutoplayBadge: true)
         } else {
@@ -362,6 +334,7 @@ struct MediaView: View {
                     .onDisappear {
                         directVideoPlayer?.pause()
                         directVideoPlayer = nil
+                        activeDirectVideoURL = nil
                     }
 
                 Color.clear
@@ -389,6 +362,39 @@ struct MediaView: View {
                     .padding(AppTheme.Spacing.md)
                     .accessibilityIdentifier(AccessibilityID.videoAutoplayPausedBadge)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func youTubeVideoHero(for videoID: String) -> some View {
+        mediaHero(tone: .accent) {
+            ZStack {
+                if let inlineYouTubePlayer {
+                    YouTubePlayerView(inlineYouTubePlayer)
+                        .frame(height: videoHeroHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous))
+                        .padding(AppTheme.Spacing.sm)
+                } else {
+                    videoLoadingPlaceholder
+                }
+            }
+            .overlay {
+                if isVideoLoading {
+                    ProgressView()
+                        .tint(AppTheme.accentColor(isDarkMode: isDarkMode))
+                }
+            }
+            .task(id: videoID) {
+                configureInlineYouTubePlayer(for: videoID)
+                isVideoLoading = true
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                isVideoLoading = false
+            }
+            .onDisappear {
+                isVideoLoading = false
+                inlineYouTubePlayer = nil
+                activeYouTubeVideoID = nil
             }
         }
     }
@@ -477,6 +483,39 @@ struct MediaView: View {
         .padding(.horizontal, mediaHorizontalPadding)
     }
 
+    private var localImageLoadingPlaceholder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
+                .fill(AppTheme.panelFallbackColor(isDarkMode: isDarkMode))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
+                        .stroke(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+                )
+
+            ProgressView()
+                .tint(AppTheme.accentColor(isDarkMode: isDarkMode))
+        }
+        .frame(maxWidth: .infinity, minHeight: heroMinimumHeight)
+        .padding(AppTheme.Spacing.sm)
+    }
+
+    private var videoLoadingPlaceholder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
+                .fill(AppTheme.panelFallbackColor(isDarkMode: isDarkMode))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
+                        .stroke(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+                )
+
+            Image(systemName: "play.rectangle.fill")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(AppTheme.accentColor(isDarkMode: isDarkMode))
+        }
+        .frame(height: videoHeroHeight)
+        .padding(AppTheme.Spacing.sm)
+    }
+
     private var mediaIntegrityFooter: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             SectionEyebrow(L10n.text("Media Context", default: "Media Context"), tone: .neutral)
@@ -549,16 +588,31 @@ struct MediaView: View {
     }
 
     private func configureDirectVideoPlayer(for url: URL, autoplay: Bool) {
+        if activeDirectVideoURL != url {
+            activeDirectVideoURL = url
+            if directVideoPlayer == nil {
+                directVideoPlayer = AVPlayer(url: url)
+            } else {
+                directVideoPlayer?.replaceCurrentItem(with: AVPlayerItem(url: url))
+            }
+        }
+
         if directVideoPlayer == nil {
             directVideoPlayer = AVPlayer(url: url)
-        } else {
-            directVideoPlayer?.replaceCurrentItem(with: AVPlayerItem(url: url))
         }
+
         if autoplay {
             directVideoPlayer?.play()
         } else {
             directVideoPlayer?.pause()
         }
+    }
+
+    private func configureInlineYouTubePlayer(for videoID: String) {
+        guard activeYouTubeVideoID != videoID || inlineYouTubePlayer == nil else { return }
+
+        activeYouTubeVideoID = videoID
+        inlineYouTubePlayer = YouTubePlayer(source: .video(id: videoID))
     }
 }
 

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct APODDetailsView: View {
-    @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -13,10 +12,15 @@ struct APODDetailsView: View {
     @State private var isExplanationExpanded = false
     @State private var isSavingToPhotos = false
     @State private var photoExportNotice: PhotoExportNotice?
-    @AppStorage("dataSaverMode") private var dataSaverMode: Bool = false
-    @AppStorage("preferHDImages") private var preferHDImages: Bool = true
-    let nasa: NASA
-    let isFavorite: Bool
+    let presentation: APODReaderPresentation
+
+    private var nasa: NASA {
+        presentation.nasa
+    }
+
+    private var isFavorite: Bool {
+        presentation.isFavorite
+    }
 
     private var isDarkMode: Bool {
         colorScheme == .dark
@@ -45,20 +49,10 @@ struct APODDetailsView: View {
         }
     }
 
-    private var showsSeparateMediaAction: Bool {
-        guard let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL else { return false }
-        return preferredMediaSourceURL != sourceContext.nasaPageURL
-    }
+    private var showsSeparateMediaAction: Bool { presentation.showsSeparateMediaAction }
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
-    }
-
-    private var effectivePreferHDImages: Bool {
-        DataSaverPreferencePolicy.resolvedPreferHDImages(
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
     }
 
     private var creditLine: String {
@@ -92,25 +86,15 @@ struct APODDetailsView: View {
 
     private let photoExportService = PhotoExportService()
 
-    private var sourceContext: APODReaderSourceContext {
-        APODReaderSourceContext(
-            nasa: nasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: effectivePreferHDImages
-        )
-    }
+    private var sourceContext: APODReaderSourceContext { presentation.sourceContext }
 
     private var archiveEntryTitle: String {
         APODSourceLinkPolicy.archiveEntryTitle(for: nasa.date)
     }
 
-    private var archiveHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: sourceContext.nasaPageURL)
-    }
+    private var archiveHostLabel: String? { presentation.archiveHostLabel }
 
-    private var preferredMediaHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: sourceContext.preferredMediaSourceURL)
-    }
+    private var preferredMediaHostLabel: String? { presentation.preferredMediaHostLabel }
 
     private var aboutPanelSourceTitle: String {
         sourceContext.nasaPageURL == nil
@@ -124,13 +108,7 @@ struct APODDetailsView: View {
             : AppBrandingPolicy.entrySourceLinkSummary()
     }
 
-    private var offlineMediaState: APODOfflineMediaItemState {
-        fetcher.offlineMediaState(for: nasa, isSaved: isFavorite)
-    }
-
-    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
-        offlineMediaState.statusPresentation
-    }
+    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? { presentation.offlineStatusPresentation }
 
     private var canOfferPhotoExport: Bool {
         PhotoExportService.exportSourceURL(for: nasa) != nil

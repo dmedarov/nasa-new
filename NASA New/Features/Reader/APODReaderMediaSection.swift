@@ -13,7 +13,7 @@ struct APODReaderMediaSection: View {
     @AppStorage("preferHDImages") private var preferHDImages: Bool = true
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
 
-    let nasa: NASA
+    let presentation: APODReaderPresentation
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
@@ -33,7 +33,7 @@ struct APODReaderMediaSection: View {
 
     var body: some View {
         MediaView(
-            nasa: nasa,
+            presentation: presentation,
             imageScale: $imageScale,
             imageOffset: $imageOffset,
             isVideoLoading: $isVideoLoading,
@@ -44,14 +44,13 @@ struct APODReaderMediaSection: View {
             preferHDImages: effectivePreferHDImages,
             reduceMotion: effectiveReduceMotion,
             resetImageState: resetImageState,
-            extractYouTubeID: APODMediaPresentationPolicy.embeddedYouTubeID(from:),
-            videoThumbnailURL: APODMediaPresentationPolicy.videoThumbnailURL(for:)
+            extractYouTubeID: APODMediaPresentationPolicy.embeddedYouTubeID(from:)
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.apodMediaSection)
-        .task(id: nasa.id) {
+        .task(id: presentation.nasa.id) {
             resetImageState()
-            isVideoLoading = nasa.mediaType == .video
+            isVideoLoading = presentation.nasa.mediaType == .video
         }
     }
 }
