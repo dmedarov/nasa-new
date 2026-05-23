@@ -9,6 +9,48 @@ private struct AppScreenChromeModifier: ViewModifier {
     }
 }
 
+enum AppSensoryFeedbackStyle {
+    case impact
+    case impactLight
+    case selection
+    case success
+    case warning
+}
+
+private struct AppSensoryFeedbackModifier<Trigger: Equatable>: ViewModifier {
+    let style: AppSensoryFeedbackStyle
+    let trigger: Trigger
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            switch style {
+            case .impact:
+                content.sensoryFeedback(.impact, trigger: trigger)
+            case .impactLight:
+                content.sensoryFeedback(.impact(weight: .light), trigger: trigger)
+            case .selection:
+                content.sensoryFeedback(.selection, trigger: trigger)
+            case .success:
+                content.sensoryFeedback(.success, trigger: trigger)
+            case .warning:
+                content.sensoryFeedback(.warning, trigger: trigger)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func appSensoryFeedback<Trigger: Equatable>(
+        _ style: AppSensoryFeedbackStyle,
+        trigger: Trigger
+    ) -> some View {
+        modifier(AppSensoryFeedbackModifier(style: style, trigger: trigger))
+    }
+}
+
 struct ScreenPanelColumn<Content: View>: View {
     let spacing: CGFloat
     let topPadding: CGFloat

@@ -877,6 +877,52 @@ struct AboutSourceRightsPanel: View {
 struct MonetizationPaywallView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     let context: PaywallPresentation
+    @State private var purchaseFeedbackToken = 0
+    @State private var dismissFeedbackToken = 0
+
+    private struct BulletSpec: Identifiable {
+        let id: String
+        let feature: PremiumFeature?
+        let title: String
+        let systemImage: String
+    }
+
+    private let allBullets: [BulletSpec] = [
+        BulletSpec(
+            id: "archive",
+            feature: .fullArchive,
+            title: L10n.text("paywall.bullet.archive", default: "Full archive by date"),
+            systemImage: "books.vertical.fill"
+        ),
+        BulletSpec(
+            id: "hd",
+            feature: .hdSave,
+            title: L10n.text("paywall.bullet.hd_save", default: "Save in HD"),
+            systemImage: "arrow.down.circle.fill"
+        ),
+        BulletSpec(
+            id: "favorites",
+            feature: .unlimitedFavorites,
+            title: L10n.text("paywall.bullet.favorites", default: "Unlimited favorites"),
+            systemImage: "bookmark.fill"
+        ),
+        BulletSpec(
+            id: "widgets",
+            feature: nil,
+            title: L10n.text("paywall.bullet.widgets", default: "All widgets unlocked"),
+            systemImage: "rectangle.3.group.fill"
+        ),
+        BulletSpec(
+            id: "ads",
+            feature: nil,
+            title: L10n.text("paywall.bullet.ads", default: "No ads"),
+            systemImage: "nosign"
+        ),
+    ]
+
+    private var narrative: PaywallNarrativePolicy {
+        PaywallNarrativePolicy.resolve(trigger: context.trigger, feature: context.feature)
+    }
 
     private var priceLine: String {
         purchaseManager.proLifetimeProduct?.displayPrice
@@ -887,6 +933,12 @@ struct MonetizationPaywallView: View {
         purchaseManager.proLifetimeProduct?.displayName ?? AppProduct.proLifetime.fallbackDisplayName
     }
 
+    private func orderedBullets(leadFeature: PremiumFeature) -> [BulletSpec] {
+        let lead = allBullets.filter { $0.feature == leadFeature }
+        let rest = allBullets.filter { $0.feature != leadFeature }
+        return lead + rest
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
@@ -894,11 +946,8 @@ struct MonetizationPaywallView: View {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                         MissionPanelHeader(
                             eyebrow: L10n.text("paywall.eyebrow", default: "Space Briefing Pro"),
-                            title: L10n.text("paywall.title", default: "Unlock the full space experience"),
-                            summary: L10n.text(
-                                "paywall.subtitle",
-                                default: "Get the full NASA archive, HD saves, beautiful widgets, favorites, and an ad-free experience."
-                            ),
+                            title: narrative.title,
+                            summary: narrative.summary,
                             tone: .accent
                         ) {
                             MissionBadge(
@@ -916,27 +965,15 @@ struct MonetizationPaywallView: View {
                         .accessibilityIdentifier(AccessibilityID.paywallPriceText)
 
                         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.archive", default: "Full archive by date"),
-                                systemImage: "books.vertical.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.hd_save", default: "Save in HD"),
-                                systemImage: "arrow.down.circle.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.widgets", default: "All widgets unlocked"),
-                                systemImage: "rectangle.3.group.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.favorites", default: "Unlimited favorites"),
-                                systemImage: "bookmark.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.ads", default: "No ads"),
-                                systemImage: "nosign"
-                            )
+                            ForEach(orderedBullets(leadFeature: narrative.leadFeature)) { bullet in
+                                paywallBullet(title: bullet.title, systemImage: bullet.systemImage)
+                            }
                         }
+
+                        Text(narrative.freeNote)
+                            .font(AppTheme.Typography.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         if let paywallMessage = purchaseManager.paywallMessage, !paywallMessage.isEmpty {
                             Text(paywallMessage)
@@ -990,6 +1027,7 @@ struct MonetizationPaywallView: View {
                             .accessibilityIdentifier(AccessibilityID.paywallRestoreButton)
 
                             Button(L10n.text("paywall.cta.continue_free", default: "Continue with Free")) {
+                                dismissFeedbackToken += 1
                                 purchaseManager.dismissPaywall()
                             }
                             .buttonStyle(.plain)
@@ -1018,6 +1056,11 @@ struct MonetizationPaywallView: View {
         .interactiveDismissDisabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
+        .onChange(of: purchaseManager.hasPro) { newValue in
+            if newValue { purchaseFeedbackToken += 1 }
+        }
+        .appSensoryFeedback(.success, trigger: purchaseFeedbackToken)
+        .appSensoryFeedback(.impactLight, trigger: dismissFeedbackToken)
     }
 
     private func paywallBullet(title: String, systemImage: String) -> some View {

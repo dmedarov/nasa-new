@@ -12,6 +12,9 @@ struct APODDetailsView: View {
     @State private var isExplanationExpanded = false
     @State private var isSavingToPhotos = false
     @State private var photoExportNotice: PhotoExportNotice?
+    @State private var explanationFeedbackToken = 0
+    @State private var savePhotosSuccessToken = 0
+    @State private var savePhotosFailedToken = 0
     let presentation: APODReaderPresentation
 
     private var nasa: NASA {
@@ -137,17 +140,10 @@ struct APODDetailsView: View {
     var body: some View {
         MissionPanel(tone: .neutral, padding: detailPanelPadding) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                headerSection
+                titleSection
+                explanationSection
                 provenanceSection
                 metadataStrip
-                APODAttributionNotice(
-                    title: rightsTitle,
-                    text: rightsNotice,
-                    systemImage: rightsSystemImage,
-                    tone: rightsTone
-                )
-
-                explanationSection
 
                 if sourceContext.nasaPageURL != nil || showsSeparateMediaAction {
                     sourceSection
@@ -172,12 +168,13 @@ struct APODDetailsView: View {
                 dismissButton: .default(Text(L10n.text("OK", default: "OK")))
             )
         }
+        .appSensoryFeedback(.selection, trigger: explanationFeedbackToken)
+        .appSensoryFeedback(.success, trigger: savePhotosSuccessToken)
+        .appSensoryFeedback(.warning, trigger: savePhotosFailedToken)
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            SectionEyebrow(L10n.text("Mission Story", default: "Mission Story"), tone: .accent)
-
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             Text(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
                 .font(titleFont)
                 .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
@@ -187,10 +184,10 @@ struct APODDetailsView: View {
                 .accessibilityIdentifier(AccessibilityID.apodTitleText)
                 .accessibilityAddTraits(.isHeader)
 
-            Text(L10n.text("Curated directly from NASA’s Astronomy Picture of the Day archive.", default: "Curated directly from NASA’s Astronomy Picture of the Day archive."))
-                .font(AppTheme.Typography.body)
+            Text(formattedDate)
+                .font(AppTheme.Typography.subheadline)
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
         }
     }
 
@@ -246,6 +243,13 @@ struct APODDetailsView: View {
                     )
                 }
             }
+
+            APODAttributionNotice(
+                title: rightsTitle,
+                text: rightsNotice,
+                systemImage: rightsSystemImage,
+                tone: rightsTone
+            )
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.apodProvenanceSection)
@@ -295,14 +299,10 @@ struct APODDetailsView: View {
 
     private var explanationSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                SectionEyebrow(L10n.text("Mission Briefing", default: "Mission Briefing"), tone: .accent)
-
-                Text(L10n.text("About this APOD", default: "About this APOD"))
-                    .font(AppTheme.Typography.sectionTitle)
-                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
-                    .accessibilityAddTraits(.isHeader)
-            }
+            Text(L10n.text("About this APOD", default: "About this APOD"))
+                .font(AppTheme.Typography.sectionTitle)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                .accessibilityAddTraits(.isHeader)
 
             Text(explanationText)
                 .font(AppTheme.Typography.body)
@@ -326,6 +326,7 @@ struct APODDetailsView: View {
                         isExplanationExpanded.toggle()
                     }
 
+                    explanationFeedbackToken += 1
                     if let animation = AppTheme.Motion.standard(reduceMotion: effectiveReduceMotion) {
                         withAnimation(animation, updates)
                     } else {
@@ -435,6 +436,7 @@ struct APODDetailsView: View {
 
         do {
             try await photoExportService.exportOriginalImage(for: nasa)
+            savePhotosSuccessToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: L10n.text("media.save_success_title", default: "Saved to Photos"),
                 message: L10n.text(
@@ -443,11 +445,13 @@ struct APODDetailsView: View {
                 )
             )
         } catch let error as PhotoExportService.ExportError {
+            savePhotosFailedToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: error.errorTitle,
                 message: error.localizedDescription
             )
         } catch {
+            savePhotosFailedToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: L10n.text("media.save_failed_title", default: "Could not save image"),
                 message: error.localizedDescription

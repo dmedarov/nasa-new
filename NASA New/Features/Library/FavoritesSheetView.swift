@@ -71,6 +71,7 @@ struct SavedScreenView: View {
 
     @AppStorage("saved.presentation.mode") private var savedPresentationModeRawValue = ArchivePresentationMode.list.rawValue
     @AppStorage("saved.filter") private var savedFilterRawValue = SavedFilter.all.rawValue
+    @State private var removeFavoriteFeedbackToken = 0
     @State private var pushedFavorite: NASA?
     @State private var selectedFavoriteID: String?
     @State private var searchQuery = ""
@@ -203,6 +204,7 @@ struct SavedScreenView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
         }
+        .appSensoryFeedback(.warning, trigger: removeFavoriteFeedbackToken)
         .task {
             resolvedSavedSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildSavedLibrarySnapshot()
@@ -275,6 +277,7 @@ struct SavedScreenView: View {
                         )
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
+                                removeFavoriteFeedbackToken += 1
                                 fetcher.removeFavorite(displayItem.item)
                             } label: {
                                 Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
@@ -619,6 +622,7 @@ struct ArchiveScreenView: View {
 
     @AppStorage("archive.presentation.mode") private var archivePresentationModeRawValue = ArchivePresentationMode.grid.rawValue
     @AppStorage("archive.filter") private var archiveFilterRawValue = ArchiveFilter.all.rawValue
+    @State private var archiveFavoriteFeedbackToken = 0
     @State private var pushedArchiveItem: NASA?
     @State private var selectedArchiveItemID: String?
     @State private var searchQuery = ""
@@ -795,6 +799,7 @@ struct ArchiveScreenView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.archiveSheetRoot)
         }
+        .appSensoryFeedback(.impact, trigger: archiveFavoriteFeedbackToken)
         .task {
             resolvedArchiveSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildArchiveLibrarySnapshot()
@@ -1275,6 +1280,7 @@ struct ArchiveScreenView: View {
                                     let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
 
                                     Button {
+                                        archiveFavoriteFeedbackToken += 1
                                         toggleArchiveFavorite(displayItem.item)
                                     } label: {
                                         Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
@@ -1286,22 +1292,10 @@ struct ArchiveScreenView: View {
                     }
                 }
 
-                if let loadError = fetcher.archiveError {
+                if fetcher.archiveError != nil {
                     Section {
-                        MissionStateCard(
-                            eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
-                            title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
-                            message: loadError.localizedDescription,
-                            systemImage: "exclamationmark.triangle",
-                            tone: .warning,
-                            minHeight: 180
-                        ) {
-                            Button(L10n.text("Retry", default: "Retry")) {
-                                fetcher.loadOlderArchiveBatch()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .libraryStateRowStyle()
+                        archiveSyncErrorCard
+                            .libraryStateRowStyle()
                     }
                 }
 
@@ -1350,22 +1344,8 @@ struct ArchiveScreenView: View {
                             }
                         }
 
-                        if let loadError = fetcher.archiveError {
-                            MissionStateCard(
-                                eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
-                                title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
-                                message: loadError.localizedDescription,
-                                systemImage: "exclamationmark.triangle",
-                                tone: .warning,
-                                minHeight: 180
-                            ) {
-                                Button(L10n.text("Retry", default: "Retry")) {
-                                    fetcher.loadOlderArchiveBatch()
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
+                        archiveSyncErrorCard
                             .padding(.horizontal, AppTheme.Spacing.lg)
-                        }
 
                         if fetcher.canLoadMoreArchiveHistory {
                             archiveLoadMoreButton
@@ -1421,19 +1401,44 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveEmptyState: some View {
-        MissionStateCard(
-            eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
-            title: L10n.text("Archive is still building", default: "Archive is still building"),
-            message: L10n.text(
-                "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day.",
-                default: "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day."
-            ),
-            systemImage: "books.vertical",
-            tone: .accent
-        )
+        Group {
+            if fetcher.isOfflineMode {
+                OfflineEmptyStateView(
+                    eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
+                    title: L10n.text("No cached archive", default: "No cached archive"),
+                    subtitle: L10n.text(
+                        "archive.empty.offline",
+                        default: "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded."
+                    )
+                )
+            } else {
+                MissionStateCard(
+                    eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
+                    title: L10n.text("Archive is still building", default: "Archive is still building"),
+                    message: L10n.text(
+                        "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day.",
+                        default: "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day."
+                    ),
+                    systemImage: "books.vertical",
+                    tone: .accent
+                )
+            }
+        }
         .padding(AppTheme.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier(AccessibilityID.archiveEmptyState)
+    }
+
+    @ViewBuilder
+    private var archiveSyncErrorCard: some View {
+        if let loadError = fetcher.archiveError {
+            APIRequestFailureView(
+                eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
+                title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
+                error: loadError,
+                retryAction: { fetcher.loadOlderArchiveBatch() }
+            )
+        }
     }
 
     private var archiveSearchEmptyState: some View {

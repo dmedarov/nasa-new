@@ -388,10 +388,8 @@ struct MainView: View {
         .onChange(of: dataSaverMode) { _ in
             preferHDImages = normalizedPreferHDImages()
         }
-        .modifier(SensoryFeedbackModifier(
-            randomizeFeedbackToken: randomizeFeedbackToken,
-            favoriteFeedbackToken: favoriteFeedbackToken
-        ))
+        .appSensoryFeedback(.selection, trigger: randomizeFeedbackToken)
+        .appSensoryFeedback(.selection, trigger: favoriteFeedbackToken)
     }
 
     private var headerSection: some View {
@@ -616,22 +614,6 @@ struct MainView: View {
             mediaItem: APODMediaPresentationPolicy.shareMediaItem(for: fetcher.currentNasa),
             explanationMaxLength: ViewConstants.shareExplanationMaxLength
         )
-    }
-}
-
-private struct SensoryFeedbackModifier: ViewModifier {
-    let randomizeFeedbackToken: Int
-    let favoriteFeedbackToken: Int
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 17.0, *) {
-            content
-                .sensoryFeedback(.selection, trigger: randomizeFeedbackToken)
-                .sensoryFeedback(.selection, trigger: favoriteFeedbackToken)
-        } else {
-            content
-        }
     }
 }
 

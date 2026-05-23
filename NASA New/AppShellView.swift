@@ -10,6 +10,7 @@ struct AppShellView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(StorageKey.destination) private var persistedDestinationRawValue = AppDestination.today.rawValue
     @State private var lastTrackedDestination: AppDestination?
     @State private var selectionFlags = AppShellSelectionFlags()
@@ -119,6 +120,7 @@ struct AppShellView: View {
                 AccessibilityMarker(identifier: AccessibilityID.appShellSplitRoot)
             }
         }
+        .appSensoryFeedback(.selection, trigger: router.destination)
     }
 
     @ViewBuilder
@@ -140,7 +142,8 @@ struct AppShellView: View {
 
     private var premiumSidebarRail: some View {
         PremiumShellStage(tone: .accent) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header zone — brand identity
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                     SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
 
@@ -152,24 +155,26 @@ struct AppShellView: View {
                         .font(AppTheme.Typography.footnote)
                         .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
                 }
+                .padding(.bottom, AppTheme.Spacing.lg)
 
+                // Nav zone — destination rows
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                     ForEach(AppDestination.allCases) { destination in
                         splitDestinationRow(for: destination)
                     }
                 }
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: AppTheme.Spacing.xs) {
-                        shellStatusBadges
-                    }
-
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        shellStatusBadges
-                    }
-                }
-
                 Spacer(minLength: 0)
+
+                // Footer zone — status context
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 1)
+                        .padding(.bottom, AppTheme.Spacing.xs)
+
+                    shellStatusBadges
+                }
             }
             .padding(.horizontal, AppTheme.Spacing.md)
             .padding(.vertical, AppTheme.Spacing.lg)
@@ -302,7 +307,9 @@ struct AppShellView: View {
         let isSelected = router.destination == destination
 
         return Button {
-            withAnimation(.easeInOut(duration: 0.24)) {
+            if let animation = AppTheme.Motion.standard(reduceMotion: reduceMotion) {
+                withAnimation(animation) { updateDestination(destination) }
+            } else {
                 updateDestination(destination)
             }
         } label: {
@@ -565,32 +572,26 @@ private struct AppShellSidebarRow: View {
                     )
                     .frame(width: 42, height: 42)
 
-                Image(systemName: destination.systemImage)
+                Image(systemName: isSelected ? destination.selectedSystemImage : destination.systemImage)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(
                         isSelected
                             ? AppTheme.Palette.accentHighlight
-                            : AppTheme.inkPrimary(isDarkMode: isDarkMode)
+                            : AppTheme.inkSecondary(isDarkMode: isDarkMode)
                     )
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(destination.localizedTitle)
-                    .font(AppTheme.Typography.sectionTitle)
-                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: isSelected ? "arrow.right.circle.fill" : "circle")
+            Text(destination.localizedTitle)
+                .font(AppTheme.Typography.sectionTitle)
                 .foregroundStyle(
                     isSelected
-                        ? AppTheme.Palette.accentHighlight
-                        : AppTheme.panelStroke(isDarkMode: isDarkMode)
+                        ? AppTheme.inkPrimary(isDarkMode: isDarkMode)
+                        : AppTheme.inkSecondary(isDarkMode: isDarkMode)
                 )
-                .accessibilityHidden(true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, AppTheme.Spacing.sm)
         .padding(.vertical, AppTheme.Spacing.sm)
