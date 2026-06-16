@@ -315,6 +315,7 @@
 "appearance.system" = "Системен";
 "archive.summary.count" = "%d APOD записа, готови за преглед";
 "archive.summary.empty_range" = "Създайте прегледен APOD архив и скачайте директно към всеки запазен ден.";
+"archive.empty.offline" = "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded.";
 "archive.summary.range" = "Разглеждайте от %@ назад до %@, после зареждайте по-стари диапазони при нужда.";
 "by" = "от";
 "credit.label" = "Кредит: %@";

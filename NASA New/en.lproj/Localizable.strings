@@ -284,6 +284,7 @@
 "archive.summary.count" = "%d APOD entries ready to browse";
 "archive.summary.range" = "Browse from %@ back to %@, then load older ranges on demand.";
 "archive.summary.empty_range" = "Build a browsable APOD archive and jump straight into any saved day.";
+"archive.empty.offline" = "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded.";
 "Editorial Archive" = "Editorial Archive";
 "Archive Search" = "Archive Search";
 "No matching APOD entries" = "No matching APOD entries";

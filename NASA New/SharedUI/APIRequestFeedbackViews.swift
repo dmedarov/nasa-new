@@ -155,15 +155,29 @@ struct APIRequestStatusBanner: View {
 }
 
 struct APIRequestEmptyStateView: View {
+    let eyebrow: String
     let title: String
     let subtitle: String
+    let systemImage: String
+
+    init(
+        eyebrow: String = L10n.text("NASA API", default: "NASA API"),
+        title: String,
+        subtitle: String,
+        systemImage: String = "hourglass"
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+    }
 
     var body: some View {
         MissionStateCard(
-            eyebrow: L10n.text("NASA API", default: "NASA API"),
+            eyebrow: eyebrow,
             title: title,
             message: subtitle,
-            systemImage: "hourglass",
+            systemImage: systemImage,
             tone: .accent,
             showsProgress: true,
             minHeight: 280,
@@ -177,13 +191,27 @@ struct APIRequestEmptyStateView: View {
 }
 
 struct APIRequestFailureView: View {
-    let error: NasaCollectionFetcher.FetchError
+    let eyebrow: String
+    let title: String
+    let error: Error
     let retryAction: () -> Void
+
+    init(
+        eyebrow: String = L10n.text("Mission Control", default: "Mission Control"),
+        title: String = L10n.text("API Request Failed", default: "API Request Failed"),
+        error: Error,
+        retryAction: @escaping () -> Void
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.error = error
+        self.retryAction = retryAction
+    }
 
     var body: some View {
         MissionStateCard(
-            eyebrow: L10n.text("Mission Control", default: "Mission Control"),
-            title: L10n.text("API Request Failed", default: "API Request Failed"),
+            eyebrow: eyebrow,
+            title: title,
             message: error.localizedDescription,
             systemImage: "wifi.exclamationmark",
             tone: .warning,
@@ -198,5 +226,23 @@ struct APIRequestFailureView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.apiRequestFailureState)
         }
+    }
+}
+
+struct OfflineEmptyStateView: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        MissionStateCard(
+            eyebrow: eyebrow,
+            title: title,
+            message: subtitle,
+            systemImage: "wifi.slash",
+            tone: .warning,
+            minHeight: 280
+        )
+        .padding(.horizontal, AppTheme.Spacing.lg)
     }
 }

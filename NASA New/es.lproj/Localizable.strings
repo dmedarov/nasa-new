@@ -315,6 +315,7 @@
 "appearance.system" = "Sistema";
 "archive.summary.count" = "%d entradas APOD listas para explorar";
 "archive.summary.empty_range" = "Crea un archivo APOD navegable y entra directamente en cualquier dia guardado.";
+"archive.empty.offline" = "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded.";
 "archive.summary.range" = "Explora desde %@ hacia %@ y luego carga rangos mas antiguos cuando haga falta.";
 "by" = "por";
 "credit.label" = "Credito: %@";
