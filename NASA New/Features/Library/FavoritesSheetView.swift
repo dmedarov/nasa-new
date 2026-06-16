@@ -1,98 +1,31 @@
 import Combine
 import SwiftUI
 
-private enum ArchiveFilter: String, CaseIterable, Identifiable {
-    case all
-    case image
-    case video
-    case saved
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .all:
-            return L10n.text("All", default: "All")
-        case .image:
-            return L10n.text("Images", default: "Images")
-        case .video:
-            return L10n.text("Videos", default: "Videos")
-        case .saved:
-            return L10n.text("Saved", default: "Saved")
-        }
-    }
-}
-
-private enum ArchivePresentationMode: String, CaseIterable, Identifiable {
-    case grid
-    case list
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .grid:
-            return L10n.text("Grid", default: "Grid")
-        case .list:
-            return L10n.text("List", default: "List")
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .grid:
-            return "square.grid.2x2"
-        case .list:
-            return "list.bullet.rectangle"
-        }
-    }
-}
-
-private enum SavedFilter: String, CaseIterable, Identifiable {
-    case all
-    case offline
-    case preview
-    case sourceRequired
-
-    var id: String { rawValue }
-
-    var localizedTitle: String {
-        switch self {
-        case .all:
-            return L10n.text("All", default: "All")
-        case .offline:
-            return L10n.text("Offline", default: "Offline")
-        case .preview:
-            return L10n.text("Preview", default: "Preview")
-        case .sourceRequired:
-            return L10n.text("Source", default: "Source")
-        }
-    }
-}
-
-private struct APODLibraryDisplayItem: Identifiable {
+struct APODLibraryDisplayItem: Identifiable {
     let item: NASA
     let isSaved: Bool
-    let offlineMedia: APODOfflineMediaAsset?
+    let offlineMediaState: APODOfflineMediaItemState
     let title: String
     let dateText: String
     let creditLine: String
-    let offlineStatusPresentation: APODOfflineMediaStatusPresentation?
 
     var id: String { item.id }
 
     init(item: NASA, isSaved: Bool, offlineMedia: APODOfflineMediaAsset?, locale: Locale) {
         self.item = item
         self.isSaved = isSaved
-        self.offlineMedia = offlineMedia
-        title = item.title ?? L10n.text("Untitled", default: "Untitled")
-        dateText = APODDateDisplayPolicy.displayString(for: item.date, locale: locale)
-        creditLine = APODAttributionPolicy.creditLine(for: item)
-        offlineStatusPresentation = APODOfflineMediaStatusPolicy.presentation(
-            for: item,
+        offlineMediaState = APODOfflineMediaItemState(
+            mediaType: item.mediaType,
             asset: offlineMedia,
             isSaved: isSaved
         )
+        title = item.title ?? L10n.text("Untitled", default: "Untitled")
+        dateText = APODDateDisplayPolicy.displayString(for: item.date, locale: locale)
+        creditLine = APODAttributionPolicy.creditLine(for: item)
+    }
+
+    var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
+        offlineMediaState.statusPresentation
     }
 
     var mediaBadgeTitle: String { item.mediaType.localizedDisplayName }
@@ -101,51 +34,32 @@ private struct APODLibraryDisplayItem: Identifiable {
         item.mediaType == .video ? "play.rectangle.fill" : "photo.fill"
     }
 
-    func matchesSearch(_ query: String) -> Bool {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return true }
-
-        return title.localizedCaseInsensitiveContains(trimmedQuery)
-            || (item.date ?? "").localizedCaseInsensitiveContains(trimmedQuery)
-            || creditLine.localizedCaseInsensitiveContains(trimmedQuery)
+    var archivePolicyItem: ArchiveLibraryPolicy.Item {
+        ArchiveLibraryPolicy.Item(
+            id: id,
+            date: item.date,
+            title: title,
+            creditLine: creditLine,
+            mediaKind: .init(item.mediaType),
+            isSaved: isSaved
+        )
     }
 
-    func matchesArchiveFilter(_ filter: ArchiveFilter) -> Bool {
-        switch filter {
-        case .all:
-            return true
-        case .image:
-            return item.mediaType == .image
-        case .video:
-            return item.mediaType == .video
-        case .saved:
-            return isSaved
-        }
-    }
-
-    func matchesSavedFilter(_ filter: SavedFilter) -> Bool {
-        switch filter {
-        case .all:
-            return true
-        case .offline:
-            return offlineMedia?.availability == .availableOffline
-        case .preview:
-            return offlineMedia?.availability == .previewOffline
-        case .sourceRequired:
-            switch offlineMedia?.availability ?? .remoteOnly {
-            case .availableOffline, .previewOffline:
-                return false
-            case .remoteOnly, .syncing, .failed:
-                return true
-            }
-        }
+    var savedPolicyItem: SavedLibraryPolicy.Item {
+        return SavedLibraryPolicy.Item(
+            id: id,
+            date: item.date,
+            title: title,
+            creditLine: creditLine,
+            storageState: offlineMediaState.savedLibraryStorageState
+        )
     }
 }
 
-private struct ArchiveSection: Identifiable {
+struct ArchiveSection: Identifiable {
     let id: String
     let title: String
-    let items: [APODLibraryDisplayItem]
+    let itemIDs: [String]
 }
 
 struct SavedScreenView: View {
@@ -153,29 +67,51 @@ struct SavedScreenView: View {
     @EnvironmentObject private var router: AppRouter
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    let embedInRegularShell: Bool
 
     @AppStorage("saved.presentation.mode") private var savedPresentationModeRawValue = ArchivePresentationMode.list.rawValue
     @AppStorage("saved.filter") private var savedFilterRawValue = SavedFilter.all.rawValue
+    @State private var removeFavoriteFeedbackToken = 0
     @State private var pushedFavorite: NASA?
     @State private var selectedFavoriteID: String?
     @State private var searchQuery = ""
-    @State private var savedDisplayItems = [APODLibraryDisplayItem]()
-    @State private var filteredFavoriteItems = [APODLibraryDisplayItem]()
+    @State private var resolvedSavedSearchQuery = ""
+    @State private var savedDisplayItemsByID = [String: APODLibraryDisplayItem]()
+    @State private var savedPolicyItems = [SavedLibraryPolicy.Item]()
+    @State private var filteredFavoriteItemIDs = [String]()
+    @State private var savedSearchTask: Task<Void, Never>?
+
+    init(embedInRegularShell: Bool = false) {
+        self.embedInRegularShell = embedInRegularShell
+    }
 
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular
+        LibraryLayoutPolicy.usesSplitLayout(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var supportsGridPresentation: Bool {
-        usesSplitLayout
+        LibraryLayoutPolicy.supportsGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var savedPresentationMode: ArchivePresentationMode {
-        ArchivePresentationMode(rawValue: savedPresentationModeRawValue) ?? .list
+        LibraryLayoutPolicy.resolvedPresentationMode(
+            from: savedPresentationModeRawValue,
+            fallback: .list
+        )
     }
 
     private var usesGridPresentation: Bool {
-        supportsGridPresentation && savedPresentationMode == .grid
+        LibraryLayoutPolicy.usesGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell,
+            presentationMode: savedPresentationMode
+        )
     }
 
     private var savedFilter: SavedFilter {
@@ -183,19 +119,21 @@ struct SavedScreenView: View {
     }
 
     private var selectedFavorite: NASA? {
-        let preferredID = selectedFavoriteID ?? router.selectedSavedItemID
-        return filteredFavoriteItems.first(where: { $0.id == preferredID })?.item
-            ?? savedDisplayItems.first(where: { $0.id == preferredID })?.item
+        guard let preferredID = selectedFavoriteID ?? router.selectedSavedItemID else {
+            return nil
+        }
+
+        return savedDisplayItemsByID[preferredID]?.item
     }
 
     private var savedResultsSummary: String {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = resolvedSavedSearchQuery
         if trimmedQuery.isEmpty {
             if savedFilter != .all {
                 return L10n.format(
                     "saved.search.summary.filtered_by_mode",
                     default: "Showing %d saved stories in %@.",
-                    filteredFavoriteItems.count,
+                    filteredFavoriteItemIDs.count,
                     savedFilter.localizedTitle
                 )
             }
@@ -203,22 +141,27 @@ struct SavedScreenView: View {
             return L10n.format(
                 "saved.search.summary.default",
                 default: "Search %d saved APOD stories by title, date, or credit line.",
-                savedDisplayItems.count
+                savedPolicyItems.count
             )
         }
 
         return L10n.format(
             "saved.search.summary.filtered",
             default: "Showing %d of %d saved stories for \"%@\".",
-            filteredFavoriteItems.count,
-            savedDisplayItems.count,
+            filteredFavoriteItemIDs.count,
+            savedPolicyItems.count,
             trimmedQuery
         )
     }
 
     var body: some View {
         Group {
-            if usesSplitLayout {
+            if embedInRegularShell {
+                savedCollectionContent(
+                    selectedItemID: selectedFavoriteID ?? router.selectedSavedItemID,
+                    selectionAction: selectFavorite
+                )
+            } else if usesSplitLayout {
                 NavigationSplitView {
                     savedCollectionContent(
                         selectedItemID: selectedFavoriteID ?? router.selectedSavedItemID,
@@ -261,7 +204,9 @@ struct SavedScreenView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.favoritesSheetRoot)
         }
+        .appSensoryFeedback(.warning, trigger: removeFavoriteFeedbackToken)
         .task {
+            resolvedSavedSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildSavedLibrarySnapshot()
             syncSavedSelectionFromRouter()
         }
@@ -272,7 +217,7 @@ struct SavedScreenView: View {
             syncSavedSelectionFromRouter()
         }
         .onChange(of: searchQuery) { _ in
-            rebuildSavedFiltering()
+            scheduleSavedFiltering()
         }
         .onChange(of: savedFilterRawValue) { _ in
             rebuildSavedFiltering()
@@ -286,6 +231,10 @@ struct SavedScreenView: View {
                 self.selectedFavoriteID = nil
             }
         }
+        .onDisappear {
+            savedSearchTask?.cancel()
+            savedSearchTask = nil
+        }
     }
 
     @ViewBuilder
@@ -293,7 +242,7 @@ struct SavedScreenView: View {
         selectedItemID: String?,
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
-        Group {
+        AppScreenSurface(title: L10n.text("Favorites", default: "Favorites")) {
             if fetcher.favorites.isEmpty {
                 favoritesEmptyState
             } else if usesGridPresentation {
@@ -305,9 +254,6 @@ struct SavedScreenView: View {
                 )
             }
         }
-        .background(SpaceBackdropView())
-        .navigationTitle(L10n.text("Favorites", default: "Favorites"))
-        .appScreenChrome()
     }
 
     private func savedListContent(
@@ -318,23 +264,26 @@ struct SavedScreenView: View {
             savedHeaderPanels
                 .libraryHeaderRowStyle()
 
-            if filteredFavoriteItems.isEmpty {
+            if filteredFavoriteItemIDs.isEmpty {
                 searchEmptyState
                     .libraryStateRowStyle()
             } else {
-                ForEach(filteredFavoriteItems) { displayItem in
-                    libraryRow(
-                        displayItem,
-                        isSelected: displayItem.id == selectedItemID,
-                        selectionAction: selectionAction
-                    )
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            fetcher.removeFavorite(displayItem.item)
-                        } label: {
-                            Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
+                ForEach(filteredFavoriteItemIDs, id: \.self) { itemID in
+                    if let displayItem = savedDisplayItemsByID[itemID] {
+                        libraryRow(
+                            displayItem,
+                            isSelected: displayItem.id == selectedItemID,
+                            selectionAction: selectionAction
+                        )
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                removeFavoriteFeedbackToken += 1
+                                fetcher.removeFavorite(displayItem.item)
+                            } label: {
+                                Label(L10n.text("Delete", default: "Delete"), systemImage: "trash")
+                            }
+                            .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: displayItem.item))
                         }
-                        .accessibilityIdentifier(AccessibilityID.favoriteDeleteActionIdentifier(for: displayItem.item))
                     }
                 }
             }
@@ -344,18 +293,71 @@ struct SavedScreenView: View {
     }
 
     private var savedHeaderPanels: some View {
-        ScreenPanelColumn(
-            spacing: AppTheme.Metrics.screenPanelSpacing,
-            topPadding: AppTheme.Spacing.xs,
-            bottomPadding: AppTheme.Spacing.xs
+        LibraryPanelDeck {
+            if embedInRegularShell {
+                savedMissionControlPanel
+            } else {
+                savedOverviewPanel
+                savedControlsPanel
+            }
+        }
+    }
+
+    private var savedMissionControlPanel: some View {
+        let offlineLibraryState = fetcher.offlineMediaLibraryState
+
+        return MissionSupportPanel(
+            eyebrow: L10n.text("saved.library.eyebrow", default: "Saved Library"),
+            title: L10n.format(
+                "saved.summary.count",
+                default: "%d saved APOD stories ready to revisit",
+                fetcher.favorites.count
+            ),
+            summary: savedResultsSummary,
+            tone: .favorite,
+            padding: AppTheme.Spacing.lg
         ) {
-            savedOverviewPanel
-            savedControlsPanel
+            if offlineLibraryState.showsSavedStatusBadges {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        savedStatusBadges(offlineLibraryState)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                        savedStatusBadges(offlineLibraryState)
+                    }
+                }
+            }
+
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search favorites", default: "Search favorites"),
+                accessibilityIdentifier: AccessibilityID.favoritesSearchField
+            )
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    savedFilterPicker
+                    Spacer(minLength: 0)
+                    if supportsGridPresentation {
+                        savedLayoutPicker
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    savedFilterPicker
+                    if supportsGridPresentation {
+                        savedLayoutPicker
+                    }
+                }
+            }
         }
     }
 
     private var savedOverviewPanel: some View {
-        MissionSupportPanel(
+        let offlineLibraryState = fetcher.offlineMediaLibraryState
+
+        return MissionSupportPanel(
             eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
             title: L10n.format(
                 "saved.summary.count",
@@ -369,14 +371,14 @@ struct SavedScreenView: View {
             tone: .favorite,
             padding: AppTheme.Spacing.lg
         ) {
-            if fetcher.savedOfflineItemCount > 0 || fetcher.savedPreviewItemCount > 0 {
+            if offlineLibraryState.showsSavedStatusBadges {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
 
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                        savedStatusBadges
+                        savedStatusBadges(offlineLibraryState)
                     }
                 }
             }
@@ -384,32 +386,18 @@ struct SavedScreenView: View {
     }
 
     private var savedControlsPanel: some View {
-        MissionSupportPanel(
+        LibraryBrowserPanel(
             eyebrow: L10n.text("Saved Browser", default: "Saved Browser"),
             summary: savedResultsSummary,
-            tone: .neutral
+            tone: .neutral,
+            searchText: $searchQuery,
+            searchPlaceholder: L10n.text("Search favorites", default: "Search favorites"),
+            searchAccessibilityIdentifier: AccessibilityID.favoritesSearchField
         ) {
-            MissionSearchField(
-                text: $searchQuery,
-                placeholder: L10n.text("Search favorites", default: "Search favorites"),
-                accessibilityIdentifier: AccessibilityID.favoritesSearchField
-            )
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    savedFilterPicker
-                    Spacer(minLength: 0)
-                    if supportsGridPresentation {
-                        savedLayoutPicker
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                    savedFilterPicker
-                    if supportsGridPresentation {
-                        savedLayoutPicker
-                    }
-                }
+            savedFilterPicker
+        } layoutControl: {
+            if supportsGridPresentation {
+                savedLayoutPicker
             }
         }
     }
@@ -462,28 +450,12 @@ struct SavedScreenView: View {
     }
 
     @ViewBuilder
-    private var savedStatusBadges: some View {
-        if fetcher.savedOfflineItemCount > 0 {
+    private func savedStatusBadges(_ offlineLibraryState: APODOfflineMediaLibraryState) -> some View {
+        ForEach(offlineLibraryState.savedStatusBadges) { badge in
             MissionBadge(
-                title: L10n.format(
-                    "saved.summary.offline_count",
-                    default: "%d offline",
-                    fetcher.savedOfflineItemCount
-                ),
-                systemImage: "arrow.down.circle.fill",
-                tone: .accent
-            )
-        }
-
-        if fetcher.savedPreviewItemCount > 0 {
-            MissionBadge(
-                title: L10n.format(
-                    "saved.summary.preview_count",
-                    default: "%d preview",
-                    fetcher.savedPreviewItemCount
-                ),
-                systemImage: "photo.badge.arrow.down",
-                tone: .neutral
+                title: badge.title,
+                systemImage: badge.systemImage,
+                tone: badge.tone
             )
         }
     }
@@ -494,19 +466,21 @@ struct SavedScreenView: View {
                 LazyVStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
                     savedHeaderPanels
 
-                    if filteredFavoriteItems.isEmpty {
+                    if filteredFavoriteItemIDs.isEmpty {
                         searchEmptyState
                             .padding(.horizontal, AppTheme.Spacing.lg)
                     } else {
                         LazyVGrid(columns: savedGridColumns, spacing: AppTheme.Spacing.md) {
-                            ForEach(filteredFavoriteItems) { displayItem in
-                                ArchiveGridCard(
-                                    displayItem: displayItem,
-                                    isSelected: displayItem.id == selectedFavoriteID,
-                                    isLocked: false,
-                                    action: { selectionAction(displayItem.item) }
-                                )
-                                .id(displayItem.id)
+                            ForEach(filteredFavoriteItemIDs, id: \.self) { itemID in
+                                if let displayItem = savedDisplayItemsByID[itemID] {
+                                    ArchiveGridCard(
+                                        displayItem: displayItem,
+                                        isSelected: displayItem.id == selectedFavoriteID,
+                                        isLocked: false,
+                                        action: { selectionAction(displayItem.item) }
+                                    )
+                                    .id(displayItem.id)
+                                }
                             }
                         }
                         .padding(.horizontal, AppTheme.Spacing.lg)
@@ -536,15 +510,18 @@ struct SavedScreenView: View {
     }
 
     private func syncSavedSelectionFromRouter() {
-        guard let selectedID = router.selectedSavedItemID else { return }
+        guard let selectedID = router.selectedSavedItemID else {
+            selectedFavoriteID = nil
+            return
+        }
         selectedFavoriteID = selectedID
-        if let favorite = fetcher.favorites.first(where: { $0.id == selectedID }) {
+        if let favorite = savedDisplayItemsByID[selectedID]?.item {
             fetcher.selectFavorite(favorite)
         }
     }
 
     private func rebuildSavedLibrarySnapshot() {
-        savedDisplayItems = fetcher.favorites.map {
+        let savedDisplayItems = fetcher.favorites.map {
             APODLibraryDisplayItem(
                 item: $0,
                 isSaved: true,
@@ -552,12 +529,42 @@ struct SavedScreenView: View {
                 locale: locale
             )
         }
+
+        savedDisplayItemsByID = Dictionary(uniqueKeysWithValues: savedDisplayItems.map { ($0.id, $0) })
+        savedPolicyItems = savedDisplayItems.map(\.savedPolicyItem)
         rebuildSavedFiltering()
     }
 
     private func rebuildSavedFiltering() {
-        filteredFavoriteItems = savedDisplayItems.filter { item in
-            item.matchesSavedFilter(savedFilter) && item.matchesSearch(searchQuery)
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: savedPolicyItems,
+            filter: savedFilter,
+            searchQuery: resolvedSavedSearchQuery
+        )
+
+        filteredFavoriteItemIDs = filteredIDs
+    }
+
+    private func scheduleSavedFiltering() {
+        savedSearchTask?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery != resolvedSavedSearchQuery else { return }
+
+        guard !trimmedQuery.isEmpty else {
+            resolvedSavedSearchQuery = ""
+            rebuildSavedFiltering()
+            return
+        }
+
+        savedSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                resolvedSavedSearchQuery = trimmedQuery
+                rebuildSavedFiltering()
+            }
         }
     }
 
@@ -592,7 +599,7 @@ struct SavedScreenView: View {
     }
 
     private var savedSelectionPlaceholder: some View {
-        MissionStateCard(
+        LibrarySelectionPlaceholderView(
             eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
             title: L10n.text("Select a saved APOD", default: "Select a saved APOD"),
             message: L10n.text(
@@ -602,9 +609,6 @@ struct SavedScreenView: View {
             systemImage: "bookmark.circle",
             tone: .favorite
         )
-        .padding(AppTheme.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SpaceBackdropView())
     }
 }
 
@@ -614,23 +618,39 @@ struct ArchiveScreenView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    let embedInRegularShell: Bool
 
     @AppStorage("archive.presentation.mode") private var archivePresentationModeRawValue = ArchivePresentationMode.grid.rawValue
     @AppStorage("archive.filter") private var archiveFilterRawValue = ArchiveFilter.all.rawValue
+    @State private var archiveFavoriteFeedbackToken = 0
     @State private var pushedArchiveItem: NASA?
     @State private var selectedArchiveItemID: String?
     @State private var searchQuery = ""
+    @State private var resolvedArchiveSearchQuery = ""
     @State private var archiveJumpDate = Date()
-    @State private var archiveDisplayItems = [APODLibraryDisplayItem]()
-    @State private var filteredArchiveItems = [APODLibraryDisplayItem]()
+    @State private var archiveDisplayItemsByID = [String: APODLibraryDisplayItem]()
+    @State private var archivePolicyItems = [ArchiveLibraryPolicy.Item]()
+    @State private var filteredArchiveItemIDs = [String]()
     @State private var archiveSections = [ArchiveSection]()
+    @State private var lockedArchiveItemIDs = Set<String>()
+    @State private var archiveSearchTask: Task<Void, Never>?
+
+    init(embedInRegularShell: Bool = false) {
+        self.embedInRegularShell = embedInRegularShell
+    }
 
     private var usesSplitLayout: Bool {
-        horizontalSizeClass == .regular
+        LibraryLayoutPolicy.usesSplitLayout(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var archivePresentationMode: ArchivePresentationMode {
-        ArchivePresentationMode(rawValue: archivePresentationModeRawValue) ?? .grid
+        LibraryLayoutPolicy.resolvedPresentationMode(
+            from: archivePresentationModeRawValue,
+            fallback: .grid
+        )
     }
 
     private var archiveFilter: ArchiveFilter {
@@ -638,17 +658,26 @@ struct ArchiveScreenView: View {
     }
 
     private var supportsGridPresentation: Bool {
-        usesSplitLayout
+        LibraryLayoutPolicy.supportsGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell
+        )
     }
 
     private var usesGridPresentation: Bool {
-        supportsGridPresentation && archivePresentationMode == .grid
+        LibraryLayoutPolicy.usesGridPresentation(
+            isRegularWidth: horizontalSizeClass == .regular,
+            embedInRegularShell: embedInRegularShell,
+            presentationMode: archivePresentationMode
+        )
     }
 
     private var selectedArchiveItem: NASA? {
-        let preferredID = selectedArchiveItemID ?? router.selectedArchiveItemID
-        return filteredArchiveItems.first(where: { $0.id == preferredID })?.item
-            ?? archiveDisplayItems.first(where: { $0.id == preferredID })?.item
+        guard let preferredID = selectedArchiveItemID ?? router.selectedArchiveItemID else {
+            return nil
+        }
+
+        return archiveDisplayItemsByID[preferredID]?.item
     }
 
     private var archiveSummaryTitle: String {
@@ -677,13 +706,13 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveControlsSummary: String {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = resolvedArchiveSearchQuery
 
         if !trimmedQuery.isEmpty {
             return L10n.format(
                 "archive.controls.summary.search",
                 default: "Showing %d results for \"%@\".",
-                filteredArchiveItems.count,
+                filteredArchiveItemIDs.count,
                 trimmedQuery
             )
         }
@@ -692,7 +721,7 @@ struct ArchiveScreenView: View {
             return L10n.format(
                 "archive.controls.summary.filter",
                 default: "Showing %d entries in %@.",
-                filteredArchiveItems.count,
+                filteredArchiveItemIDs.count,
                 archiveFilter.localizedTitle
             )
         }
@@ -700,7 +729,7 @@ struct ArchiveScreenView: View {
         return L10n.format(
             "archive.controls.summary.default",
             default: "Search %d archived APOD entries by title, date, or credit line.",
-            filteredArchiveItems.count
+            filteredArchiveItemIDs.count
         )
     }
 
@@ -719,7 +748,14 @@ struct ArchiveScreenView: View {
 
     var body: some View {
         Group {
-            if usesSplitLayout {
+            if embedInRegularShell {
+                archiveCollectionContent(
+                    selectedItemID: selectedArchiveItemID ?? router.selectedArchiveItemID,
+                    selectionAction: { item in
+                        handleArchiveSelection(item)
+                    }
+                )
+            } else if usesSplitLayout {
                 NavigationSplitView {
                     archiveCollectionContent(
                         selectedItemID: selectedArchiveItemID ?? router.selectedArchiveItemID,
@@ -763,7 +799,9 @@ struct ArchiveScreenView: View {
         .overlay(alignment: .topLeading) {
             AccessibilityMarker(identifier: AccessibilityID.archiveSheetRoot)
         }
+        .appSensoryFeedback(.impact, trigger: archiveFavoriteFeedbackToken)
         .task {
+            resolvedArchiveSearchQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             rebuildArchiveLibrarySnapshot()
             if purchaseManager.hasPro {
                 fetcher.prefetchArchiveIfNeeded()
@@ -782,7 +820,7 @@ struct ArchiveScreenView: View {
             syncArchiveJumpDate()
         }
         .onChange(of: searchQuery) { _ in
-            rebuildArchiveFiltering()
+            scheduleArchiveFiltering()
         }
         .onChange(of: archiveFilterRawValue) { _ in
             rebuildArchiveFiltering()
@@ -791,8 +829,14 @@ struct ArchiveScreenView: View {
             rebuildArchiveLibrarySnapshot()
         }
         .onChange(of: purchaseManager.hasPro) { hasPro in
-            guard hasPro else { return }
-            fetcher.prefetchArchiveIfNeeded()
+            rebuildArchiveAccessState()
+            if hasPro {
+                fetcher.prefetchArchiveIfNeeded()
+            }
+        }
+        .onDisappear {
+            archiveSearchTask?.cancel()
+            archiveSearchTask = nil
         }
     }
 
@@ -801,7 +845,7 @@ struct ArchiveScreenView: View {
         selectedItemID: String?,
         selectionAction: @escaping (NASA) -> Void
     ) -> some View {
-        Group {
+        AppScreenSurface(title: L10n.text("Archive", default: "Archive")) {
             if fetcher.archiveItems.isEmpty {
                 archiveEmptyContent
             } else if usesGridPresentation {
@@ -810,20 +854,69 @@ struct ArchiveScreenView: View {
                 archiveListContent(selectedItemID: selectedItemID, selectionAction: selectionAction)
             }
         }
-        .background(SpaceBackdropView())
-        .navigationTitle(L10n.text("Archive", default: "Archive"))
-        .appScreenChrome()
     }
 
     private var archiveHeaderPanels: some View {
-        ScreenPanelColumn(
-            spacing: AppTheme.Metrics.screenPanelSpacing,
-            topPadding: AppTheme.Spacing.xs,
-            bottomPadding: AppTheme.Spacing.xs
+        LibraryPanelDeck {
+            if embedInRegularShell {
+                archiveMissionControlPanel
+            } else {
+                archiveOverviewPanel
+                archiveControlsPanel
+                archiveJumpPanel
+            }
+        }
+    }
+
+    private var archiveMissionControlPanel: some View {
+        MissionSupportPanel(
+            eyebrow: L10n.text("archive.browser.eyebrow", default: "Archive Browser"),
+            title: archiveSummaryTitle,
+            summary: archiveControlsSummary,
+            tone: .accent,
+            padding: AppTheme.Spacing.lg
         ) {
-            archiveOverviewPanel
-            archiveControlsPanel
-            archiveJumpPanel
+            MissionSearchField(
+                text: $searchQuery,
+                placeholder: L10n.text("Search archive", default: "Search archive"),
+                accessibilityIdentifier: AccessibilityID.archiveSearchField
+            )
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    archiveFilterPicker
+                    Spacer(minLength: 0)
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.libraryControlsSpacing) {
+                    archiveFilterPicker
+                    if supportsGridPresentation {
+                        archiveLayoutPicker
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                Text(L10n.text("Jump to APOD date", default: "Jump to APOD date"))
+                    .font(AppTheme.Typography.sectionTitle)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
+                        archiveJumpDatePicker
+                        archiveJumpButton(compactNavigation: !usesSplitLayout)
+                    }
+
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                        archiveJumpDatePicker
+                        archiveJumpButton(compactNavigation: !usesSplitLayout)
+                    }
+                }
+            }
         }
     }
 
@@ -840,32 +933,18 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveControlsPanel: some View {
-        MissionSupportPanel(
+        LibraryBrowserPanel(
             eyebrow: L10n.text("Browse & Filter", default: "Browse & Filter"),
             summary: archiveControlsSummary,
-            tone: .neutral
+            tone: .neutral,
+            searchText: $searchQuery,
+            searchPlaceholder: L10n.text("Search archive", default: "Search archive"),
+            searchAccessibilityIdentifier: AccessibilityID.archiveSearchField
         ) {
-            MissionSearchField(
-                text: $searchQuery,
-                placeholder: L10n.text("Search archive", default: "Search archive"),
-                accessibilityIdentifier: AccessibilityID.archiveSearchField
-            )
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: AppTheme.Spacing.md) {
-                    archiveFilterPicker
-                    Spacer(minLength: 0)
-                    if supportsGridPresentation {
-                        archiveLayoutPicker
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-                    archiveFilterPicker
-                    if supportsGridPresentation {
-                        archiveLayoutPicker
-                    }
-                }
+            archiveFilterPicker
+        } layoutControl: {
+            if supportsGridPresentation {
+                archiveLayoutPicker
             }
         }
     }
@@ -903,9 +982,12 @@ struct ArchiveScreenView: View {
     }
 
     private func syncArchiveSelectionFromRouter() {
-        guard let selectedID = router.selectedArchiveItemID else { return }
+        guard let selectedID = router.selectedArchiveItemID else {
+            selectedArchiveItemID = nil
+            return
+        }
         selectedArchiveItemID = selectedID
-        if let archiveItem = fetcher.archiveItems.first(where: { $0.id == selectedID }) {
+        if let archiveItem = archiveDisplayItemsByID[selectedID]?.item {
             fetcher.selectArchivedItem(archiveItem)
         }
     }
@@ -927,7 +1009,7 @@ struct ArchiveScreenView: View {
 
     private func rebuildArchiveLibrarySnapshot() {
         let favoriteIDs = Set(fetcher.favorites.map(\.id))
-        archiveDisplayItems = fetcher.archiveItems.map { item in
+        let archiveDisplayItems = fetcher.archiveItems.map { item in
             APODLibraryDisplayItem(
                 item: item,
                 isSaved: favoriteIDs.contains(item.id),
@@ -935,27 +1017,76 @@ struct ArchiveScreenView: View {
                 locale: locale
             )
         }
+
+        archiveDisplayItemsByID = Dictionary(uniqueKeysWithValues: archiveDisplayItems.map { ($0.id, $0) })
+        archivePolicyItems = archiveDisplayItems.map(\.archivePolicyItem)
+        rebuildArchiveAccessState()
         rebuildArchiveFiltering()
     }
 
     private func rebuildArchiveFiltering() {
-        filteredArchiveItems = archiveDisplayItems.filter { item in
-            item.matchesArchiveFilter(archiveFilter) && item.matchesSearch(searchQuery)
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: archivePolicyItems,
+            filter: archiveFilter,
+            searchQuery: resolvedArchiveSearchQuery,
+            locale: locale
+        )
+
+        filteredArchiveItemIDs = resolution.filteredItemIDs
+        archiveSections = resolution.sections.map { section in
+            ArchiveSection(
+                id: section.id,
+                title: section.title,
+                itemIDs: section.itemIDs
+            )
+        }
+    }
+
+    private func rebuildArchiveAccessState() {
+        guard !purchaseManager.hasPro else {
+            lockedArchiveItemIDs = []
+            return
         }
 
-        let groupedItems = Dictionary(grouping: filteredArchiveItems) { item in
-            archiveSectionKey(for: item.item.date)
-        }
+        let earliestFreeArchiveDate = fetcher.apodDateString(
+            from: PremiumAccessPolicy.earliestFreeArchiveDate(
+                referenceDate: fetcher.maximumSelectableDate,
+                calendar: fetcher.calendar
+            )
+        )
 
-        archiveSections = groupedItems.keys
-            .sorted(by: >)
-            .map { key in
-                ArchiveSection(
-                    id: key,
-                    title: archiveSectionTitle(for: key),
-                    items: groupedItems[key, default: []].sorted { ($0.item.date ?? "") > ($1.item.date ?? "") }
-                )
+        lockedArchiveItemIDs = Set(
+            archivePolicyItems.compactMap { item in
+                guard let itemDate = item.date, itemDate < earliestFreeArchiveDate else {
+                    return nil
+                }
+
+                return item.id
             }
+        )
+    }
+
+    private func scheduleArchiveFiltering() {
+        archiveSearchTask?.cancel()
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery != resolvedArchiveSearchQuery else { return }
+
+        guard !trimmedQuery.isEmpty else {
+            resolvedArchiveSearchQuery = ""
+            rebuildArchiveFiltering()
+            return
+        }
+
+        archiveSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                resolvedArchiveSearchQuery = trimmedQuery
+                rebuildArchiveFiltering()
+            }
+        }
     }
 
     private func jumpToArchiveDate(compactNavigation: Bool) {
@@ -975,8 +1106,7 @@ struct ArchiveScreenView: View {
     }
 
     private func canOpenArchiveItem(_ item: NASA) -> Bool {
-        guard let itemDate = fetcher.date(from: item.date) else { return true }
-        return canOpenArchiveDate(itemDate)
+        !lockedArchiveItemIDs.contains(item.id)
     }
 
     private func canOpenArchiveDate(_ date: Date) -> Bool {
@@ -988,7 +1118,7 @@ struct ArchiveScreenView: View {
     }
 
     private func isLockedArchiveItem(_ displayItem: APODLibraryDisplayItem) -> Bool {
-        !canOpenArchiveItem(displayItem.item)
+        lockedArchiveItemIDs.contains(displayItem.id)
     }
 
     private func toggleArchiveFavorite(_ item: NASA) {
@@ -1135,46 +1265,37 @@ struct ArchiveScreenView: View {
             } else {
                 ForEach(archiveSections) { section in
                     Section(section.title) {
-                        ForEach(section.items) { displayItem in
-                            libraryRow(
-                                displayItem,
-                                isSelected: displayItem.id == selectedItemID,
-                                isLocked: isLockedArchiveItem(displayItem),
-                                selectionAction: selectionAction
-                            )
-                            .swipeActions(edge: .trailing) {
-                                let favoriteActionTitle = displayItem.isSaved
-                                    ? L10n.text("Remove Favorite", default: "Remove Favorite")
-                                    : L10n.text("Save Favorite", default: "Save Favorite")
-                                let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
+                        ForEach(section.itemIDs, id: \.self) { itemID in
+                            if let displayItem = archiveDisplayItemsByID[itemID] {
+                                libraryRow(
+                                    displayItem,
+                                    isSelected: displayItem.id == selectedItemID,
+                                    isLocked: isLockedArchiveItem(displayItem),
+                                    selectionAction: selectionAction
+                                )
+                                .swipeActions(edge: .trailing) {
+                                    let favoriteActionTitle = displayItem.isSaved
+                                        ? L10n.text("Remove Favorite", default: "Remove Favorite")
+                                        : L10n.text("Save Favorite", default: "Save Favorite")
+                                    let favoriteActionSystemImage = displayItem.isSaved ? "bookmark.slash" : "bookmark"
 
-                                Button {
-                                    toggleArchiveFavorite(displayItem.item)
-                                } label: {
-                                    Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
+                                    Button {
+                                        archiveFavoriteFeedbackToken += 1
+                                        toggleArchiveFavorite(displayItem.item)
+                                    } label: {
+                                        Label(favoriteActionTitle, systemImage: favoriteActionSystemImage)
+                                    }
+                                    .tint(displayItem.isSaved ? .gray : AppTheme.Palette.favorite)
                                 }
-                                .tint(displayItem.isSaved ? .gray : AppTheme.Palette.favorite)
                             }
                         }
                     }
                 }
 
-                if let loadError = fetcher.archiveError {
+                if fetcher.archiveError != nil {
                     Section {
-                        MissionStateCard(
-                            eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
-                            title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
-                            message: loadError.localizedDescription,
-                            systemImage: "exclamationmark.triangle",
-                            tone: .warning,
-                            minHeight: 180
-                        ) {
-                            Button(L10n.text("Retry", default: "Retry")) {
-                                fetcher.loadOlderArchiveBatch()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .libraryStateRowStyle()
+                        archiveSyncErrorCard
+                            .libraryStateRowStyle()
                     }
                 }
 
@@ -1207,36 +1328,24 @@ struct ArchiveScreenView: View {
                                     .padding(.horizontal, AppTheme.Spacing.lg)
 
                                 LazyVGrid(columns: archiveGridColumns, spacing: AppTheme.Spacing.md) {
-                                    ForEach(section.items) { displayItem in
-                                        ArchiveGridCard(
-                                            displayItem: displayItem,
-                                            isSelected: displayItem.id == selectedArchiveItemID,
-                                            isLocked: isLockedArchiveItem(displayItem),
-                                            action: { selectionAction(displayItem.item) }
-                                        )
-                                        .id(displayItem.id)
+                                    ForEach(section.itemIDs, id: \.self) { itemID in
+                                        if let displayItem = archiveDisplayItemsByID[itemID] {
+                                            ArchiveGridCard(
+                                                displayItem: displayItem,
+                                                isSelected: displayItem.id == selectedArchiveItemID,
+                                                isLocked: isLockedArchiveItem(displayItem),
+                                                action: { selectionAction(displayItem.item) }
+                                            )
+                                            .id(displayItem.id)
+                                        }
                                     }
                                 }
                                 .padding(.horizontal, AppTheme.Spacing.lg)
                             }
                         }
 
-                        if let loadError = fetcher.archiveError {
-                            MissionStateCard(
-                                eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
-                                title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
-                                message: loadError.localizedDescription,
-                                systemImage: "exclamationmark.triangle",
-                                tone: .warning,
-                                minHeight: 180
-                            ) {
-                                Button(L10n.text("Retry", default: "Retry")) {
-                                    fetcher.loadOlderArchiveBatch()
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
+                        archiveSyncErrorCard
                             .padding(.horizontal, AppTheme.Spacing.lg)
-                        }
 
                         if fetcher.canLoadMoreArchiveHistory {
                             archiveLoadMoreButton
@@ -1292,19 +1401,44 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveEmptyState: some View {
-        MissionStateCard(
-            eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
-            title: L10n.text("Archive is still building", default: "Archive is still building"),
-            message: L10n.text(
-                "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day.",
-                default: "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day."
-            ),
-            systemImage: "books.vertical",
-            tone: .accent
-        )
+        Group {
+            if fetcher.isOfflineMode {
+                OfflineEmptyStateView(
+                    eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
+                    title: L10n.text("No cached archive", default: "No cached archive"),
+                    subtitle: L10n.text(
+                        "archive.empty.offline",
+                        default: "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded."
+                    )
+                )
+            } else {
+                MissionStateCard(
+                    eyebrow: L10n.text("APOD Archive", default: "APOD Archive"),
+                    title: L10n.text("Archive is still building", default: "Archive is still building"),
+                    message: L10n.text(
+                        "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day.",
+                        default: "Once APOD entries are cached, you can search by title, date, or credit line and jump back into any day."
+                    ),
+                    systemImage: "books.vertical",
+                    tone: .accent
+                )
+            }
+        }
         .padding(AppTheme.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier(AccessibilityID.archiveEmptyState)
+    }
+
+    @ViewBuilder
+    private var archiveSyncErrorCard: some View {
+        if let loadError = fetcher.archiveError {
+            APIRequestFailureView(
+                eyebrow: L10n.text("Archive Sync", default: "Archive Sync"),
+                title: L10n.text("Could not load older APOD entries", default: "Could not load older APOD entries"),
+                error: loadError,
+                retryAction: { fetcher.loadOlderArchiveBatch() }
+            )
+        }
     }
 
     private var archiveSearchEmptyState: some View {
@@ -1322,7 +1456,7 @@ struct ArchiveScreenView: View {
     }
 
     private var archiveSelectionPlaceholder: some View {
-        MissionStateCard(
+        LibrarySelectionPlaceholderView(
             eyebrow: L10n.text("Editorial Archive", default: "Editorial Archive"),
             title: L10n.text("Select an APOD entry", default: "Select an APOD entry"),
             message: L10n.text(
@@ -1332,34 +1466,8 @@ struct ArchiveScreenView: View {
             systemImage: "sparkles.rectangle.stack",
             tone: .accent
         )
-        .padding(AppTheme.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SpaceBackdropView())
     }
 
-    private func archiveSectionKey(for apiDateString: String?) -> String {
-        guard
-            let apiDateString,
-            let parsedDate = DateFormatter.archiveAPODDateFormatter.date(from: apiDateString)
-        else {
-            return "unknown"
-        }
-
-        return DateFormatter.archiveSectionKeyFormatter.string(from: parsedDate)
-    }
-
-    private func archiveSectionTitle(for key: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-
-        guard key != "unknown",
-              let parsedDate = DateFormatter.archiveSectionKeyFormatter.date(from: key) else {
-            return L10n.text("Unknown", default: "Unknown")
-        }
-
-        return formatter.string(from: parsedDate)
-    }
 }
 
 private struct ArchiveGridCard: View {
@@ -1464,31 +1572,16 @@ private struct ArchiveGridThumbnailView: View {
         }
     }
 
-    private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMedia?.localPreviewURL)
-    }
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: AppTheme.Metrics.cardCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
 
-            if let localThumbnailImage {
-                localThumbnailImage
-                    .resizable()
-                    .scaledToFill()
-            } else if displayItem.item.mediaType == .image, let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        fallbackIcon
-                    }
-                }
-            } else {
-                fallbackIcon
+            APODAsyncLocalThumbnailView(
+                fileURL: displayItem.offlineMediaState.localPreviewURL,
+                spec: APODLocalMediaThumbnailSpec.libraryGrid
+            ) {
+                remoteThumbnailContent
             }
 
             if displayItem.item.mediaType == .video {
@@ -1507,49 +1600,28 @@ private struct ArchiveGridThumbnailView: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
+    private var remoteThumbnailContent: some View {
+        if displayItem.item.mediaType == .image, let thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    fallbackIcon
+                }
+            }
+        } else {
+            fallbackIcon
+        }
+    }
+
     private var fallbackIcon: some View {
         Image(systemName: displayItem.item.mediaType == .video ? "play.rectangle.fill" : "photo.fill")
             .font(.system(size: 30, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private extension View {
-    func libraryHeaderRowStyle() -> some View {
-        listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-    }
-
-    func libraryStateRowStyle() -> some View {
-        listRowInsets(
-            EdgeInsets(
-                top: AppTheme.Spacing.sm,
-                leading: AppTheme.Spacing.lg,
-                bottom: AppTheme.Spacing.sm,
-                trailing: AppTheme.Spacing.lg
-            )
-        )
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-
-    func libraryRowBackground(isSelected: Bool) -> some View {
-        listRowInsets(
-            EdgeInsets(
-                top: AppTheme.Spacing.xs,
-                leading: AppTheme.Spacing.lg,
-                bottom: AppTheme.Spacing.xs,
-                trailing: AppTheme.Spacing.lg
-            )
-        )
-        .listRowBackground(
-            isSelected
-                ? AppTheme.Palette.accentLight.opacity(0.08)
-                : Color.clear
-        )
-        .listRowSeparator(.hidden)
     }
 }
 
@@ -1650,31 +1722,16 @@ private struct APODLibraryThumbnailView: View {
         }
     }
 
-    private var localThumbnailImage: Image? {
-        APODLocalMediaImageLoader.image(from: displayItem.offlineMedia?.localPreviewURL)
-    }
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
 
-            if let localThumbnailImage {
-                localThumbnailImage
-                    .resizable()
-                    .scaledToFill()
-            } else if displayItem.item.mediaType == .image, let thumbnailURL {
-                AsyncImage(url: thumbnailURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        fallbackIcon
-                    }
-                }
-            } else {
-                fallbackIcon
+            APODAsyncLocalThumbnailView(
+                fileURL: displayItem.offlineMediaState.localPreviewURL,
+                spec: APODLocalMediaThumbnailSpec.libraryRow
+            ) {
+                remoteThumbnailContent
             }
 
             if displayItem.item.mediaType == .video {
@@ -1693,30 +1750,27 @@ private struct APODLibraryThumbnailView: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
+    private var remoteThumbnailContent: some View {
+        if displayItem.item.mediaType == .image, let thumbnailURL {
+            AsyncImage(url: thumbnailURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    fallbackIcon
+                }
+            }
+        } else {
+            fallbackIcon
+        }
+    }
+
     private var fallbackIcon: some View {
         Image(systemName: displayItem.item.mediaType == .video ? "play.rectangle.fill" : "photo.fill")
             .font(.system(size: 26, weight: .semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-private extension DateFormatter {
-    static let archiveAPODDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
-
-    static let archiveSectionKeyFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM"
-        formatter.isLenient = false
-        return formatter
-    }()
 }

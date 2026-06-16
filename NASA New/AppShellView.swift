@@ -1,13 +1,19 @@
 import SwiftUI
 
 struct AppShellView: View {
+    private enum StorageKey {
+        static let destination = "app.shell.destination"
+    }
+
     @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("app.shell.destination") private var persistedDestinationRawValue = AppDestination.today.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(StorageKey.destination) private var persistedDestinationRawValue = AppDestination.today.rawValue
     @State private var lastTrackedDestination: AppDestination?
+    @State private var selectionFlags = AppShellSelectionFlags()
 
     private var usesSplitShell: Bool {
         horizontalSizeClass == .regular
@@ -24,40 +30,63 @@ struct AppShellView: View {
         .task {
             restorePersistedDestinationIfNeeded()
             router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            ensureRegularShellSelectionIfNeeded()
             trackArchiveVisitIfNeeded(for: router.destination)
         }
         .onChange(of: scenePhase) { newPhase in
             guard newPhase == .active else { return }
             router.consumePendingRouteIfNeeded(fetcher: fetcher, purchaseManager: purchaseManager)
+            ensureRegularShellSelectionIfNeeded()
             Task {
                 await purchaseManager.refreshEntitlements()
             }
         }
         .onChange(of: router.destination) { newValue in
-            persistedDestinationRawValue = newValue.rawValue
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterNavigating(
+                to: newValue,
+                current: selectionFlags
+            )
+            persistDestination(newValue)
+            ensureRegularShellSelectionIfNeeded()
             trackArchiveVisitIfNeeded(for: newValue)
         }
-        .sheet(item: activePaywallBinding) { context in
-            MonetizationPaywallView(context: context)
-                .environmentObject(purchaseManager)
+        .onChange(of: router.selectedArchiveItemID) { newValue in
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+                for: .archive,
+                selectedID: newValue,
+                current: selectionFlags
+            )
+        }
+        .onChange(of: router.selectedSavedItemID) { newValue in
+            selectionFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+                for: .saved,
+                selectedID: newValue,
+                current: selectionFlags
+            )
+        }
+        .onChange(of: fetcher.archiveItems.map(\.id)) { _ in
+            ensureRegularShellSelectionIfNeeded()
+        }
+        .onChange(of: fetcher.favorites.map(\.id)) { _ in
+            ensureRegularShellSelectionIfNeeded()
         }
     }
 
     private var tabShell: some View {
         TabView(selection: destinationBinding) {
-            todayRoot
+            todayRoot(shellContext: .compactTabs)
                 .tag(AppDestination.today)
                 .tabItem {
                     Label(AppDestination.today.localizedTitle, systemImage: AppDestination.today.systemImage)
                 }
 
-            archiveRoot
+            archiveRoot(embedInRegularShell: false)
                 .tag(AppDestination.archive)
                 .tabItem {
                     Label(AppDestination.archive.localizedTitle, systemImage: AppDestination.archive.systemImage)
                 }
 
-            savedRoot
+            savedRoot(embedInRegularShell: false)
                 .tag(AppDestination.saved)
                 .tabItem {
                     Label(AppDestination.saved.localizedTitle, systemImage: AppDestination.saved.systemImage)
@@ -66,48 +95,135 @@ struct AppShellView: View {
     }
 
     private var splitShell: some View {
-        NavigationSplitView {
-            List {
-                ForEach(AppDestination.allCases) { destination in
-                    splitDestinationRow(for: destination)
-                }
+        GeometryReader { proxy in
+            let railWidth = min(
+                max(proxy.size.width * 0.18, AppTheme.Metrics.shellRailMinimumWidth),
+                AppTheme.Metrics.shellRailMaximumWidth
+            )
+            let contentWidth = max(
+                proxy.size.width - railWidth - AppTheme.Metrics.shellContentGap - (AppTheme.Metrics.shellWorkspaceHorizontalPadding * 2),
+                AppTheme.Metrics.shellLibraryPaneMinimumWidth
+            )
+
+            PremiumShellWorkspace(railWidth: railWidth) {
+                premiumSidebarRail
+                    .overlay(alignment: .topLeading) {
+                        AccessibilityMarker(identifier: AccessibilityID.appShellSidebar)
+                    }
+            } content: {
+                regularShellStageContent(availableWidth: contentWidth)
+                    .overlay(alignment: .topLeading) {
+                        AccessibilityMarker(identifier: AccessibilityID.appShellDetail)
+                    }
             }
-            .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
             .overlay(alignment: .topLeading) {
-                AccessibilityMarker(identifier: AccessibilityID.appShellSidebar)
+                AccessibilityMarker(identifier: AccessibilityID.appShellSplitRoot)
             }
-        } detail: {
-            activeDetailRoot
-                .overlay(alignment: .topLeading) {
-                    AccessibilityMarker(identifier: AccessibilityID.appShellDetail)
+        }
+        .appSensoryFeedback(.selection, trigger: router.destination)
+    }
+
+    @ViewBuilder
+    private func regularShellStageContent(availableWidth: CGFloat) -> some View {
+        switch router.destination {
+        case .today:
+            PremiumShellStage(tone: .accent) {
+                todayRoot(
+                    shellContext: .premiumRegularShell,
+                    availableWidth: availableWidth
+                )
+            }
+        case .archive:
+            regularArchiveStage(availableWidth: availableWidth)
+        case .saved:
+            regularSavedStage(availableWidth: availableWidth)
+        }
+    }
+
+    private var premiumSidebarRail: some View {
+        PremiumShellStage(tone: .accent) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header zone — brand identity
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    SectionEyebrow(L10n.text("Space Briefing", default: "Space Briefing"), tone: .accent)
+
+                    Text(L10n.text("app.shell.story_title", default: "NASA stories, framed with calm."))
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundStyle(AppTheme.inkPrimary(isDarkMode: true))
+
+                    Text(L10n.text("app.shell.story_subtitle", default: "Today, archive, saved."))
+                        .font(AppTheme.Typography.footnote)
+                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: true))
                 }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .overlay(alignment: .topLeading) {
-            AccessibilityMarker(identifier: AccessibilityID.appShellSplitRoot)
-        }
-    }
+                .padding(.bottom, AppTheme.Spacing.lg)
 
-    private var activeDetailRoot: some View {
-        Group {
-            switch router.destination {
-            case .today:
-                todayRoot
-            case .archive:
-                archiveRoot
-            case .saved:
-                savedRoot
+                // Nav zone — destination rows
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    ForEach(AppDestination.allCases) { destination in
+                        splitDestinationRow(for: destination)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                // Footer zone — status context
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(height: 1)
+                        .padding(.bottom, AppTheme.Spacing.xs)
+
+                    shellStatusBadges
+                }
             }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.lg)
         }
     }
 
-    private var todayRoot: some View {
+    @ViewBuilder
+    private var shellStatusBadges: some View {
+        MissionBadge(
+            title: purchaseManager.hasPro
+                ? L10n.text("Pro unlocked", default: "Pro unlocked")
+                : L10n.text("Free edition", default: "Free edition"),
+            systemImage: purchaseManager.hasPro ? "sparkles" : "lock.open",
+            tone: purchaseManager.hasPro ? .accent : .neutral
+        )
+
+        MissionBadge(
+            title: L10n.format(
+                "app.shell.saved.count",
+                default: "%d saved",
+                fetcher.favorites.count
+            ),
+            systemImage: "bookmark.fill",
+            tone: .favorite
+        )
+
+        MissionBadge(
+            title: L10n.format(
+                "app.shell.archive.count",
+                default: "%d archive",
+                fetcher.archiveItems.count
+            ),
+            systemImage: "books.vertical.fill",
+            tone: .neutral
+        )
+    }
+
+    private func todayRoot(
+        shellContext: AppShellContext,
+        availableWidth: CGFloat? = nil
+    ) -> some View {
         NavigationStack {
             MainView(
+                preferredAvailableWidth: availableWidth,
                 openArchiveAction: { router.showArchive() },
                 openSavedAction: { router.showSaved() }
             )
         }
+        .environment(\.appShellContext, shellContext)
         .userActivity(SpaceBriefingUserActivityType.today, isActive: router.destination == .today) { activity in
             activity.title = L10n.text("Astronomy Picture of the Day", default: "Astronomy Picture of the Day")
             activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .today))
@@ -119,10 +235,17 @@ struct AppShellView: View {
         }
     }
 
-    private var archiveRoot: some View {
-        ArchiveScreenView()
+    @ViewBuilder
+    private func archiveRoot(embedInRegularShell: Bool) -> some View {
+        let archiveScreen = ArchiveScreenView(embedInRegularShell: embedInRegularShell)
             .environmentObject(fetcher)
             .environmentObject(router)
+            .environment(\.appShellContext, embedInRegularShell ? .premiumRegularShell : .compactTabs)
+
+        if embedInRegularShell {
+            NavigationStack {
+                archiveScreen
+            }
             .userActivity(SpaceBriefingUserActivityType.archive, isActive: router.destination == .archive) { activity in
                 activity.title = L10n.text("APOD Archive", default: "APOD Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .archive))
@@ -132,12 +255,31 @@ struct AppShellView: View {
                 activity.isEligibleForPublicIndexing = false
                 activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .archive))
             }
+        } else {
+            archiveScreen
+                .userActivity(SpaceBriefingUserActivityType.archive, isActive: router.destination == .archive) { activity in
+                    activity.title = L10n.text("APOD Archive", default: "APOD Archive")
+                    activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .archive))
+                    activity.isEligibleForSearch = true
+                    activity.isEligibleForHandoff = true
+                    activity.isEligibleForPrediction = true
+                    activity.isEligibleForPublicIndexing = false
+                    activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .archive))
+                }
+        }
     }
 
-    private var savedRoot: some View {
-        SavedScreenView()
+    @ViewBuilder
+    private func savedRoot(embedInRegularShell: Bool) -> some View {
+        let savedScreen = SavedScreenView(embedInRegularShell: embedInRegularShell)
             .environmentObject(fetcher)
             .environmentObject(router)
+            .environment(\.appShellContext, embedInRegularShell ? .premiumRegularShell : .compactTabs)
+
+        if embedInRegularShell {
+            NavigationStack {
+                savedScreen
+            }
             .userActivity(SpaceBriefingUserActivityType.saved, isActive: router.destination == .saved) { activity in
                 activity.title = L10n.text("Saved Archive", default: "Saved Archive")
                 activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .saved))
@@ -147,20 +289,180 @@ struct AppShellView: View {
                 activity.isEligibleForPublicIndexing = false
                 activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .saved))
             }
+        } else {
+            savedScreen
+                .userActivity(SpaceBriefingUserActivityType.saved, isActive: router.destination == .saved) { activity in
+                    activity.title = L10n.text("Saved Archive", default: "Saved Archive")
+                    activity.userInfo = AppDiscoveryCoordinator.userInfo(for: AppRoute(destination: .saved))
+                    activity.isEligibleForSearch = true
+                    activity.isEligibleForHandoff = true
+                    activity.isEligibleForPrediction = true
+                    activity.isEligibleForPublicIndexing = false
+                    activity.webpageURL = AppDeepLink.publicWebURL(for: AppRoute(destination: .saved))
+                }
+        }
     }
 
     private func splitDestinationRow(for destination: AppDestination) -> some View {
         let isSelected = router.destination == destination
 
         return Button {
-            updateDestination(destination)
+            if let animation = AppTheme.Motion.standard(reduceMotion: reduceMotion) {
+                withAnimation(animation) { updateDestination(destination) }
+            } else {
+                updateDestination(destination)
+            }
         } label: {
             AppShellSidebarRow(destination: destination, isSelected: isSelected)
         }
         .buttonStyle(.plain)
-        .listRowBackground(isSelected ? AppTheme.Palette.accentLight.opacity(0.16) : Color.clear)
         .accessibilityIdentifier(AccessibilityID.appShellSidebarDestinationIdentifier(for: destination))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var archiveSelectionResolution: AppShellSelectionPolicy.Resolution {
+        AppShellSelectionPolicy.resolveArchive(
+            selectedID: router.selectedArchiveItemID,
+            selectionClearedByUser: selectionFlags.archiveSelectionClearedByUser,
+            archiveItems: fetcher.archiveItems,
+            favoriteItems: fetcher.favorites
+        )
+    }
+
+    private var savedSelectionResolution: AppShellSelectionPolicy.Resolution {
+        AppShellSelectionPolicy.resolveSaved(
+            selectedID: router.selectedSavedItemID,
+            selectionClearedByUser: selectionFlags.savedSelectionClearedByUser,
+            favoriteItems: fetcher.favorites
+        )
+    }
+
+    private var selectedArchiveItem: NASA? {
+        archiveSelectionResolution.selectedItem
+    }
+
+    private var fallbackArchiveItem: NASA? {
+        archiveSelectionResolution.fallbackItem
+    }
+
+    private var selectedSavedItem: NASA? {
+        savedSelectionResolution.selectedItem
+    }
+
+    private var fallbackSavedItem: NASA? {
+        savedSelectionResolution.fallbackItem
+    }
+
+    private func regularArchiveStage(availableWidth: CGFloat) -> some View {
+        let supportsDualPane = availableWidth >= AppTheme.Metrics.shellDualStageMinimumWidth
+        let libraryWidth = min(
+            max(availableWidth * 0.31, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
+            AppTheme.Metrics.shellLibraryPaneMaximumWidth
+        )
+
+        return PremiumLibrarySplitStage(
+            hasItems: !fetcher.archiveItems.isEmpty,
+            supportsDualPane: supportsDualPane,
+            primaryWidth: libraryWidth,
+            showsLibraryWhenCompact: !archiveSelectionResolution.hasDetailContent || selectedArchiveItem == nil,
+            showsDetailWhenCompact: archiveSelectionResolution.hasDetailContent,
+            libraryTone: .neutral,
+            detailTone: .accent
+        ) {
+            archiveRoot(embedInRegularShell: true)
+        } detail: {
+            archiveDetailContent(showsBackButton: true)
+        }
+    }
+
+    private func regularSavedStage(availableWidth: CGFloat) -> some View {
+        let supportsDualPane = availableWidth >= AppTheme.Metrics.shellDualStageMinimumWidth
+        let libraryWidth = min(
+            max(availableWidth * 0.31, AppTheme.Metrics.shellLibraryPaneMinimumWidth),
+            AppTheme.Metrics.shellLibraryPaneMaximumWidth
+        )
+
+        return PremiumLibrarySplitStage(
+            hasItems: !fetcher.favorites.isEmpty,
+            supportsDualPane: supportsDualPane,
+            primaryWidth: libraryWidth,
+            showsLibraryWhenCompact: !savedSelectionResolution.hasDetailContent || selectedSavedItem == nil,
+            showsDetailWhenCompact: savedSelectionResolution.hasDetailContent,
+            libraryTone: .favorite,
+            detailTone: .favorite
+        ) {
+            savedRoot(embedInRegularShell: true)
+        } detail: {
+            savedDetailContent(showsBackButton: true)
+        }
+    }
+
+    @ViewBuilder
+    private func archiveDetailContent(showsBackButton: Bool) -> some View {
+        NavigationStack {
+            if let resolvedArchiveItem = selectedArchiveItem ?? fallbackArchiveItem {
+                APODRecordDetailView(nasa: resolvedArchiveItem, destination: .archive)
+                    .toolbar {
+                        if showsBackButton {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    clearArchiveSelection()
+                                } label: {
+                                    Label(L10n.text("Archive", default: "Archive"), systemImage: "chevron.left")
+                                }
+                                .accessibilityIdentifier(AccessibilityID.archiveDetailBackButton)
+                            }
+                        }
+                    }
+            } else {
+                LibrarySelectionPlaceholderView(
+                    eyebrow: L10n.text("Editorial Archive", default: "Editorial Archive"),
+                    title: L10n.text("Select an APOD entry", default: "Select an APOD entry"),
+                    message: L10n.text(
+                        "Choose a story from the archive to read it with the full media, attribution, and source context.",
+                        default: "Choose a story from the archive to read it with the full media, attribution, and source context."
+                    ),
+                    systemImage: "sparkles.rectangle.stack",
+                    tone: .accent
+                )
+                .navigationTitle(L10n.text("Detail", default: "Detail"))
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func savedDetailContent(showsBackButton: Bool) -> some View {
+        NavigationStack {
+            if let resolvedSavedItem = selectedSavedItem ?? fallbackSavedItem {
+                APODRecordDetailView(nasa: resolvedSavedItem, destination: .saved)
+                    .toolbar {
+                        if showsBackButton {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    clearSavedSelection()
+                                } label: {
+                                    Label(L10n.text("Saved", default: "Saved"), systemImage: "chevron.left")
+                                }
+                                .accessibilityIdentifier(AccessibilityID.savedDetailBackButton)
+                            }
+                        }
+                    }
+            } else {
+                LibrarySelectionPlaceholderView(
+                    eyebrow: L10n.text("Saved Archive", default: "Saved Archive"),
+                    title: L10n.text("Select a saved APOD", default: "Select a saved APOD"),
+                    message: L10n.text(
+                        "Choose a saved story from the list to read it with the full editorial layout.",
+                        default: "Choose a saved story from the list to read it with the full editorial layout."
+                    ),
+                    systemImage: "bookmark.circle",
+                    tone: .favorite
+                )
+                .navigationTitle(L10n.text("Detail", default: "Detail"))
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
     }
 
     private var destinationBinding: Binding<AppDestination> {
@@ -172,34 +474,73 @@ struct AppShellView: View {
 
     private func updateDestination(_ destination: AppDestination) {
         router.destination = destination
-        persistedDestinationRawValue = destination.rawValue
+        persistDestination(destination)
     }
 
     private func restorePersistedDestinationIfNeeded() {
         guard router.destination == .today else {
-            persistedDestinationRawValue = router.destination.rawValue
+            persistDestination(router.destination)
             return
         }
 
         guard let persistedDestination = AppDestination(rawValue: persistedDestinationRawValue) else {
-            persistedDestinationRawValue = AppDestination.today.rawValue
+            persistDestination(.today)
             return
         }
 
         router.destination = persistedDestination
     }
 
-    private var activePaywallBinding: Binding<PaywallPresentation?> {
-        Binding(
-            get: { purchaseManager.activePaywall },
-            set: { newValue in
-                if let newValue {
-                    purchaseManager.activePaywall = newValue
-                } else {
-                    purchaseManager.dismissPaywall()
-                }
-            }
+    private func persistDestination(_ destination: AppDestination) {
+        persistedDestinationRawValue = destination.rawValue
+
+        // Flush the shell selection explicitly so relaunches and UI tests can restore the last
+        // active destination even when the app is terminated immediately after a tab/sidebar change.
+        UserDefaults.standard.set(destination.rawValue, forKey: StorageKey.destination)
+        UserDefaults.standard.synchronize()
+    }
+
+    private func clearArchiveSelection() {
+        selectionFlags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .archive,
+            current: selectionFlags
         )
+        router.selectedArchiveItemID = nil
+    }
+
+    private func clearSavedSelection() {
+        selectionFlags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .saved,
+            current: selectionFlags
+        )
+        router.selectedSavedItemID = nil
+    }
+
+    private func ensureRegularShellSelectionIfNeeded() {
+        guard usesSplitShell else { return }
+
+        let synchronization = AppShellRouteSelectionContract.synchronize(
+            destination: router.destination,
+            archiveSelectedID: router.selectedArchiveItemID,
+            savedSelectedID: router.selectedSavedItemID,
+            flags: selectionFlags,
+            archiveItems: fetcher.archiveItems,
+            favoriteItems: fetcher.favorites
+        )
+
+        if router.selectedArchiveItemID != synchronization.normalizedArchiveSelectionID {
+            router.selectedArchiveItemID = synchronization.normalizedArchiveSelectionID
+        }
+        if router.selectedSavedItemID != synchronization.normalizedSavedSelectionID {
+            router.selectedSavedItemID = synchronization.normalizedSavedSelectionID
+        }
+
+        if let archiveItem = synchronization.archiveSelectedItemForFetcher {
+            fetcher.selectArchivedItem(archiveItem)
+        }
+        if let favorite = synchronization.savedSelectedItemForFetcher {
+            fetcher.selectFavorite(favorite)
+        }
     }
 
     private func trackArchiveVisitIfNeeded(for destination: AppDestination) {
@@ -212,26 +553,74 @@ struct AppShellView: View {
 }
 
 private struct AppShellSidebarRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let destination: AppDestination
     let isSelected: Bool
 
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
     var body: some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
-            Image(systemName: destination.systemImage)
-                .foregroundStyle(isSelected ? AppTheme.Palette.accentHighlight : .primary)
-                .frame(width: 22)
+        HStack(alignment: .center, spacing: AppTheme.Spacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? AppTheme.accentColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.28 : 0.16)
+                            : Color.white.opacity(isDarkMode ? 0.08 : 0.42)
+                    )
+                    .frame(width: 42, height: 42)
+
+                Image(systemName: isSelected ? destination.selectedSystemImage : destination.systemImage)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(
+                        isSelected
+                            ? AppTheme.Palette.accentHighlight
+                            : AppTheme.inkSecondary(isDarkMode: isDarkMode)
+                    )
+            }
 
             Text(destination.localizedTitle)
                 .font(AppTheme.Typography.sectionTitle)
+                .foregroundStyle(
+                    isSelected
+                        ? AppTheme.inkPrimary(isDarkMode: isDarkMode)
+                        : AppTheme.inkSecondary(isDarkMode: isDarkMode)
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
             Spacer(minLength: 0)
-
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(AppTheme.Palette.accentHighlight)
-                    .accessibilityHidden(true)
-            }
         }
-        .contentShape(Rectangle())
+        .padding(.horizontal, AppTheme.Spacing.sm)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    isSelected
+                        ? AppTheme.accentColor(isDarkMode: isDarkMode).opacity(isDarkMode ? 0.24 : 0.14)
+                        : Color.white.opacity(isDarkMode ? 0.06 : 0.32)
+                )
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(
+                    isSelected
+                        ? AppTheme.Palette.accentHighlight.opacity(isDarkMode ? 0.6 : 0.38)
+                        : AppTheme.panelStroke(isDarkMode: isDarkMode),
+                    lineWidth: isSelected ? 1.5 : 1
+                )
+        }
+        .shadow(
+            color: isSelected
+                ? AppTheme.Palette.accentHighlight.opacity(isDarkMode ? 0.16 : 0.08)
+                : .clear,
+            radius: 16,
+            y: 10
+        )
+        .contentShape(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
     }
 }

@@ -51,96 +51,6 @@ struct AdaptiveNavigationContainer<Content: View>: View {
     }
 }
 
-private struct AppScreenChromeModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarBackground(.thinMaterial, for: .navigationBar)
-    }
-}
-
-struct ScreenPanelColumn<Content: View>: View {
-    let spacing: CGFloat
-    let topPadding: CGFloat
-    let bottomPadding: CGFloat
-    private let content: Content
-
-    init(
-        spacing: CGFloat = AppTheme.Metrics.screenPanelSpacing,
-        topPadding: CGFloat = AppTheme.Spacing.xs,
-        bottomPadding: CGFloat = 0,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.spacing = spacing
-        self.topPadding = topPadding
-        self.bottomPadding = bottomPadding
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: spacing) {
-            content
-        }
-        .frame(maxWidth: AppTheme.Metrics.screenContentMaxWidth, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, AppTheme.Spacing.lg)
-        .padding(.top, topPadding)
-        .padding(.bottom, bottomPadding)
-    }
-}
-
-struct MissionSearchField: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
-    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
-    @Binding var text: String
-    let placeholder: String
-    let accessibilityIdentifier: String
-
-    private var isDarkMode: Bool {
-        colorScheme == .dark
-    }
-
-    var body: some View {
-        HStack(spacing: AppTheme.Spacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                .accessibilityHidden(true)
-
-            TextField(placeholder, text: $text)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .accessibilityIdentifier(accessibilityIdentifier)
-
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.text("Clear search", default: "Clear search"))
-            }
-        }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.vertical, AppTheme.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                .fill(AppTheme.glassSurface(
-                    reduceTransparency: appRuntimeOverrides.resolvedReduceTransparency(systemValue: accessibilityReduceTransparency),
-                    isDarkMode: isDarkMode
-                ))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.Metrics.compactCornerRadius, style: .continuous)
-                .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
-        }
-    }
-}
-
 struct AppEnvironmentOverrideContainer<Content: View>: View {
     let overrides: AppEnvironmentOverrides
     let preferredColorScheme: ColorScheme?
@@ -174,12 +84,6 @@ struct AppEnvironmentOverrideContainer<Content: View>: View {
         }
 
         return view
-    }
-}
-
-extension View {
-    func appScreenChrome() -> some View {
-        modifier(AppScreenChromeModifier())
     }
 }
 
@@ -313,6 +217,22 @@ extension EnvironmentValues {
     var appRuntimeOverrides: AppEnvironmentOverrides {
         get { self[AppRuntimeOverridesKey.self] }
         set { self[AppRuntimeOverridesKey.self] = newValue }
+    }
+}
+
+enum AppShellContext {
+    case compactTabs
+    case premiumRegularShell
+}
+
+private struct AppShellContextKey: EnvironmentKey {
+    static let defaultValue: AppShellContext = .compactTabs
+}
+
+extension EnvironmentValues {
+    var appShellContext: AppShellContext {
+        get { self[AppShellContextKey.self] }
+        set { self[AppShellContextKey.self] = newValue }
     }
 }
 
@@ -512,6 +432,70 @@ struct MissionPanel<Content: View>: View {
                     }
             }
             .shadow(color: AppTheme.panelShadow(isDarkMode: isDarkMode, tone: tone), radius: 22, y: 12)
+    }
+}
+
+struct PremiumShellStage<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
+    let tone: AppTheme.SurfaceTone
+    private let content: Content
+
+    init(
+        tone: AppTheme.SurfaceTone = .neutral,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.tone = tone
+        self.content = content()
+    }
+
+    private var isDarkMode: Bool {
+        colorScheme == .dark
+    }
+
+    private var effectiveReduceTransparency: Bool {
+        appRuntimeOverrides.resolvedReduceTransparency(systemValue: accessibilityReduceTransparency)
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background {
+                RoundedRectangle(
+                    cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                    style: .continuous
+                )
+                .fill(AppTheme.adaptiveSurface(
+                    isDarkMode: isDarkMode,
+                    reduceTransparency: effectiveReduceTransparency
+                ))
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                        style: .continuous
+                    )
+                    .fill(AppTheme.panelOverlayGradient(isDarkMode: isDarkMode, tone: tone))
+                }
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                        style: .continuous
+                    )
+                    .strokeBorder(AppTheme.panelStroke(isDarkMode: isDarkMode), lineWidth: 1)
+                }
+            }
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: AppTheme.Metrics.shellStageCornerRadius,
+                    style: .continuous
+                )
+            )
+            .shadow(
+                color: AppTheme.panelShadow(isDarkMode: isDarkMode, tone: tone),
+                radius: 26,
+                y: 16
+            )
     }
 }
 
@@ -775,7 +759,31 @@ struct MissionStateCard<Actions: View>: View {
             }
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
+    }
+}
+
+struct LibrarySelectionPlaceholderView: View {
+    let eyebrow: String
+    let title: String
+    let message: String
+    let systemImage: String
+    let tone: AppTheme.SurfaceTone
+
+    var body: some View {
+        MissionStateCard(
+            eyebrow: eyebrow,
+            title: title,
+            message: message,
+            systemImage: systemImage,
+            tone: tone
+        )
+        .frame(maxWidth: 620, alignment: .leading)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+        .padding(.top, AppTheme.Spacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(SpaceBackdropView())
     }
 }
 
@@ -869,6 +877,52 @@ struct AboutSourceRightsPanel: View {
 struct MonetizationPaywallView: View {
     @EnvironmentObject private var purchaseManager: PurchaseManager
     let context: PaywallPresentation
+    @State private var purchaseFeedbackToken = 0
+    @State private var dismissFeedbackToken = 0
+
+    private struct BulletSpec: Identifiable {
+        let id: String
+        let feature: PremiumFeature?
+        let title: String
+        let systemImage: String
+    }
+
+    private let allBullets: [BulletSpec] = [
+        BulletSpec(
+            id: "archive",
+            feature: .fullArchive,
+            title: L10n.text("paywall.bullet.archive", default: "Full archive by date"),
+            systemImage: "books.vertical.fill"
+        ),
+        BulletSpec(
+            id: "hd",
+            feature: .hdSave,
+            title: L10n.text("paywall.bullet.hd_save", default: "Save in HD"),
+            systemImage: "arrow.down.circle.fill"
+        ),
+        BulletSpec(
+            id: "favorites",
+            feature: .unlimitedFavorites,
+            title: L10n.text("paywall.bullet.favorites", default: "Unlimited favorites"),
+            systemImage: "bookmark.fill"
+        ),
+        BulletSpec(
+            id: "widgets",
+            feature: nil,
+            title: L10n.text("paywall.bullet.widgets", default: "All widgets unlocked"),
+            systemImage: "rectangle.3.group.fill"
+        ),
+        BulletSpec(
+            id: "ads",
+            feature: nil,
+            title: L10n.text("paywall.bullet.ads", default: "No ads"),
+            systemImage: "nosign"
+        ),
+    ]
+
+    private var narrative: PaywallNarrativePolicy {
+        PaywallNarrativePolicy.resolve(trigger: context.trigger, feature: context.feature)
+    }
 
     private var priceLine: String {
         purchaseManager.proLifetimeProduct?.displayPrice
@@ -879,6 +933,12 @@ struct MonetizationPaywallView: View {
         purchaseManager.proLifetimeProduct?.displayName ?? AppProduct.proLifetime.fallbackDisplayName
     }
 
+    private func orderedBullets(leadFeature: PremiumFeature) -> [BulletSpec] {
+        let lead = allBullets.filter { $0.feature == leadFeature }
+        let rest = allBullets.filter { $0.feature != leadFeature }
+        return lead + rest
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
@@ -886,11 +946,8 @@ struct MonetizationPaywallView: View {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                         MissionPanelHeader(
                             eyebrow: L10n.text("paywall.eyebrow", default: "Space Briefing Pro"),
-                            title: L10n.text("paywall.title", default: "Unlock the full space experience"),
-                            summary: L10n.text(
-                                "paywall.subtitle",
-                                default: "Get the full NASA archive, HD saves, beautiful widgets, favorites, and an ad-free experience."
-                            ),
+                            title: narrative.title,
+                            summary: narrative.summary,
                             tone: .accent
                         ) {
                             MissionBadge(
@@ -908,27 +965,15 @@ struct MonetizationPaywallView: View {
                         .accessibilityIdentifier(AccessibilityID.paywallPriceText)
 
                         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.archive", default: "Full archive by date"),
-                                systemImage: "books.vertical.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.hd_save", default: "Save in HD"),
-                                systemImage: "arrow.down.circle.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.widgets", default: "All widgets unlocked"),
-                                systemImage: "rectangle.3.group.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.favorites", default: "Unlimited favorites"),
-                                systemImage: "bookmark.fill"
-                            )
-                            paywallBullet(
-                                title: L10n.text("paywall.bullet.ads", default: "No ads"),
-                                systemImage: "nosign"
-                            )
+                            ForEach(orderedBullets(leadFeature: narrative.leadFeature)) { bullet in
+                                paywallBullet(title: bullet.title, systemImage: bullet.systemImage)
+                            }
                         }
+
+                        Text(narrative.freeNote)
+                            .font(AppTheme.Typography.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         if let paywallMessage = purchaseManager.paywallMessage, !paywallMessage.isEmpty {
                             Text(paywallMessage)
@@ -982,6 +1027,7 @@ struct MonetizationPaywallView: View {
                             .accessibilityIdentifier(AccessibilityID.paywallRestoreButton)
 
                             Button(L10n.text("paywall.cta.continue_free", default: "Continue with Free")) {
+                                dismissFeedbackToken += 1
                                 purchaseManager.dismissPaywall()
                             }
                             .buttonStyle(.plain)
@@ -1010,6 +1056,11 @@ struct MonetizationPaywallView: View {
         .interactiveDismissDisabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
+        .onChange(of: purchaseManager.hasPro) { newValue in
+            if newValue { purchaseFeedbackToken += 1 }
+        }
+        .appSensoryFeedback(.success, trigger: purchaseFeedbackToken)
+        .appSensoryFeedback(.impactLight, trigger: dismissFeedbackToken)
     }
 
     private func paywallBullet(title: String, systemImage: String) -> some View {

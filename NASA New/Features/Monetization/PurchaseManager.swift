@@ -158,7 +158,7 @@ final class PurchaseManager: ObservableObject {
 
     private let backend: any PurchaseBackend
     private let userDefaults: UserDefaults
-    private let hasProOverride: Bool
+    private let entitlementOverride: Bool?
     private var hasStarted = false
     private var transactionUpdatesTask: Task<Void, Never>?
 
@@ -168,8 +168,12 @@ final class PurchaseManager: ObservableObject {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
         self.userDefaults = userDefaults
-        self.hasProOverride = environment["UITEST_HAS_PRO"] == "1"
-        self.hasPro = self.hasProOverride
+        if let rawEntitlementOverride = environment["UITEST_HAS_PRO"] {
+            entitlementOverride = rawEntitlementOverride == "1"
+        } else {
+            entitlementOverride = nil
+        }
+        self.hasPro = entitlementOverride ?? false
 #if canImport(StoreKit)
         self.backend = backend ?? StoreKitPurchaseBackend()
 #else
@@ -213,8 +217,10 @@ final class PurchaseManager: ObservableObject {
     }
 
     func refreshEntitlements() async {
-        if hasProOverride {
-            applyEntitlements(productIDs: [AppProduct.proLifetime.rawValue])
+        if let entitlementOverride {
+            applyEntitlements(
+                productIDs: entitlementOverride ? [AppProduct.proLifetime.rawValue] : []
+            )
             return
         }
 

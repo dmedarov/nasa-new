@@ -55,6 +55,11 @@ enum AppTheme {
     enum Typography {
         static let splashTitle = Font.system(size: 30, weight: .bold, design: .serif)
         static let splashCaption = Font.system(size: 15, weight: .semibold, design: .rounded)
+        static let splashDisplayCompact = Font.system(size: 42, weight: .bold, design: .serif)
+        static let splashDisplayRegular = Font.system(size: 56, weight: .bold, design: .serif)
+        static let splashLeadCompact = Font.system(size: 18, weight: .semibold, design: .rounded)
+        static let splashLeadRegular = Font.system(size: 21, weight: .semibold, design: .rounded)
+        static let splashStatus = Font.system(.callout, design: .rounded).weight(.semibold)
         static let heroEyebrow = Font.system(.caption, design: .rounded).weight(.bold)
         static let heroTitle = Font.system(size: 32, weight: .bold, design: .serif)
         static let heroSubtitle = Font.system(.subheadline, design: .rounded).weight(.medium)
@@ -78,6 +83,27 @@ enum AppTheme {
         static let heroCornerRadius: CGFloat = 30
         static let screenContentMaxWidth: CGFloat = 760
         static let screenPanelSpacing: CGFloat = 16
+        static let libraryPanelBottomPadding: CGFloat = 8
+        static let libraryControlsSpacing: CGFloat = 16
+        static let shellRailMinimumWidth: CGFloat = 220
+        static let shellRailMaximumWidth: CGFloat = 248
+        static let shellContentGap: CGFloat = 14
+        static let shellWorkspaceHorizontalPadding: CGFloat = 18
+        static let shellWorkspaceVerticalPadding: CGFloat = 20
+        static let shellStageCornerRadius: CGFloat = 32
+        static let shellLibraryPaneMinimumWidth: CGFloat = 300
+        static let shellLibraryPaneMaximumWidth: CGFloat = 352
+        static let shellDualStageMinimumWidth: CGFloat = 680
+        static let premiumEditorialColumnWidth: CGFloat = 420
+        static let premiumSplitLayoutMinimumWidth: CGFloat = 1120
+        static let premiumEditorialStageMaxWidth: CGFloat = 1480
+        static let readerStageMaxWidth: CGFloat = 1500
+        static let compactHeroMinimumHeight: CGFloat = 320
+        static let regularHeroMinimumHeight: CGFloat = 540
+        static let compactVideoHeroHeight: CGFloat = 320
+        static let regularVideoHeroHeight: CGFloat = 520
+        static let compactDetailsColumnMaxWidth: CGFloat = 520
+        static let regularDetailsColumnMaxWidth: CGFloat = 600
     }
 
     enum Spacing {
@@ -333,6 +359,97 @@ enum PaywallTrigger: String, Equatable {
     case archiveVisitNudge
     case deepLinkLockedDate
     case appIntentLockedDate
+}
+
+struct PaywallNarrativePolicy {
+    let title: String
+    let summary: String
+    let freeNote: String
+    let leadFeature: PremiumFeature
+
+    static func resolve(trigger: PaywallTrigger, feature: PremiumFeature) -> PaywallNarrativePolicy {
+        switch feature {
+        case .fullArchive:
+            return archiveNarrative(trigger: trigger)
+        case .unlimitedFavorites:
+            return favoritesNarrative()
+        case .hdSave:
+            return hdSaveNarrative()
+        }
+    }
+
+    private static func archiveNarrative(trigger: PaywallTrigger) -> PaywallNarrativePolicy {
+        let freeNote = L10n.format(
+            "paywall.free_note.archive",
+            default: "Your first %d days of APOD history are always free.",
+            PremiumAccessPolicy.freeArchiveDayCount
+        )
+
+        switch trigger {
+        case .archiveVisitNudge:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_nudge", default: "You've found the archive"),
+                summary: L10n.text(
+                    "paywall.summary.archive_nudge",
+                    default: "The archive is one of Space Briefing's most-visited features. Pro unlocks every APOD from the past 30 years — over 10,000 images and stories."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        case .archiveLoadMore:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_load_more", default: "Keep going deeper"),
+                summary: L10n.text(
+                    "paywall.summary.archive_load_more",
+                    default: "You've reached the free window. Pro loads every APOD dating back to 1995 with no limits on how far back you go."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        default:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_locked", default: "The full archive is waiting"),
+                summary: L10n.text(
+                    "paywall.summary.archive_locked",
+                    default: "You've reached the edge of the free window. Pro unlocks every APOD dating back to 1995 — over 10,000 images and stories."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        }
+    }
+
+    private static func favoritesNarrative() -> PaywallNarrativePolicy {
+        PaywallNarrativePolicy(
+            title: L10n.text("paywall.title.favorites", default: "You've built a great collection"),
+            summary: L10n.format(
+                "paywall.summary.favorites",
+                default: "You've saved %d favorites — the free limit. Pro removes the cap so you can keep every APOD story that matters to you.",
+                PremiumAccessPolicy.freeFavoritesLimit
+            ),
+            freeNote: L10n.format(
+                "paywall.free_note.favorites",
+                default: "Your first %d favorites are always free.",
+                PremiumAccessPolicy.freeFavoritesLimit
+            ),
+            leadFeature: .unlimitedFavorites
+        )
+    }
+
+    private static func hdSaveNarrative() -> PaywallNarrativePolicy {
+        PaywallNarrativePolicy(
+            title: L10n.text("paywall.title.hd_save", default: "Save this in full quality"),
+            summary: L10n.text(
+                "paywall.summary.hd_save",
+                default: "Pro lets you download any APOD image in the highest available resolution, straight to your photo library."
+            ),
+            freeNote: L10n.text(
+                "paywall.free_note.hd",
+                default: "Viewing images is always free. Saving originals in HD is a Pro feature."
+            ),
+            leadFeature: .hdSave
+        )
+    }
 }
 
 struct PremiumAccessPolicy {
@@ -595,6 +712,41 @@ struct APODMediaInteractionPolicy {
     }
 }
 
+struct APODMediaPresentationPolicy {
+    static func embeddedYouTubeID(from url: URL?) -> String? {
+        guard let url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let youtubeHosts = ["youtube.com", "youtu.be", "www.youtube.com"]
+        if youtubeHosts.contains(where: { url.host?.contains($0) == true }) {
+            if url.host?.contains("youtu.be") == true || url.path.contains("/embed/") || url.path.contains("/v/"),
+               let path = components.path.components(separatedBy: "/").last,
+               !path.isEmpty {
+                return path
+            }
+
+            return components.queryItems?.first(where: { $0.name == "v" })?.value
+        }
+
+        return nil
+    }
+
+    static func videoThumbnailURL(for videoID: String) -> URL? {
+        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
+    }
+
+    static func shareMediaItem(for nasa: NASA) -> Any? {
+        if nasa.mediaType == .video,
+           let videoID = embeddedYouTubeID(from: nasa.url),
+           let thumbnailURL = videoThumbnailURL(for: videoID) {
+            return thumbnailURL
+        }
+
+        return nasa.hdurl ?? nasa.url
+    }
+}
+
 struct APODSourceLinkPolicy {
     private static let apiDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -765,6 +917,90 @@ struct APODSourceLinkPolicy {
         case .other:
             return "arrow.up.forward.square"
         }
+    }
+}
+
+struct APODReaderSourceContext {
+    let nasaPageURL: URL?
+    let preferredMediaSourceURL: URL?
+    let preferredMediaSourceTitle: String
+    let preferredMediaSourceDescription: String
+    let preferredMediaSourceSystemImage: String
+
+    init(nasa: NASA, dataSaverMode: Bool, preferHDImages: Bool) {
+        nasaPageURL = APODSourceLinkPolicy.nasaPageURL(for: nasa.date, fallbackURL: nasa.url)
+        preferredMediaSourceURL = APODSourceLinkPolicy.preferredMediaURL(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceTitle = APODSourceLinkPolicy.preferredMediaTitle(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceDescription = APODSourceLinkPolicy.preferredMediaDescription(
+            for: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        preferredMediaSourceSystemImage = APODSourceLinkPolicy.preferredMediaSystemImage(for: nasa)
+    }
+}
+
+extension APODReaderSourceContext: Equatable {}
+
+struct APODReaderPresentation: Equatable {
+    let nasa: NASA
+    let isFavorite: Bool
+    let sourceContext: APODReaderSourceContext
+    let offlineMediaState: APODOfflineMediaItemState
+    let offlineStatusPresentation: APODOfflineMediaStatusPresentation?
+    let archiveHostLabel: String?
+    let preferredMediaHostLabel: String?
+    let mediaIntegritySummary: String
+    let mediaInteractionHint: String?
+    let showsSeparateMediaAction: Bool
+}
+
+enum APODReaderPresentationPolicy {
+    static func resolve(
+        nasa: NASA,
+        isFavorite: Bool,
+        dataSaverMode: Bool,
+        preferHDImages: Bool,
+        offlineMediaState: APODOfflineMediaItemState
+    ) -> APODReaderPresentation {
+        let sourceContext = APODReaderSourceContext(
+            nasa: nasa,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+        let archiveHostLabel = APODSourceLinkPolicy.hostLabel(for: sourceContext.nasaPageURL)
+        let preferredMediaHostLabel = APODSourceLinkPolicy.hostLabel(for: sourceContext.preferredMediaSourceURL)
+        let showsSeparateMediaAction: Bool
+        if let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL {
+            showsSeparateMediaAction = preferredMediaSourceURL != sourceContext.nasaPageURL
+        } else {
+            showsSeparateMediaAction = false
+        }
+
+        return APODReaderPresentation(
+            nasa: nasa,
+            isFavorite: isFavorite,
+            sourceContext: sourceContext,
+            offlineMediaState: offlineMediaState,
+            offlineStatusPresentation: offlineMediaState.statusPresentation,
+            archiveHostLabel: archiveHostLabel,
+            preferredMediaHostLabel: preferredMediaHostLabel,
+            mediaIntegritySummary: APODSourceLinkPolicy.mediaIntegritySummary(
+                for: nasa,
+                dataSaverMode: dataSaverMode,
+                preferHDImages: preferHDImages
+            ),
+            mediaInteractionHint: APODSourceLinkPolicy.mediaInteractionHint(for: nasa),
+            showsSeparateMediaAction: showsSeparateMediaAction
+        )
     }
 }
 

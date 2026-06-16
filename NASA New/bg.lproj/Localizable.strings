@@ -5,7 +5,15 @@
 "Saved Archive" = "Запазен архив";
 "Space Briefing" = "Космически обзор";
 "Astronomy Picture of the Day" = "Астрономическа снимка на деня";
-"Daily space imagery, editorial context, and source links from NASA’s APOD archive." = "Ежедневни космически изображения, редакционен контекст и източници от архива APOD на NASA.";
+"splash.subtitle" = "Ежедневни космически изображения, редакционен контекст и източници от архива APOD на NASA.";
+"splash.status.preparing" = "Подготвяме днешния обзор";
+"splash.status.detail" = "Зареждаме последния APOD, архивния контекст и източниковите детайли.";
+"splash.status.cached_refresh" = "Зареждаме последния APOD, докато архивният контекст и източниковите детайли остават готови.";
+"splash.status.cached_ready" = "Отваряме с кеширан APOD контекст, докато последният обзор наваксва.";
+"splash.featured.eyebrow" = "Последен запис";
+"splash.featured.summary_fallback" = "Подбрано от архива Astronomy Picture of the Day на NASA с редакционен контекст, източници и бърз достъп до архива.";
+"splash.metric.archive_count" = "%d обзора са готови";
+"splash.metric.saved_count" = "%d истории са запазени";
 "brand.independent_notice" = "Независимо приложение, което използва публичната услуга APOD на NASA. Няма връзка с NASA и не е одобрено от нея.";
 "brand.data_source_notice" = "Изображенията, описанията и метаданните идват от услугата Astronomy Picture of the Day на NASA. Правата върху материалите извън NASA остават при посочения автор.";
 "Refresh" = "Опресняване";
@@ -307,6 +315,7 @@
 "appearance.system" = "Системен";
 "archive.summary.count" = "%d APOD записа, готови за преглед";
 "archive.summary.empty_range" = "Създайте прегледен APOD архив и скачайте директно към всеки запазен ден.";
+"archive.empty.offline" = "Connect to the NASA API to start building your archive. Cached entries will be available offline once downloaded.";
 "archive.summary.range" = "Разглеждайте от %@ назад до %@, после зареждайте по-стари диапазони при нужда.";
 "by" = "от";
 "credit.label" = "Кредит: %@";
@@ -407,3 +416,7 @@
 "offline.media.clear.confirmation.message" = "Това премахва запазените файлове с изображения и preview файловете от това устройство, но не премахва елементите от Favorites.";
 "offline.media.clear.success" = "Офлайн файловете са премахнати. Запазените APOD истории остават във Favorites.";
 "offline.media.rebuild.success" = "Офлайн медията за запазените APOD елементи беше обновена.";
+"app.shell.story_title" = "NASA истории, поднесени спокойно.";
+"app.shell.story_subtitle" = "Днес, архив, запазени.";
+"saved.library.eyebrow" = "Запазена библиотека";
+"archive.browser.eyebrow" = "Архивен браузър";

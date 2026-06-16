@@ -15,16 +15,28 @@ extension NasaCollectionFetcher {
         }
     }
 
+    var offlineMediaLibraryState: APODOfflineMediaLibraryState {
+        APODOfflineMediaLibraryState(summary: offlineMediaStorageSummary)
+    }
+
     func offlineMediaAsset(for nasa: NASA) -> APODOfflineMediaAsset? {
         offlineMediaAssetsByID[nasa.id]
     }
 
+    func offlineMediaState(for nasa: NASA, isSaved: Bool? = nil) -> APODOfflineMediaItemState {
+        APODOfflineMediaItemState(
+            mediaType: nasa.mediaType,
+            asset: offlineMediaAsset(for: nasa),
+            isSaved: isSaved ?? isFavorite(nasa)
+        )
+    }
+
     func localMediaURL(for nasa: NASA) -> URL? {
-        offlineMediaAsset(for: nasa)?.localAssetURL
+        offlineMediaAsset(for: nasa)?.state.localAssetURL
     }
 
     func localPreviewURL(for nasa: NASA) -> URL? {
-        offlineMediaAsset(for: nasa)?.localPreviewURL
+        offlineMediaAsset(for: nasa)?.state.localPreviewURL
     }
 
     func bootstrapOfflineMediaState() async {
@@ -85,17 +97,19 @@ extension NasaCollectionFetcher {
     private func markOfflineMediaSyncInProgress(for items: [NASA]) {
         guard !items.isEmpty else { return }
 
+        let preferences = currentOfflineMediaPreferences()
+
         for item in items {
             let currentRecord = offlineMediaAssetsByID[item.id]
 
-            if currentRecord?.availability == .availableOffline || currentRecord?.availability == .previewOffline {
+            if currentRecord?.state.hasStoredLocalMedia == true {
                 continue
             }
 
             let remoteSourceURL = APODSourceLinkPolicy.preferredMediaURL(
                 for: item,
-                dataSaverMode: APODOfflineMediaPreferences.current().dataSaverMode,
-                preferHDImages: APODOfflineMediaPreferences.current().preferHDImages
+                dataSaverMode: preferences.dataSaverMode,
+                preferHDImages: preferences.preferHDImages
             )
 
             offlineMediaAssetsByID[item.id] = APODOfflineMediaAsset(

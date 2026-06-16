@@ -84,6 +84,7 @@ final class AppRouter: ObservableObject {
                 fetcher: fetcher,
                 purchaseManager: purchaseManager
            ) {
+            showToday()
             purchaseManager?.presentPaywall(trigger: lockedDateTrigger, feature: .fullArchive)
             return
         }

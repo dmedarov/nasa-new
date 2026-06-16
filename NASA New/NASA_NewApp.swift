@@ -61,8 +61,25 @@ struct SpaceBriefingApp: App {
                 .onContinueUserActivity(SpaceBriefingUserActivityType.apod) { activity in
                     router.handle(userActivity: activity, fetcher: fetcher, purchaseManager: purchaseManager)
                 }
+                .sheet(item: activePaywallBinding) { context in
+                    MonetizationPaywallView(context: context)
+                        .environmentObject(purchaseManager)
+                }
             }
         }
+    }
+
+    private var activePaywallBinding: Binding<PaywallPresentation?> {
+        Binding(
+            get: { purchaseManager.activePaywall },
+            set: { newValue in
+                if let newValue {
+                    purchaseManager.activePaywall = newValue
+                } else {
+                    purchaseManager.dismissPaywall()
+                }
+            }
+        )
     }
 }
 

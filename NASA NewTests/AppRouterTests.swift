@@ -237,6 +237,160 @@ struct AppRouterTests {
     }
 
     @Test
+    func appShellSelectionPolicyKeepsValidArchiveSelection() {
+        let firstArchive = makeAPOD(date: "2025-01-14", title: "Archive First")
+        let selectedArchive = makeAPOD(date: "2025-01-15", title: "Archive Selected")
+
+        let resolution = AppShellSelectionPolicy.resolveArchive(
+            selectedID: selectedArchive.id,
+            selectionClearedByUser: false,
+            archiveItems: [firstArchive, selectedArchive],
+            favoriteItems: []
+        )
+
+        #expect(resolution.normalizedSelectionID == selectedArchive.id)
+        #expect(resolution.selectedItem?.id == selectedArchive.id)
+        #expect(resolution.fallbackItem?.id == firstArchive.id)
+        #expect(resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellSelectionPolicyAllowsArchiveDetailForFavoriteSelection() {
+        let firstArchive = makeAPOD(date: "2025-01-14", title: "Archive First")
+        let favorite = makeAPOD(date: "2025-01-16", title: "Favorite Selected")
+
+        let resolution = AppShellSelectionPolicy.resolveArchive(
+            selectedID: favorite.id,
+            selectionClearedByUser: false,
+            archiveItems: [firstArchive],
+            favoriteItems: [favorite]
+        )
+
+        #expect(resolution.normalizedSelectionID == favorite.id)
+        #expect(resolution.selectedItem?.id == favorite.id)
+        #expect(resolution.fallbackItem?.id == firstArchive.id)
+        #expect(resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellSelectionPolicySuppressesFallbackAfterExplicitClear() {
+        let favorite = makeAPOD(date: "2025-01-15", title: "Saved Favorite")
+
+        let resolution = AppShellSelectionPolicy.resolveSaved(
+            selectedID: favorite.id,
+            selectionClearedByUser: true,
+            favoriteItems: [favorite]
+        )
+
+        #expect(resolution.normalizedSelectionID == nil)
+        #expect(resolution.selectedItem == nil)
+        #expect(resolution.fallbackItem == nil)
+        #expect(!resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellSelectionPolicyClearsInvalidSavedSelectionButKeepsFallback() {
+        let firstFavorite = makeAPOD(date: "2025-01-15", title: "Saved First")
+        let secondFavorite = makeAPOD(date: "2025-01-16", title: "Saved Second")
+
+        let resolution = AppShellSelectionPolicy.resolveSaved(
+            selectedID: "missing-selection",
+            selectionClearedByUser: false,
+            favoriteItems: [firstFavorite, secondFavorite]
+        )
+
+        #expect(resolution.normalizedSelectionID == nil)
+        #expect(resolution.selectedItem == nil)
+        #expect(resolution.fallbackItem?.id == firstFavorite.id)
+        #expect(resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellRouteSelectionContractResetsInactiveClearFlagsOnNavigation() {
+        let currentFlags = AppShellSelectionFlags(
+            archiveSelectionClearedByUser: true,
+            savedSelectionClearedByUser: true
+        )
+
+        let archiveNavigationFlags = AppShellRouteSelectionContract.flagsAfterNavigating(
+            to: .archive,
+            current: currentFlags
+        )
+        let todayNavigationFlags = AppShellRouteSelectionContract.flagsAfterNavigating(
+            to: .today,
+            current: currentFlags
+        )
+
+        #expect(archiveNavigationFlags.archiveSelectionClearedByUser)
+        #expect(!archiveNavigationFlags.savedSelectionClearedByUser)
+        #expect(!todayNavigationFlags.archiveSelectionClearedByUser)
+        #expect(!todayNavigationFlags.savedSelectionClearedByUser)
+    }
+
+    @Test
+    func appShellRouteSelectionContractRestoresClearFlagAfterExplicitSelection() {
+        let currentFlags = AppShellSelectionFlags(
+            archiveSelectionClearedByUser: true,
+            savedSelectionClearedByUser: true
+        )
+
+        let archiveSelectionFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+            for: .archive,
+            selectedID: "archive-selection",
+            current: currentFlags
+        )
+        let unchangedFlags = AppShellRouteSelectionContract.flagsAfterSelectionChange(
+            for: .saved,
+            selectedID: nil,
+            current: currentFlags
+        )
+
+        #expect(!archiveSelectionFlags.archiveSelectionClearedByUser)
+        #expect(archiveSelectionFlags.savedSelectionClearedByUser)
+        #expect(unchangedFlags == currentFlags)
+    }
+
+    @Test
+    func appShellRouteSelectionContractOnlyNormalizesActiveDestinationSelection() {
+        let firstArchive = makeAPOD(date: "2025-01-14", title: "Archive First")
+        let selectedArchive = makeAPOD(date: "2025-01-15", title: "Archive Selected")
+        let favorite = makeAPOD(date: "2025-01-16", title: "Saved Favorite")
+
+        let synchronization = AppShellRouteSelectionContract.synchronize(
+            destination: .archive,
+            archiveSelectedID: selectedArchive.id,
+            savedSelectedID: "stale-saved-selection",
+            flags: AppShellSelectionFlags(),
+            archiveItems: [firstArchive, selectedArchive],
+            favoriteItems: [favorite]
+        )
+
+        #expect(synchronization.normalizedArchiveSelectionID == selectedArchive.id)
+        #expect(synchronization.normalizedSavedSelectionID == "stale-saved-selection")
+        #expect(synchronization.archiveSelectedItemForFetcher?.id == selectedArchive.id)
+        #expect(synchronization.savedSelectedItemForFetcher == nil)
+    }
+
+    @Test
+    func appShellRouteSelectionContractSuppressesActiveFallbackAfterExplicitClear() {
+        let firstArchive = makeAPOD(date: "2025-01-14", title: "Archive First")
+
+        let synchronization = AppShellRouteSelectionContract.synchronize(
+            destination: .archive,
+            archiveSelectedID: nil,
+            savedSelectedID: nil,
+            flags: AppShellSelectionFlags(archiveSelectionClearedByUser: true),
+            archiveItems: [firstArchive],
+            favoriteItems: []
+        )
+
+        #expect(synchronization.normalizedArchiveSelectionID == nil)
+        #expect(synchronization.archiveResolution.selectedItem == nil)
+        #expect(synchronization.archiveResolution.fallbackItem == nil)
+        #expect(synchronization.archiveSelectedItemForFetcher == nil)
+    }
+
+    @Test
     func appRouterAllowsProUserToOpenLockedArchiveDate() {
         let lockedItem = makeAPOD(date: "2025-01-04", title: "Locked Archive Story")
         let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Archive Story")

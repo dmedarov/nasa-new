@@ -29,6 +29,8 @@ final class NASANewUITests: XCTestCase {
         static let favoritesSearchField = "favoritesSearchField"
         static let archiveSheetRoot = "archiveSheetRoot"
         static let archiveSearchField = "archiveSearchField"
+        static let archiveDetailBackButton = "archiveDetailBackButton"
+        static let savedDetailBackButton = "savedDetailBackButton"
         static let favoriteAPODButton = "favoriteAPODButton"
         static let jumpToLatestAPODDateButton = "jumpToLatestAPODDateButton"
         static let previousAPODDateButton = "previousAPODDateButton"
@@ -163,9 +165,7 @@ final class NASANewUITests: XCTestCase {
         if let pendingRouteDate {
             app.launchEnvironment["UITEST_PENDING_ROUTE_DATE"] = pendingRouteDate
         }
-        if hasPro {
-            app.launchEnvironment["UITEST_HAS_PRO"] = "1"
-        }
+        app.launchEnvironment["UITEST_HAS_PRO"] = hasPro ? "1" : "0"
         if let preloadedFavoriteDates, !preloadedFavoriteDates.isEmpty {
             app.launchEnvironment["UITEST_PRELOAD_FAVORITE_DATES"] = preloadedFavoriteDates.joined(separator: ",")
         }
@@ -416,7 +416,32 @@ final class NASANewUITests: XCTestCase {
         let continueButton = element(UIElementID.paywallContinueButton)
         XCTAssertTrue(continueButton.waitForExistence(timeout: 5.0))
         continueButton.tap()
-        XCTAssertTrue(waitForElementToDisappear(element(UIElementID.paywallRoot), timeout: 5.0))
+        XCTAssertTrue(waitForPaywallToDisappear(timeout: 5.0))
+    }
+
+    private func waitForPaywall(timeout: TimeInterval = 5.0) -> Bool {
+        let continueButton = element(UIElementID.paywallContinueButton)
+        if continueButton.waitForExistence(timeout: timeout) {
+            return true
+        }
+
+        let unlockButton = element(UIElementID.paywallUnlockButton)
+        return unlockButton.waitForExistence(timeout: timeout)
+    }
+
+    private func waitForPaywallToDisappear(timeout: TimeInterval = 5.0) -> Bool {
+        let continueButton = element(UIElementID.paywallContinueButton)
+        let unlockButton = element(UIElementID.paywallUnlockButton)
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !continueButton.exists && !unlockButton.exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        return !continueButton.exists && !unlockButton.exists
     }
 
     private func launchAndWaitForMainView(fixtureMode: String = "default", dataSaverMode: Bool? = nil, preferHDImages: Bool? = nil) {
@@ -583,12 +608,20 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let autoplayPolicyValue = app.staticTexts[UIElementID.autoplayPolicyValue]
+        let networkConnectionValue = element(UIElementID.networkConnectionValue)
+        revealElement(networkConnectionValue)
+        XCTAssertTrue(networkConnectionValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(networkConnectionValue, substring: "Cellular", timeout: 5.0))
+
+        let meteredNetworkValue = element(UIElementID.meteredNetworkValue)
+        revealElement(meteredNetworkValue)
+        XCTAssertTrue(meteredNetworkValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(meteredNetworkValue, substring: "Yes", timeout: 5.0))
+
+        let autoplayPolicyValue = element(UIElementID.autoplayPolicyValue)
         revealElement(autoplayPolicyValue)
         XCTAssertTrue(autoplayPolicyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(autoplayPolicyValue, substring: "Manual play required off Wi-Fi", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.networkConnectionValue].label.contains("Cellular"))
-        XCTAssertTrue(app.staticTexts[UIElementID.meteredNetworkValue].label.contains("Yes"))
     }
 
     func testDirectVideoAutoplayPolicyAllowsPlaybackOnWiFi() {
@@ -604,11 +637,15 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let autoplayPolicyValue = app.staticTexts[UIElementID.autoplayPolicyValue]
+        let networkConnectionValue = element(UIElementID.networkConnectionValue)
+        revealElement(networkConnectionValue)
+        XCTAssertTrue(networkConnectionValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(networkConnectionValue, substring: "Wi-Fi", timeout: 5.0))
+
+        let autoplayPolicyValue = element(UIElementID.autoplayPolicyValue)
         revealElement(autoplayPolicyValue)
         XCTAssertTrue(autoplayPolicyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(autoplayPolicyValue, substring: "Autoplay allowed on Wi-Fi", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.networkConnectionValue].label.contains("Wi-Fi"))
     }
 
     func testConstrainedNetworkShowsMaximumSavingsDiagnostics() {
@@ -626,11 +663,15 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         tapElement(UIElementID.openSettingsButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.settingsSheetRoot, timeout: 5.0))
-        let networkEfficiencyValue = app.staticTexts[UIElementID.networkEfficiencyValue]
+        let lowDataModeValue = element(UIElementID.lowDataModeValue)
+        revealElement(lowDataModeValue)
+        XCTAssertTrue(lowDataModeValue.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForLabelContaining(lowDataModeValue, substring: "Yes", timeout: 5.0))
+
+        let networkEfficiencyValue = element(UIElementID.networkEfficiencyValue)
         revealElement(networkEfficiencyValue)
         XCTAssertTrue(networkEfficiencyValue.waitForExistence(timeout: 5.0))
         XCTAssertTrue(waitForLabelContaining(networkEfficiencyValue, substring: "Maximum savings. App data saver and Low Data Mode are both active.", timeout: 5.0))
-        XCTAssertTrue(app.staticTexts[UIElementID.lowDataModeValue].label.contains("Yes"))
     }
 
     func testSettingsShowsNotificationGuidanceAndAboutPanel() {
@@ -791,7 +832,7 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
         archiveRow.tap()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
         XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
     }
@@ -804,11 +845,10 @@ final class NASANewUITests: XCTestCase {
         )
         app.launch()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
-        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
+        XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
+        XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
         XCTAssertFalse(element(UIElementID.archiveSheetRoot).exists)
     }
 
@@ -831,7 +871,7 @@ final class NASANewUITests: XCTestCase {
         XCTAssertTrue(waitForElementToBecomeHittable(favoriteButton, timeout: 5.0))
         favoriteButton.tap()
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
 
         guard let refreshedFavoriteButton = waitForFavoriteButton() else {
@@ -851,7 +891,7 @@ final class NASANewUITests: XCTestCase {
 
         tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
 
-        XCTAssertTrue(waitForElement(identifier: UIElementID.paywallRoot, timeout: 5.0))
+        XCTAssertTrue(waitForPaywall())
         dismissPaywall()
     }
 
@@ -866,7 +906,7 @@ final class NASANewUITests: XCTestCase {
 
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         guard let mainFavoriteButton = waitForFavoriteButton() else {
             XCTFail("Expected a favorite button on the main screen")
@@ -883,7 +923,7 @@ final class NASANewUITests: XCTestCase {
         }
 
         XCTAssertTrue(refreshedMainFavoriteButton.label.contains("Remove"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
     }
 
     func testProUserCanOpenLockedArchiveAndSavePhotoWithoutPaywall() {
@@ -897,7 +937,7 @@ final class NASANewUITests: XCTestCase {
 
         XCTAssertTrue(waitForElement(identifier: UIElementID.mainViewRoot, timeout: 5.0))
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-15"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         tapElement(UIElementID.openArchiveButton)
         XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
@@ -918,11 +958,11 @@ final class NASANewUITests: XCTestCase {
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-04"))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         tapElement(UIElementID.saveToPhotosButton, timeout: 8.0)
         XCTAssertTrue(waitForAnyLabel(containing: "Saved to Photos", timeout: 5.0))
-        XCTAssertFalse(element(UIElementID.paywallRoot).exists)
+        XCTAssertFalse(element(UIElementID.paywallContinueButton).exists || element(UIElementID.paywallUnlockButton).exists)
 
         if app.buttons["OK"].waitForExistence(timeout: 1.0) {
             app.buttons["OK"].tap()
@@ -1025,6 +1065,38 @@ final class NASANewUITests: XCTestCase {
         archiveRow.tap()
 
         XCTAssertTrue(waitForAPODTitle(containing: "Fixture APOD 2025-01-14"))
+    }
+
+    func testIPadSplitShellArchiveBackClearsSelection() throws {
+        configureLaunchEnvironment(fixtureMode: "date_navigation")
+        app.launch()
+
+        try requireSplitShell()
+
+        tapSidebarDestination("archive")
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+
+        guard let searchField = waitForArchiveSearchInput(timeout: 2.0) else {
+            XCTFail("Expected archive search field to be available in split shell.")
+            return
+        }
+
+        searchField.tap()
+        searchField.typeText("2025-01-14\n")
+
+        let archiveRow = element(UIElementID.archiveRow(date: "2025-01-14"))
+        XCTAssertTrue(archiveRow.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(archiveRow, timeout: 5.0))
+        archiveRow.tap()
+
+        let backButton = element(UIElementID.archiveDetailBackButton)
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(waitForElementToBecomeHittable(backButton, timeout: 5.0))
+        backButton.tap()
+
+        XCTAssertTrue(waitForElement(identifier: UIElementID.archiveSheetRoot, timeout: 5.0))
+        XCTAssertNotNil(waitForArchiveSearchInput(timeout: 2.0))
+        XCTAssertTrue(waitForElementToDisappear(backButton, timeout: 5.0))
     }
 
     func testIPadSavedSelectionUpdatesDetail() throws {

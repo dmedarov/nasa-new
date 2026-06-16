@@ -1,8 +1,4 @@
 import SwiftUI
-import UIKit
-import YouTubePlayerKit
-import SafariServices
-import AVKit
 import UserNotifications
 import Network
 
@@ -14,7 +10,6 @@ struct UITestPolicy {
 
 struct MainView: View {
     private enum ViewConstants {
-        static let minImageScale: CGFloat = 1
         static let dateSelectionDebounceNanoseconds: UInt64 = 250_000_000
         static let shareExplanationMaxLength: Int = 100
         static let selectedDateSceneStorageKey = "MainView.selectedAPODDate"
@@ -27,13 +22,11 @@ struct MainView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
-    @State private var imageScale: CGFloat = ViewConstants.minImageScale
-    @State private var imageOffset: CGSize = .zero
     @State private var showShareSheet = false
     @State private var showSettingsSheet = false
     @State private var isMediaAnimating = false
-    @State private var isVideoLoading = false
     @State private var selectedDate = Date()
     @State private var isSyncingSelectedDateFromModel = false
     @State private var dateSelectionTask: Task<Void, Never>?
@@ -56,11 +49,14 @@ struct MainView: View {
     @AppStorage("wifiOnlyVideoAutoplay") private var wifiOnlyVideoAutoplay: Bool = true
     private let openArchiveAction: () -> Void
     private let openSavedAction: () -> Void
+    private let preferredAvailableWidth: CGFloat?
 
     init(
+        preferredAvailableWidth: CGFloat? = nil,
         openArchiveAction: @escaping () -> Void = {},
         openSavedAction: @escaping () -> Void = {}
     ) {
+        self.preferredAvailableWidth = preferredAvailableWidth
         self.openArchiveAction = openArchiveAction
         self.openSavedAction = openSavedAction
     }
@@ -87,45 +83,78 @@ struct MainView: View {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
     }
 
+    private var effectivePreferHDImages: Bool {
+        DataSaverPreferencePolicy.resolvedPreferHDImages(
+            dataSaverMode: dataSaverMode,
+            preferHDImages: preferHDImages
+        )
+    }
+
+    private var currentReaderPresentation: APODReaderPresentation {
+        let currentNasa = fetcher.currentNasa
+        let isFavorite = fetcher.isFavorite(currentNasa)
+        return APODReaderPresentationPolicy.resolve(
+            nasa: currentNasa,
+            isFavorite: isFavorite,
+            dataSaverMode: dataSaverMode,
+            preferHDImages: effectivePreferHDImages,
+            offlineMediaState: fetcher.offlineMediaState(for: currentNasa, isSaved: isFavorite)
+        )
+    }
+
     private var usesWideEditorialLayout: Bool {
         horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
     }
 
-    private func resetImageState() {
-        let updates = {
-            imageScale = ViewConstants.minImageScale
-            imageOffset = .zero
+    private var usesPremiumShellWideLayout: Bool {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+    }
+
+    private func usesPremiumShellSplitLayout(for availableWidth: CGFloat) -> Bool {
+        usesPremiumShellWideLayout && availableWidth >= AppTheme.Metrics.premiumSplitLayoutMinimumWidth
+    }
+
+    private var shouldInlineStatusBannerInEditorialColumn: Bool {
+        usesPremiumShellWideLayout && hasLoadedContent && fetcher.error == nil
+    }
+
+    private var wideEditorialContentMaxWidth: CGFloat {
+        appShellContext == .premiumRegularShell
+            ? AppTheme.Metrics.premiumEditorialStageMaxWidth
+            : AppTheme.Metrics.readerStageMaxWidth
+    }
+
+    private func premiumStageWidths(for availableWidth: CGFloat) -> (media: CGFloat, editorial: CGFloat) {
+        let usableWidth = min(
+            max(availableWidth - (AppTheme.Spacing.xl * 2), 0),
+            wideEditorialContentMaxWidth
+        )
+        let spacing = AppTheme.Spacing.xxl
+        let idealEditorialWidth = min(
+            max(usableWidth * 0.36, 320),
+            AppTheme.Metrics.premiumEditorialColumnWidth
+        )
+        let minimumMediaWidth: CGFloat = 420
+        let rawMediaWidth = usableWidth - idealEditorialWidth - spacing
+
+        if rawMediaWidth >= minimumMediaWidth {
+            return (rawMediaWidth, idealEditorialWidth)
         }
-        if effectiveReduceMotion {
-            updates()
-        } else {
-            withAnimation(.spring()) {
-                updates()
-            }
+
+        let adjustedEditorialWidth = max(usableWidth - minimumMediaWidth - spacing, 300)
+        let adjustedMediaWidth = max(usableWidth - adjustedEditorialWidth - spacing, 0)
+        return (adjustedMediaWidth, adjustedEditorialWidth)
+    }
+
+    private var navigationTitleText: String {
+        switch appShellContext {
+        case .compactTabs:
+            return L10n.text("Space Briefing", default: "Space Briefing")
+        case .premiumRegularShell:
+            return L10n.text("Today", default: "Today")
         }
     }
-    
-    private func extractYouTubeID(from url: URL?) -> String? {
-        guard let url = url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        let youtubeHosts = ["youtube.com", "youtu.be", "www.youtube.com"]
-        if youtubeHosts.contains(where: { url.host?.contains($0) == true }) {
-            if url.host?.contains("youtu.be") == true || url.path.contains("/embed/") || url.path.contains("/v/"),
-               let path = components.path.components(separatedBy: "/").last, !path.isEmpty {
-                return path
-            }
-            return components.queryItems?.first(where: { $0.name == "v" })?.value
-        }
-        return nil
-    }
-    
-    private func apodURL(for date: String?) -> URL? {
-        APODSourceLinkPolicy.nasaPageURL(for: date, fallbackURL: fetcher.currentNasa.url)
-    }
-    
-    private func videoThumbnailURL(for videoID: String) -> URL? {
-        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
-    }
-    
+
     private func syncSelectedDateWithCurrentItem() {
         guard let dateString = fetcher.currentNasa.date, let modelDate = fetcher.date(from: dateString) else { return }
         guard !fetcher.isSameAPODDay(selectedDate, modelDate) else { return }
@@ -196,14 +225,6 @@ struct MainView: View {
         attemptDateSelection(clampedDate, trigger: .todayDateSelection)
     }
 
-    private func applyCurrentSelectionState(syncSelectedDate: Bool) {
-        isVideoLoading = fetcher.currentNasa.mediaType == .video
-        resetImageState()
-        if syncSelectedDate {
-            syncSelectedDateWithCurrentItem()
-        }
-    }
-
     private func restoreSceneSelectionIfNeeded() {
         guard !UITestPolicy.isSceneRestorationDisabled else { return }
         guard let restoredSelectedDate else { return }
@@ -267,13 +288,19 @@ struct MainView: View {
     }
     
     var body: some View {
-        VStack(spacing: AppTheme.Spacing.sm) {
-            statusBannerSection
-            mainContentSection
+        GeometryReader { proxy in
+            let contentWidth = preferredAvailableWidth ?? proxy.size.width
+
+            VStack(spacing: AppTheme.Spacing.sm) {
+                if !shouldInlineStatusBannerInEditorialColumn {
+                    statusBannerSection
+                }
+                mainContentSection(availableWidth: contentWidth)
+            }
         }
         .padding(.top, AppTheme.Spacing.xs)
         .background(backgroundLayer)
-        .navigationTitle(L10n.text("Space Briefing", default: "Space Briefing"))
+        .navigationTitle(navigationTitleText)
         .appScreenChrome()
         .preferredColorScheme(appearancePreference.preferredColorScheme)
         .sheet(isPresented: $showShareSheet) {
@@ -361,56 +388,62 @@ struct MainView: View {
         .onChange(of: dataSaverMode) { _ in
             preferHDImages = normalizedPreferHDImages()
         }
-        .modifier(SensoryFeedbackModifier(
-            randomizeFeedbackToken: randomizeFeedbackToken,
-            favoriteFeedbackToken: favoriteFeedbackToken
-        ))
+        .appSensoryFeedback(.selection, trigger: randomizeFeedbackToken)
+        .appSensoryFeedback(.selection, trigger: favoriteFeedbackToken)
     }
 
     private var headerSection: some View {
         ScreenPanelColumn {
-            MainHeaderBar(
-                showSettingsSheet: $showSettingsSheet,
-                selectedDate: gatedSelectedDateBinding,
-                minimumDate: fetcher.minimumSelectableDate,
-                maximumDate: fetcher.maximumSelectableDate,
-                isFetching: fetcher.isFetching,
-                hasApodData: hasLoadedContent,
-                favoritesCount: fetcher.favorites.count,
-                isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-                preferImages: preferImages,
-                isShowingLatestDate: isShowingLatestDate,
-                toggleFavoriteAction: toggleFavorite,
-                shareAction: { showShareSheet = true },
-                refreshAction: retryLatestRequest,
-                isShowingMinimumDate: isShowingMinimumDate,
-                previousDateAction: { shiftSelectedDate(byDays: -1) },
-                nextDateAction: { shiftSelectedDate(byDays: 1) },
-                jumpToLatestAction: jumpToLatestDate,
-                randomizeAction: randomizeSelection,
-                openArchiveAction: openArchiveAction,
-                openSavedAction: openSavedAction
-            )
+            headerPanelContent
         }
     }
 
     private var statusBannerSection: some View {
         ScreenPanelColumn(topPadding: 0) {
-            APIRequestStatusBanner(
-                isFetching: fetcher.isFetching,
-                error: fetcher.error,
-                hasLoadedContent: hasLoadedContent,
-                retryAction: retryLatestRequest,
-                isOfflineMode: fetcher.isOfflineMode,
-                apiKeyWarning: fetcher.apiKeyWarning,
-                rateLimitRetryDate: fetcher.rateLimitRetryDate
-            )
+            statusBannerContent
             .accessibilitySortPriority(90)
         }
     }
 
+    private var statusBannerContent: some View {
+        APIRequestStatusBanner(
+            isFetching: fetcher.isFetching,
+            error: fetcher.error,
+            hasLoadedContent: hasLoadedContent,
+            retryAction: retryLatestRequest,
+            isOfflineMode: fetcher.isOfflineMode,
+            apiKeyWarning: fetcher.apiKeyWarning,
+            rateLimitRetryDate: fetcher.rateLimitRetryDate
+        )
+    }
+
+    private var headerPanelContent: some View {
+        MainHeaderBar(
+            showSettingsSheet: $showSettingsSheet,
+            selectedDate: gatedSelectedDateBinding,
+            minimumDate: fetcher.minimumSelectableDate,
+            maximumDate: fetcher.maximumSelectableDate,
+            isFetching: fetcher.isFetching,
+            hasApodData: hasLoadedContent,
+            favoritesCount: fetcher.favorites.count,
+            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
+            preferImages: preferImages,
+            isShowingLatestDate: isShowingLatestDate,
+            toggleFavoriteAction: toggleFavorite,
+            shareAction: { showShareSheet = true },
+            refreshAction: retryLatestRequest,
+            isShowingMinimumDate: isShowingMinimumDate,
+            previousDateAction: { shiftSelectedDate(byDays: -1) },
+            nextDateAction: { shiftSelectedDate(byDays: 1) },
+            jumpToLatestAction: jumpToLatestDate,
+            randomizeAction: randomizeSelection,
+            openArchiveAction: openArchiveAction,
+            openSavedAction: openSavedAction
+        )
+    }
+
     @ViewBuilder
-    private var mainContentSection: some View {
+    private func mainContentSection(availableWidth: CGFloat) -> some View {
         if !hasLoadedContent && fetcher.isFetching {
             APIRequestEmptyStateView(
                 title: L10n.text("Loading APOD", default: "Loading APOD"),
@@ -425,26 +458,60 @@ struct MainView: View {
             Spacer()
         } else {
             ScrollView {
-                VStack(spacing: AppTheme.Spacing.xl) {
-                    if usesWideEditorialLayout {
-                        headerSection
+                if usesPremiumShellSplitLayout(for: availableWidth) {
+                    let widths = premiumStageWidths(for: availableWidth)
 
-                        HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
-                            mediaSection
-                                .frame(maxWidth: .infinity, alignment: .top)
-
-                            detailsSection
-                                .frame(maxWidth: 520, alignment: .top)
-                        }
-                        .padding(.horizontal, AppTheme.Spacing.lg)
-                    } else {
+                    HStack(alignment: .top, spacing: AppTheme.Spacing.xxl) {
                         mediaSection
-                        headerSection
-                        detailsSection
+                            .frame(width: widths.media, alignment: .topLeading)
+                            .layoutPriority(1)
+
+                        premiumEditorialColumn
+                            .frame(width: widths.editorial, alignment: .topLeading)
                     }
+                    .frame(width: widths.media + widths.editorial + AppTheme.Spacing.xxl, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+                    .padding(.top, AppTheme.Spacing.sm)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
+                } else if appShellContext == .premiumRegularShell {
+                    VStack(spacing: AppTheme.Spacing.xl) {
+                        mediaSection
+                            .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.xl)
+
+                        premiumEditorialColumn
+                            .frame(maxWidth: 860, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.xl)
+                    }
+                    .padding(.top, AppTheme.Spacing.sm)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
+                } else {
+                    VStack(spacing: AppTheme.Spacing.xl) {
+                        if usesWideEditorialLayout {
+                            headerSection
+
+                            HStack(alignment: .top, spacing: AppTheme.Spacing.xl) {
+                                mediaSection
+                                    .frame(maxWidth: .infinity, alignment: .top)
+
+                                detailsSection
+                                    .frame(maxWidth: AppTheme.Metrics.compactDetailsColumnMaxWidth, alignment: .top)
+                            }
+                            .frame(maxWidth: wideEditorialContentMaxWidth, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, AppTheme.Spacing.lg)
+                        } else {
+                            mediaSection
+                            headerSection
+                            detailsSection
+                        }
+                    }
+                    .padding(.top, AppTheme.Spacing.xs)
+                    .padding(.bottom, AppTheme.Spacing.xxl)
                 }
-                .padding(.top, AppTheme.Spacing.xs)
-                .padding(.bottom, AppTheme.Spacing.xxl)
             }
             .accessibilityIdentifier(AccessibilityID.mainContentScrollView)
             .refreshable {
@@ -453,24 +520,19 @@ struct MainView: View {
         }
     }
 
+    private var premiumEditorialColumn: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
+            statusBannerContent
+                .accessibilitySortPriority(90)
+
+            headerPanelContent
+
+            detailsSection
+        }
+    }
+
     private var mediaSection: some View {
-        MediaView(
-            nasa: fetcher.currentNasa,
-            imageScale: $imageScale,
-            imageOffset: $imageOffset,
-            isVideoLoading: $isVideoLoading,
-            allowVideoPlayback: allowVideoPlayback,
-            wifiOnlyVideoAutoplay: wifiOnlyVideoAutoplay,
-            isOnWiFiConnection: networkStatus.connectionKind == .wifi,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages,
-            reduceMotion: effectiveReduceMotion,
-            resetImageState: resetImageState,
-            extractYouTubeID: extractYouTubeID,
-            videoThumbnailURL: videoThumbnailURL
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(AccessibilityID.apodMediaSection)
+        APODReaderMediaSection(presentation: currentReaderPresentation)
         .opacity(effectiveReduceMotion ? 1 : (isMediaAnimating ? 1 : 0))
         .onAppear {
             if let animation = AppTheme.Motion.reveal(reduceMotion: effectiveReduceMotion) {
@@ -490,20 +552,12 @@ struct MainView: View {
             requestAPOD(for: date)
         }
         .onChange(of: fetcher.currentNasa.date) { _ in
-            applyCurrentSelectionState(syncSelectedDate: true)
+            syncSelectedDateWithCurrentItem()
         }
     }
 
     private var detailsSection: some View {
-        APODDetailsView(
-            nasa: fetcher.currentNasa,
-            isFavorite: fetcher.isFavorite(fetcher.currentNasa),
-            nasaPageURL: nasaPageURL,
-            preferredMediaSourceURL: preferredMediaSourceURL,
-            preferredMediaSourceTitle: preferredMediaSourceTitle,
-            preferredMediaSourceDescription: preferredMediaSourceDescription,
-            preferredMediaSourceSystemImage: preferredMediaSourceSystemImage
-        )
+        APODDetailsView(presentation: currentReaderPresentation)
         .accessibilityIdentifier(AccessibilityID.apodDetailsSection)
         .accessibilitySortPriority(70)
     }
@@ -511,7 +565,7 @@ struct MainView: View {
     private func randomizeSelection() {
         fetcher.selectRandom(preferImagesOnly: preferImages)
         randomizeFeedbackToken += 1
-        applyCurrentSelectionState(syncSelectedDate: true)
+        syncSelectedDateWithCurrentItem()
     }
 
     private func toggleFavorite() {
@@ -551,72 +605,15 @@ struct MainView: View {
     }
     
     private var shareItems: [Any] {
-        let media: Any? = {
-            if fetcher.currentNasa.mediaType == .video,
-               let id = extractYouTubeID(from: fetcher.currentNasa.url),
-               let thumb = videoThumbnailURL(for: id) {
-                return thumb
-            }
-            return fetcher.currentNasa.hdurl ?? fetcher.currentNasa.url
-        }()
         return APODSharePolicy.shareItems(
             for: fetcher.currentNasa,
-            sourceURL: shareURL,
-            mediaItem: media,
+            sourceURL: APODSourceLinkPolicy.nasaPageURL(
+                for: fetcher.currentNasa.date,
+                fallbackURL: fetcher.currentNasa.url
+            ),
+            mediaItem: APODMediaPresentationPolicy.shareMediaItem(for: fetcher.currentNasa),
             explanationMaxLength: ViewConstants.shareExplanationMaxLength
         )
-    }
-
-    private var shareURL: URL? {
-        nasaPageURL
-    }
-
-    private var nasaPageURL: URL? {
-        apodURL(for: fetcher.currentNasa.date)
-    }
-
-    private var preferredMediaSourceURL: URL? {
-        APODSourceLinkPolicy.preferredMediaURL(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceTitle: String {
-        APODSourceLinkPolicy.preferredMediaTitle(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceDescription: String {
-        APODSourceLinkPolicy.preferredMediaDescription(
-            for: fetcher.currentNasa,
-            dataSaverMode: dataSaverMode,
-            preferHDImages: preferHDImages
-        )
-    }
-
-    private var preferredMediaSourceSystemImage: String {
-        APODSourceLinkPolicy.preferredMediaSystemImage(for: fetcher.currentNasa)
-    }
-}
-
-private struct SensoryFeedbackModifier: ViewModifier {
-    let randomizeFeedbackToken: Int
-    let favoriteFeedbackToken: Int
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 17.0, *) {
-            content
-                .sensoryFeedback(.selection, trigger: randomizeFeedbackToken)
-                .sensoryFeedback(.selection, trigger: favoriteFeedbackToken)
-        } else {
-            content
-        }
     }
 }
 

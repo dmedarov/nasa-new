@@ -57,8 +57,8 @@
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict>
-		<key>UILaunchScreen</key>
-		<dict/>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
 	</dict>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>

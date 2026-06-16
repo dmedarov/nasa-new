@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -28,6 +29,67 @@ enum APODOfflineMediaAvailability: String, Codable, Hashable, Sendable {
     case availableOffline
     case previewOffline
     case failed
+}
+
+enum APODOfflineMediaState: Hashable, Sendable {
+    case sourceRequired(remoteSourceURL: URL?)
+    case saving(remoteSourceURL: URL?)
+    case full(localAssetURL: URL, remoteSourceURL: URL?)
+    case preview(localPreviewURL: URL, remoteSourceURL: URL?)
+    case failed(remoteSourceURL: URL?, message: String?)
+
+    var availability: APODOfflineMediaAvailability {
+        switch self {
+        case .sourceRequired:
+            return .remoteOnly
+        case .saving:
+            return .syncing
+        case .full:
+            return .availableOffline
+        case .preview:
+            return .previewOffline
+        case .failed:
+            return .failed
+        }
+    }
+
+    var hasStoredLocalMedia: Bool {
+        switch self {
+        case .full, .preview:
+            return true
+        case .sourceRequired, .saving, .failed:
+            return false
+        }
+    }
+
+    var localAssetURL: URL? {
+        switch self {
+        case .full(let localAssetURL, _):
+            return localAssetURL
+        case .sourceRequired, .saving, .preview, .failed:
+            return nil
+        }
+    }
+
+    var localPreviewURL: URL? {
+        switch self {
+        case .full(let localAssetURL, _):
+            return localAssetURL
+        case .preview(let localPreviewURL, _):
+            return localPreviewURL
+        case .sourceRequired, .saving, .failed:
+            return nil
+        }
+    }
+
+    var countsAsSourceBacked: Bool {
+        switch self {
+        case .sourceRequired, .saving, .failed:
+            return true
+        case .full, .preview:
+            return false
+        }
+    }
 }
 
 struct APODOfflineMediaAsset: Codable, Hashable, Sendable {
@@ -88,6 +150,27 @@ struct APODOfflineMediaAsset: Codable, Hashable, Sendable {
         }
         return nil
     }
+
+    var state: APODOfflineMediaState {
+        switch availability {
+        case .availableOffline:
+            if let localAssetURL {
+                return .full(localAssetURL: localAssetURL, remoteSourceURL: remoteSourceURL)
+            }
+        case .previewOffline:
+            if let localPreviewURL {
+                return .preview(localPreviewURL: localPreviewURL, remoteSourceURL: remoteSourceURL)
+            }
+        case .syncing:
+            return .saving(remoteSourceURL: remoteSourceURL)
+        case .failed:
+            return .failed(remoteSourceURL: remoteSourceURL, message: errorDescription)
+        case .remoteOnly:
+            break
+        }
+
+        return .sourceRequired(remoteSourceURL: remoteSourceURL)
+    }
 }
 
 struct APODOfflineMediaStorageSummary: Equatable, Sendable {
@@ -112,18 +195,18 @@ struct APODOfflineMediaStorageSummary: Equatable, Sendable {
     }
 
     mutating func register(_ asset: APODOfflineMediaAsset?) {
-        let availability = asset?.availability ?? .remoteOnly
+        let state = asset?.state ?? .sourceRequired(remoteSourceURL: nil)
 
-        switch availability {
-        case .availableOffline:
+        switch state {
+        case .full:
             fullyOfflineCount += 1
             totalByteCount += max(asset?.byteCount ?? 0, 0)
-        case .previewOffline:
+        case .preview:
             previewCount += 1
             totalByteCount += max(asset?.byteCount ?? 0, 0)
-        case .remoteOnly:
+        case .sourceRequired:
             remoteOnlyCount += 1
-        case .syncing:
+        case .saving:
             syncingCount += 1
         case .failed:
             failedCount += 1
@@ -504,7 +587,7 @@ private enum APODOfflineMediaPlanningPolicy {
     }
 }
 
-struct APODOfflineMediaStatusPresentation {
+struct APODOfflineMediaStatusPresentation: Equatable {
     let title: String
     let systemImage: String
     let tone: AppTheme.SurfaceTone
@@ -517,11 +600,23 @@ enum APODOfflineMediaStatusPolicy {
         asset: APODOfflineMediaAsset?,
         isSaved: Bool
     ) -> APODOfflineMediaStatusPresentation? {
+        presentation(
+            mediaType: nasa.mediaType,
+            state: asset?.state ?? .sourceRequired(remoteSourceURL: nil),
+            isSaved: isSaved
+        )
+    }
+
+    static func presentation(
+        mediaType: MediaType,
+        state: APODOfflineMediaState,
+        isSaved: Bool
+    ) -> APODOfflineMediaStatusPresentation? {
         guard isSaved else { return nil }
 
-        switch asset?.availability ?? .remoteOnly {
-        case .availableOffline:
-            if nasa.mediaType == .video {
+        switch state {
+        case .full:
+            if mediaType == .video {
                 return APODOfflineMediaStatusPresentation(
                     title: L10n.text("offline.media.available", default: "Available Offline"),
                     systemImage: "arrow.down.circle.fill",
@@ -543,7 +638,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .previewOffline:
+        case .preview:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.preview", default: "Preview Saved"),
                 systemImage: "photo.badge.arrow.down",
@@ -554,7 +649,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .syncing:
+        case .saving:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.syncing", default: "Saving Offline"),
                 systemImage: "arrow.down.circle",
@@ -576,7 +671,7 @@ enum APODOfflineMediaStatusPolicy {
                 )
             )
 
-        case .remoteOnly:
+        case .sourceRequired:
             return APODOfflineMediaStatusPresentation(
                 title: L10n.text("offline.media.remote", default: "Source Required"),
                 systemImage: "icloud.and.arrow.down",
@@ -590,15 +685,462 @@ enum APODOfflineMediaStatusPolicy {
     }
 }
 
-enum APODLocalMediaImageLoader {
-    static func image(from fileURL: URL?) -> Image? {
-#if canImport(UIKit)
-        guard let fileURL, let uiImage = UIImage(contentsOfFile: fileURL.path) else {
+struct APODOfflineMediaItemState: Equatable {
+    let mediaType: MediaType
+    let state: APODOfflineMediaState
+    let isSaved: Bool
+
+    init(mediaType: MediaType, asset: APODOfflineMediaAsset?, isSaved: Bool) {
+        self.mediaType = mediaType
+        state = asset?.state ?? .sourceRequired(remoteSourceURL: nil)
+        self.isSaved = isSaved
+    }
+
+    var localPreviewURL: URL? {
+        state.localPreviewURL
+    }
+
+    var localAssetURL: URL? {
+        state.localAssetURL
+    }
+
+    var localVideoURL: URL? {
+        guard mediaType == .video,
+              case .full(let localAssetURL, _) = state else {
             return nil
         }
-        return Image(uiImage: uiImage)
+
+        return localAssetURL
+    }
+
+    var statusPresentation: APODOfflineMediaStatusPresentation? {
+        APODOfflineMediaStatusPolicy.presentation(
+            mediaType: mediaType,
+            state: state,
+            isSaved: isSaved
+        )
+    }
+
+    var savedLibraryStorageState: SavedLibraryPolicy.Item.StorageState {
+        switch state {
+        case .full:
+            return .full
+        case .preview:
+            return .preview
+        case .sourceRequired, .saving, .failed:
+            return .sourceBacked
+        }
+    }
+}
+
+struct APODOfflineMediaLibraryBadge: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let tone: AppTheme.SurfaceTone
+}
+
+struct APODOfflineMediaLibraryState: Equatable {
+    let summary: APODOfflineMediaStorageSummary
+
+    var showsSavedStatusBadges: Bool {
+        !savedStatusBadges.isEmpty
+    }
+
+    var savedStatusBadges: [APODOfflineMediaLibraryBadge] {
+        var badges = [APODOfflineMediaLibraryBadge]()
+
+        if summary.fullyOfflineCount > 0 {
+            badges.append(
+                APODOfflineMediaLibraryBadge(
+                    id: "offline",
+                    title: L10n.format(
+                        "saved.summary.offline_count",
+                        default: "%d offline",
+                        summary.fullyOfflineCount
+                    ),
+                    systemImage: "arrow.down.circle.fill",
+                    tone: .accent
+                )
+            )
+        }
+
+        if summary.previewCount > 0 {
+            badges.append(
+                APODOfflineMediaLibraryBadge(
+                    id: "preview",
+                    title: L10n.format(
+                        "saved.summary.preview_count",
+                        default: "%d preview",
+                        summary.previewCount
+                    ),
+                    systemImage: "photo.badge.arrow.down",
+                    tone: .neutral
+                )
+            )
+        }
+
+        return badges
+    }
+}
+
+enum APODOfflineMediaManagementOperation: Equatable {
+    case idle
+    case clearing
+    case rebuilding
+}
+
+enum APODOfflineMediaManagementCompletedAction: Equatable {
+    case cleared
+    case rebuilt
+}
+
+struct APODOfflineMediaManagementMetric: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let value: String
+}
+
+struct APODOfflineMediaManagementState: Equatable {
+    let summary: APODOfflineMediaStorageSummary
+    let operation: APODOfflineMediaManagementOperation
+    let lastUpdatedText: String
+    let lastCompletedAction: APODOfflineMediaManagementCompletedAction?
+
+    var metrics: [APODOfflineMediaManagementMetric] {
+        var items = [
+            APODOfflineMediaManagementMetric(
+                id: "saved-offline",
+                title: L10n.text("Saved Offline Items", default: "Saved Offline Items"),
+                value: String(summary.fullyOfflineCount)
+            ),
+            APODOfflineMediaManagementMetric(
+                id: "saved-preview",
+                title: L10n.text("Saved Preview Items", default: "Saved Preview Items"),
+                value: String(summary.previewCount)
+            ),
+            APODOfflineMediaManagementMetric(
+                id: "source-required",
+                title: L10n.text("Source Required Items", default: "Source Required Items"),
+                value: String(summary.remoteOnlyCount)
+            )
+        ]
+
+        if summary.syncingCount > 0 {
+            items.append(
+                APODOfflineMediaManagementMetric(
+                    id: "syncing",
+                    title: L10n.text("Offline Sync In Progress", default: "Offline Sync In Progress"),
+                    value: String(summary.syncingCount)
+                )
+            )
+        }
+
+        if summary.failedCount > 0 {
+            items.append(
+                APODOfflineMediaManagementMetric(
+                    id: "failed",
+                    title: L10n.text("Offline Save Failures", default: "Offline Save Failures"),
+                    value: String(summary.failedCount)
+                )
+            )
+        }
+
+        items.append(
+            APODOfflineMediaManagementMetric(
+                id: "media-size",
+                title: L10n.text("Offline Media Size", default: "Offline Media Size"),
+                value: ByteCountFormatter.string(fromByteCount: summary.totalByteCount, countStyle: .file)
+            )
+        )
+
+        items.append(
+            APODOfflineMediaManagementMetric(
+                id: "last-updated",
+                title: L10n.text("Last Offline Update", default: "Last Offline Update"),
+                value: lastUpdatedText
+            )
+        )
+
+        return items
+    }
+
+    var canClear: Bool {
+        summary.canClearStorage && operation == .idle
+    }
+
+    var canRebuild: Bool {
+        summary.totalManagedItemCount > 0 && operation == .idle
+    }
+
+    var actionMessage: String? {
+        switch lastCompletedAction {
+        case .cleared:
+            return L10n.text(
+                "offline.media.clear.success",
+                default: "Offline files removed. Saved APOD stories remain in Favorites."
+            )
+        case .rebuilt:
+            return L10n.text(
+                "offline.media.rebuild.success",
+                default: "Offline media refreshed for your saved APOD items."
+            )
+        case nil:
+            return nil
+        }
+    }
+}
+
+enum APODLocalMediaThumbnailSpec: String, Hashable {
+    case libraryGrid
+    case libraryRow
+    case readerHero
+
+    var targetPointSize: CGSize {
+        switch self {
+        case .libraryGrid:
+            return CGSize(width: 320, height: 256)
+        case .libraryRow:
+            return CGSize(width: 88, height: 88)
+        case .readerHero:
+            return CGSize(width: 1_600, height: 1_200)
+        }
+    }
+
+    func maxPixelSize(displayScale: CGFloat) -> Int {
+        Int(ceil(max(targetPointSize.width, targetPointSize.height) * max(displayScale, 1)))
+    }
+}
+
+#if canImport(UIKit)
+private final class APODLocalMediaThumbnailCache {
+    static let shared = APODLocalMediaThumbnailCache()
+
+    let storage = NSCache<NSString, UIImage>()
+
+    private init() {
+        storage.countLimit = 256
+        storage.totalCostLimit = 64 * 1_024 * 1_024
+    }
+}
+
+private struct APODLocalMediaThumbnailPayload: @unchecked Sendable {
+    let image: UIImage
+}
+#endif
+
+enum APODLocalMediaThumbnailLoader {
+    @MainActor
+    static func image(
+        from fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) async -> Image? {
+#if canImport(UIKit)
+        guard let fileURL else { return nil }
+
+        let cacheKey = cacheKey(for: fileURL, spec: spec, displayScale: displayScale)
+        if let cachedImage = APODLocalMediaThumbnailCache.shared.storage.object(forKey: cacheKey as NSString) {
+            return Image(uiImage: cachedImage)
+        }
+
+        let maxPixelSize = spec.maxPixelSize(displayScale: displayScale)
+        let payload = await Task.detached(priority: .utility) {
+            downsampledPayload(from: fileURL, maxPixelSize: maxPixelSize)
+        }.value
+
+        guard let payload else {
+            return nil
+        }
+
+        APODLocalMediaThumbnailCache.shared.storage.setObject(
+            payload.image,
+            forKey: cacheKey as NSString,
+            cost: imageCost(payload.image)
+        )
+        return Image(uiImage: payload.image)
 #else
         return nil
 #endif
+    }
+
+    static func maxPixelSize(
+        for spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) -> Int {
+        spec.maxPixelSize(displayScale: displayScale)
+    }
+
+#if canImport(UIKit)
+    static func downsampledImage(from fileURL: URL, maxPixelSize: Int) -> UIImage? {
+        guard maxPixelSize > 0 else { return nil }
+
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions) else {
+            return UIImage(contentsOfFile: fileURL.path)
+        }
+
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+
+        if let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, thumbnailOptions) {
+            return UIImage(cgImage: cgImage)
+        }
+
+        return UIImage(contentsOfFile: fileURL.path)
+    }
+
+    @MainActor
+    private static func cacheKey(
+        for fileURL: URL,
+        spec: APODLocalMediaThumbnailSpec,
+        displayScale: CGFloat
+    ) -> String {
+        let resourceValues = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let modifiedAt = resourceValues?.contentModificationDate?.timeIntervalSinceReferenceDate ?? 0
+        let fileSize = resourceValues?.fileSize ?? 0
+
+        return [
+            fileURL.path,
+            spec.rawValue,
+            String(maxPixelSize(for: spec, displayScale: displayScale)),
+            String(fileSize),
+            String(modifiedAt)
+        ].joined(separator: "|")
+    }
+
+    private static func downsampledPayload(from fileURL: URL, maxPixelSize: Int) -> APODLocalMediaThumbnailPayload? {
+        guard let image = downsampledImage(from: fileURL, maxPixelSize: maxPixelSize) else {
+            return nil
+        }
+
+        return APODLocalMediaThumbnailPayload(image: image)
+    }
+
+    private static func imageCost(_ image: UIImage) -> Int {
+        let pixelWidth = Int(image.size.width * image.scale)
+        let pixelHeight = Int(image.size.height * image.scale)
+        return max(pixelWidth * pixelHeight * 4, 1)
+    }
+#endif
+}
+
+struct APODAsyncLocalThumbnailView<Placeholder: View>: View {
+    let fileURL: URL?
+    let spec: APODLocalMediaThumbnailSpec
+    let placeholder: () -> Placeholder
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var localThumbnailImage: Image?
+
+    init(
+        fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.fileURL = fileURL
+        self.spec = spec
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        Group {
+            if let localThumbnailImage {
+                localThumbnailImage
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: taskIdentifier) {
+            await loadThumbnail()
+        }
+    }
+
+    private var taskIdentifier: String {
+        [
+            fileURL?.path ?? "nil",
+            spec.rawValue,
+            String(describing: displayScale)
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func loadThumbnail() async {
+        guard fileURL != nil else {
+            localThumbnailImage = nil
+            return
+        }
+
+        localThumbnailImage = nil
+        localThumbnailImage = await APODLocalMediaThumbnailLoader.image(
+            from: fileURL,
+            spec: spec,
+            displayScale: displayScale
+        )
+    }
+}
+
+struct APODAsyncLocalImagePhaseView<Content: View, Placeholder: View>: View {
+    let fileURL: URL?
+    let spec: APODLocalMediaThumbnailSpec
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var localImage: Image?
+
+    init(
+        fileURL: URL?,
+        spec: APODLocalMediaThumbnailSpec,
+        @ViewBuilder content: @escaping (Image) -> Content,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.fileURL = fileURL
+        self.spec = spec
+        self.content = content
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        Group {
+            if let localImage {
+                content(localImage)
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: taskIdentifier) {
+            await loadImage()
+        }
+    }
+
+    private var taskIdentifier: String {
+        [
+            fileURL?.path ?? "nil",
+            spec.rawValue,
+            String(describing: displayScale)
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard fileURL != nil else {
+            localImage = nil
+            return
+        }
+
+        localImage = nil
+        localImage = await APODLocalMediaThumbnailLoader.image(
+            from: fileURL,
+            spec: spec,
+            displayScale: displayScale
+        )
     }
 }

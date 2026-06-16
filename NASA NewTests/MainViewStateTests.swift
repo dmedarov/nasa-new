@@ -1,5 +1,8 @@
 import XCTest
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 final class MainViewStateTests: XCTestCase {
     private var calendar: Calendar {
@@ -114,6 +117,170 @@ final class MainViewStateTests: XCTestCase {
     func testAPODDateDisplayPolicyFallsBackWhenDateMissing() {
         XCTAssertEqual(APODDateDisplayPolicy.displayString(for: nil), "Unknown date")
         XCTAssertEqual(APODDateDisplayPolicy.displayString(for: " "), "Unknown date")
+    }
+
+    func testArchiveLibraryPolicyFiltersSavedItemsAndBuildsNewestSectionsFirst() {
+        let locale = Locale(identifier: "en_US_POSIX")
+        let newestSaved = makeArchivePolicyItem(
+            date: "2025-02-10",
+            title: "Nebula Saved",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "NASA"
+        )
+        let olderSaved = makeArchivePolicyItem(
+            date: "2025-02-01",
+            title: "Nebula Earlier",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "NASA"
+        )
+        let januarySaved = makeArchivePolicyItem(
+            date: "2025-01-20",
+            title: "Nebula January",
+            mediaKind: .video,
+            isSaved: true,
+            creditLine: "ESA"
+        )
+        let unsavedMatch = makeArchivePolicyItem(
+            date: "2025-02-12",
+            title: "Nebula Unsaved",
+            mediaKind: .image,
+            isSaved: false,
+            creditLine: "NASA"
+        )
+
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: [januarySaved, unsavedMatch, olderSaved, newestSaved],
+            filter: .saved,
+            searchQuery: "Nebula",
+            locale: locale
+        )
+
+        XCTAssertEqual(resolution.filteredItemIDs, [januarySaved.id, olderSaved.id, newestSaved.id])
+        XCTAssertEqual(resolution.sections.map(\.id), ["2025-02", "2025-01"])
+        XCTAssertEqual(resolution.sections.first?.itemIDs, [newestSaved.id, olderSaved.id])
+    }
+
+    func testArchiveLibraryPolicyBuildsLocalizedSectionTitles() {
+        XCTAssertEqual(
+            ArchiveLibraryPolicy.sectionTitle(
+                for: "2025-01",
+                locale: Locale(identifier: "en_US_POSIX")
+            ),
+            "January 2025"
+        )
+    }
+
+    func testArchiveLibraryPolicyFallsBackToUnknownSectionForMissingDate() {
+        XCTAssertEqual(ArchiveLibraryPolicy.sectionKey(for: nil), "unknown")
+        XCTAssertEqual(
+            ArchiveLibraryPolicy.sectionTitle(
+                for: "unknown",
+                locale: Locale(identifier: "en_US_POSIX")
+            ),
+            "Unknown"
+        )
+    }
+
+    func testArchiveLibraryPolicyUsesPrecomputedSectionKeyAndTrimmedSearchQuery() {
+        let item = makeArchivePolicyItem(
+            date: "2025-02-10",
+            title: "Nebula Saved",
+            mediaKind: .image,
+            isSaved: true,
+            creditLine: "European Space Agency"
+        )
+        let resolution = ArchiveLibraryPolicy.resolve(
+            items: [item],
+            filter: .all,
+            searchQuery: "  European Space Agency  ",
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+
+        XCTAssertEqual(item.sectionKey, "2025-02")
+        XCTAssertEqual(resolution.filteredItemIDs, [item.id])
+        XCTAssertEqual(resolution.sections.map(\.id), ["2025-02"])
+    }
+
+    func testSavedLibraryPolicyFiltersSourceBackedEntriesAndPreservesSearchOrder() {
+        let sourceBacked = makeSavedPolicyItem(
+            id: "source-backed",
+            date: "2025-02-10",
+            title: "Nebula Source",
+            creditLine: "NASA",
+            storageState: .sourceBacked
+        )
+        let preview = makeSavedPolicyItem(
+            id: "preview",
+            date: "2025-02-09",
+            title: "Nebula Preview",
+            creditLine: "NASA",
+            storageState: .preview
+        )
+        let secondSourceBacked = makeSavedPolicyItem(
+            id: "second-source",
+            date: "2025-02-08",
+            title: "Nebula Source Backup",
+            creditLine: "ESA",
+            storageState: .sourceBacked
+        )
+
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: [sourceBacked, preview, secondSourceBacked],
+            filter: .sourceRequired,
+            searchQuery: "Nebula"
+        )
+
+        XCTAssertEqual(filteredIDs, [sourceBacked.id, secondSourceBacked.id])
+    }
+
+    func testSavedLibraryPolicyUsesTrimmedSearchQueryAgainstCreditLine() {
+        let sourceBacked = makeSavedPolicyItem(
+            id: "source-backed",
+            date: "2025-02-10",
+            title: "Nebula Source",
+            creditLine: "European Space Agency",
+            storageState: .sourceBacked
+        )
+
+        let filteredIDs = SavedLibraryPolicy.filteredItemIDs(
+            items: [sourceBacked],
+            filter: .all,
+            searchQuery: "  European Space Agency  "
+        )
+
+        XCTAssertEqual(filteredIDs, [sourceBacked.id])
+    }
+
+    func testLibraryLayoutPolicyOnlyUsesGridInRegularStandaloneLayout() {
+        XCTAssertTrue(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: true, embedInRegularShell: false)
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: true, embedInRegularShell: true)
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesSplitLayout(isRegularWidth: false, embedInRegularShell: false)
+        )
+        XCTAssertEqual(
+            LibraryLayoutPolicy.resolvedPresentationMode(from: "unexpected", fallback: .list),
+            .list
+        )
+        XCTAssertTrue(
+            LibraryLayoutPolicy.usesGridPresentation(
+                isRegularWidth: true,
+                embedInRegularShell: false,
+                presentationMode: .grid
+            )
+        )
+        XCTAssertFalse(
+            LibraryLayoutPolicy.usesGridPresentation(
+                isRegularWidth: true,
+                embedInRegularShell: true,
+                presentationMode: .grid
+            )
+        )
     }
 
     func testAPODExplanationDisplayPolicyOffersExpansionForLongText() {
@@ -636,6 +803,240 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertNil(userDefaults.data(forKey: "nasa.apod.offline-media.records.v1"))
     }
 
+    func testAPODOfflineMediaAssetStateMapsFullAndPreviewAssets() {
+        let fullAsset = APODOfflineMediaAsset(
+            apodID: "image-asset",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/image.jpg"),
+            localAssetRelativePath: "offline/image-asset.jpg",
+            availability: .availableOffline,
+            byteCount: 2_048
+        )
+        let previewAsset = APODOfflineMediaAsset(
+            apodID: "video-preview",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localPreviewRelativePath: "offline/video-preview.jpg",
+            availability: .previewOffline,
+            byteCount: 512
+        )
+
+        switch fullAsset.state {
+        case .full(let localAssetURL, let remoteSourceURL):
+            XCTAssertTrue(localAssetURL.path.contains("image-asset.jpg"))
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/image.jpg")
+        default:
+            XCTFail("Expected a full offline state for stored image media")
+        }
+
+        switch previewAsset.state {
+        case .preview(let localPreviewURL, let remoteSourceURL):
+            XCTAssertTrue(localPreviewURL.path.contains("video-preview.jpg"))
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/video")
+        default:
+            XCTFail("Expected a preview offline state for hosted video media")
+        }
+    }
+
+    func testAPODOfflineMediaAssetStateTreatsSourceBackedEntriesExplicitly() {
+        let sourceRequiredAsset = APODOfflineMediaAsset(
+            apodID: "remote-only",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/direct-video.mp4"),
+            availability: .remoteOnly
+        )
+        let syncingAsset = APODOfflineMediaAsset(
+            apodID: "syncing",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/syncing.jpg"),
+            availability: .syncing
+        )
+        let failedAsset = APODOfflineMediaAsset(
+            apodID: "failed",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/failed.jpg"),
+            availability: .failed,
+            errorDescription: "network"
+        )
+
+        if case .sourceRequired(let remoteSourceURL) = sourceRequiredAsset.state {
+            XCTAssertEqual(remoteSourceURL?.absoluteString, "https://example.com/direct-video.mp4")
+        } else {
+            XCTFail("Expected sourceRequired state for direct video media")
+        }
+
+        XCTAssertTrue(syncingAsset.state.countsAsSourceBacked)
+        XCTAssertTrue(failedAsset.state.countsAsSourceBacked)
+    }
+
+    func testAPODOfflineMediaStorageSummaryCountsDerivedStateBuckets() {
+        var summary = APODOfflineMediaStorageSummary()
+        let fullAsset = APODOfflineMediaAsset(
+            apodID: "full",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/full.jpg"),
+            localAssetRelativePath: "offline/full.jpg",
+            availability: .availableOffline,
+            byteCount: 1_024
+        )
+        let previewAsset = APODOfflineMediaAsset(
+            apodID: "preview",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localPreviewRelativePath: "offline/preview.jpg",
+            availability: .previewOffline,
+            byteCount: 256
+        )
+        let syncingAsset = APODOfflineMediaAsset(
+            apodID: "syncing",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/syncing.jpg"),
+            availability: .syncing
+        )
+        let failedAsset = APODOfflineMediaAsset(
+            apodID: "failed",
+            mediaType: .image,
+            remoteSourceURL: URL(string: "https://example.com/failed.jpg"),
+            availability: .failed
+        )
+
+        summary.register(fullAsset)
+        summary.register(previewAsset)
+        summary.register(syncingAsset)
+        summary.register(failedAsset)
+        summary.register(nil)
+
+        XCTAssertEqual(summary.fullyOfflineCount, 1)
+        XCTAssertEqual(summary.previewCount, 1)
+        XCTAssertEqual(summary.syncingCount, 1)
+        XCTAssertEqual(summary.failedCount, 1)
+        XCTAssertEqual(summary.remoteOnlyCount, 1)
+        XCTAssertEqual(summary.totalByteCount, 1_280)
+    }
+
+    func testAPODOfflineMediaItemStateDerivesSavedPresentationAndStorageState() {
+        let asset = APODOfflineMediaAsset(
+            apodID: "video",
+            mediaType: .video,
+            remoteSourceURL: URL(string: "https://example.com/video"),
+            localAssetRelativePath: "offline/video.mp4",
+            availability: .availableOffline
+        )
+        let state = APODOfflineMediaItemState(mediaType: .video, asset: asset, isSaved: true)
+
+        XCTAssertEqual(state.savedLibraryStorageState, .full)
+        XCTAssertEqual(state.statusPresentation?.title, "Available Offline")
+        XCTAssertEqual(state.localVideoURL?.lastPathComponent, "video.mp4")
+    }
+
+    func testAPODOfflineMediaLibraryStateBuildsSavedStatusBadgesFromSummary() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 2,
+            previewCount: 1,
+            remoteOnlyCount: 3,
+            syncingCount: 0,
+            failedCount: 0,
+            totalByteCount: 4_096,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaLibraryState(summary: summary)
+
+        XCTAssertTrue(state.showsSavedStatusBadges)
+        XCTAssertEqual(state.savedStatusBadges.map(\.title), ["2 offline", "1 preview"])
+    }
+
+    func testAPODOfflineMediaManagementStateDerivesMetricsAndCompletionMessage() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 1,
+            previewCount: 2,
+            remoteOnlyCount: 4,
+            syncingCount: 1,
+            failedCount: 1,
+            totalByteCount: 2_048,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaManagementState(
+            summary: summary,
+            operation: .idle,
+            lastUpdatedText: "Apr 4, 2026 at 2:40 AM",
+            lastCompletedAction: .rebuilt
+        )
+
+        XCTAssertTrue(state.canClear)
+        XCTAssertTrue(state.canRebuild)
+        XCTAssertEqual(
+            state.metrics.map(\.id),
+            ["saved-offline", "saved-preview", "source-required", "syncing", "failed", "media-size", "last-updated"]
+        )
+        XCTAssertEqual(state.actionMessage, "Offline media refreshed for your saved APOD items.")
+    }
+
+    func testAPODOfflineMediaManagementStateDisablesActionsWhileOperationRuns() {
+        let summary = APODOfflineMediaStorageSummary(
+            fullyOfflineCount: 0,
+            previewCount: 0,
+            remoteOnlyCount: 2,
+            syncingCount: 0,
+            failedCount: 0,
+            totalByteCount: 0,
+            lastUpdatedAt: nil
+        )
+        let state = APODOfflineMediaManagementState(
+            summary: summary,
+            operation: .clearing,
+            lastUpdatedText: "Not available",
+            lastCompletedAction: nil
+        )
+
+        XCTAssertFalse(state.canClear)
+        XCTAssertFalse(state.canRebuild)
+        XCTAssertNil(state.actionMessage)
+    }
+
+    func testAPODLocalMediaThumbnailSpecResolvesPixelSizesForLibrarySurfaces() {
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .libraryRow, displayScale: 2),
+            176
+        )
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .libraryGrid, displayScale: 2),
+            640
+        )
+    }
+
+    func testAPODLocalMediaThumbnailSpecResolvesPixelSizesForReaderHeroSurface() {
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .readerHero, displayScale: 1),
+            1_600
+        )
+        XCTAssertEqual(
+            APODLocalMediaThumbnailLoader.maxPixelSize(for: .readerHero, displayScale: 2),
+            3_200
+        )
+    }
+
+#if canImport(UIKit)
+    func testAPODLocalMediaThumbnailLoaderDownsamplesLargeLocalImage() throws {
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: 800)).image { context in
+            UIColor.systemBlue.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 1200, height: 800))
+        }
+        guard let pngData = sourceImage.pngData() else {
+            XCTFail("Expected a PNG payload for the local image thumbnail test.")
+            return
+        }
+
+        let fileURL = try temporaryFileURL(named: "local-thumbnail-source.png", data: pngData)
+        let downsampledImage = APODLocalMediaThumbnailLoader.downsampledImage(
+            from: fileURL,
+            maxPixelSize: 200
+        )
+
+        XCTAssertNotNil(downsampledImage)
+        XCTAssertLessThanOrEqual(max(downsampledImage?.size.width ?? 0, downsampledImage?.size.height ?? 0), 200.0)
+    }
+#endif
+
     func testPhotoExportServiceRejectsVideoEntriesBeforePhotoAuthorization() async {
         let service = PhotoExportService()
         let nasa = NASA(
@@ -711,6 +1112,73 @@ final class MainViewStateTests: XCTestCase {
         XCTAssertFalse(message.contains("Official APOD source"))
     }
 
+    func testAPODMediaPresentationPolicyUsesYouTubeThumbnailForVideoShareMedia() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            mediaType: .video,
+            title: "Video Share",
+            url: URL(string: "https://www.youtube.com/watch?v=abc123xyz")
+        )
+
+        let mediaItem = APODMediaPresentationPolicy.shareMediaItem(for: nasa) as? URL
+
+        XCTAssertEqual(mediaItem?.absoluteString, "https://img.youtube.com/vi/abc123xyz/hqdefault.jpg")
+    }
+
+    func testAPODReaderSourceContextPrefersHDImageWhenAllowed() {
+        let nasa = NASA(
+            date: "2025-01-15",
+            hdurl: URL(string: "https://example.com/image-hd.jpg"),
+            mediaType: .image,
+            title: "HD Context",
+            url: URL(string: "https://example.com/image.jpg")
+        )
+
+        let context = APODReaderSourceContext(
+            nasa: nasa,
+            dataSaverMode: false,
+            preferHDImages: true
+        )
+
+        XCTAssertEqual(context.nasaPageURL?.absoluteString, "https://apod.nasa.gov/apod/ap250115.html")
+        XCTAssertEqual(context.preferredMediaSourceURL, nasa.hdurl)
+        XCTAssertEqual(context.preferredMediaSourceTitle, "Open HD Image")
+    }
+
+    func testAPODReaderPresentationPolicyBuildsSharedReaderState() {
+        let nasa = NASA(
+            copyright: "ESA/Hubble",
+            date: "2025-01-15",
+            explanation: "A brilliant nebula.",
+            hdurl: URL(string: "https://media.example.com/nebula-hd.jpg"),
+            mediaType: .image,
+            title: "Shared Reader State",
+            url: URL(string: "https://media.example.com/nebula.jpg")
+        )
+        let offlineMediaState = APODOfflineMediaItemState(
+            mediaType: .image,
+            asset: nil,
+            isSaved: true
+        )
+
+        let presentation = APODReaderPresentationPolicy.resolve(
+            nasa: nasa,
+            isFavorite: true,
+            dataSaverMode: false,
+            preferHDImages: true,
+            offlineMediaState: offlineMediaState
+        )
+
+        XCTAssertEqual(presentation.nasa, nasa)
+        XCTAssertTrue(presentation.isFavorite)
+        XCTAssertEqual(presentation.sourceContext.preferredMediaSourceURL, nasa.hdurl)
+        XCTAssertEqual(presentation.archiveHostLabel, "apod.nasa.gov")
+        XCTAssertEqual(presentation.preferredMediaHostLabel, "media.example.com")
+        XCTAssertEqual(presentation.offlineStatusPresentation?.title, "Source Required")
+        XCTAssertTrue(presentation.showsSeparateMediaAction)
+        XCTAssertTrue(presentation.mediaIntegritySummary.contains("credit line"))
+    }
+
     private func isolatedUserDefaults(name: String) -> UserDefaults {
         let suiteName = "MainViewStateTests.\(name).\(UUID().uuidString)"
         guard let userDefaults = UserDefaults(suiteName: suiteName) else {
@@ -760,6 +1228,39 @@ final class MainViewStateTests: XCTestCase {
             try? FileManager.default.removeItem(at: fileURL)
         }
         return fileURL
+    }
+
+    private func makeArchivePolicyItem(
+        date: String,
+        title: String,
+        mediaKind: ArchiveLibraryPolicy.Item.MediaKind,
+        isSaved: Bool,
+        creditLine: String
+    ) -> ArchiveLibraryPolicy.Item {
+        ArchiveLibraryPolicy.Item(
+            id: "\(date)-\(title)",
+            date: date,
+            title: title,
+            creditLine: creditLine,
+            mediaKind: mediaKind,
+            isSaved: isSaved
+        )
+    }
+
+    private func makeSavedPolicyItem(
+        id: String,
+        date: String,
+        title: String,
+        creditLine: String,
+        storageState: SavedLibraryPolicy.Item.StorageState
+    ) -> SavedLibraryPolicy.Item {
+        SavedLibraryPolicy.Item(
+            id: id,
+            date: date,
+            title: title,
+            creditLine: creditLine,
+            storageState: storageState
+        )
     }
 }
 

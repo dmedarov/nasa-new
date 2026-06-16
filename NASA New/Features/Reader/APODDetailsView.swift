@@ -1,22 +1,29 @@
 import SwiftUI
 
 struct APODDetailsView: View {
-    @EnvironmentObject private var fetcher: NasaCollectionFetcher
     @EnvironmentObject private var purchaseManager: PurchaseManager
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.appShellContext) private var appShellContext
     @Environment(\.appRuntimeOverrides) private var appRuntimeOverrides
     @State private var isExplanationExpanded = false
     @State private var isSavingToPhotos = false
     @State private var photoExportNotice: PhotoExportNotice?
-    let nasa: NASA
-    let isFavorite: Bool
-    let nasaPageURL: URL?
-    let preferredMediaSourceURL: URL?
-    let preferredMediaSourceTitle: String
-    let preferredMediaSourceDescription: String
-    let preferredMediaSourceSystemImage: String
+    @State private var explanationFeedbackToken = 0
+    @State private var savePhotosSuccessToken = 0
+    @State private var savePhotosFailedToken = 0
+    let presentation: APODReaderPresentation
+
+    private var nasa: NASA {
+        presentation.nasa
+    }
+
+    private var isFavorite: Bool {
+        presentation.isFavorite
+    }
 
     private var isDarkMode: Bool {
         colorScheme == .dark
@@ -45,10 +52,7 @@ struct APODDetailsView: View {
         }
     }
 
-    private var showsSeparateMediaAction: Bool {
-        guard let preferredMediaSourceURL else { return false }
-        return preferredMediaSourceURL != nasaPageURL
-    }
+    private var showsSeparateMediaAction: Bool { presentation.showsSeparateMediaAction }
 
     private var effectiveReduceMotion: Bool {
         appRuntimeOverrides.resolvedReduceMotion(systemValue: accessibilityReduceMotion)
@@ -85,63 +89,68 @@ struct APODDetailsView: View {
 
     private let photoExportService = PhotoExportService()
 
+    private var sourceContext: APODReaderSourceContext { presentation.sourceContext }
+
     private var archiveEntryTitle: String {
         APODSourceLinkPolicy.archiveEntryTitle(for: nasa.date)
     }
 
-    private var archiveHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: nasaPageURL)
-    }
+    private var archiveHostLabel: String? { presentation.archiveHostLabel }
 
-    private var preferredMediaHostLabel: String? {
-        APODSourceLinkPolicy.hostLabel(for: preferredMediaSourceURL)
-    }
+    private var preferredMediaHostLabel: String? { presentation.preferredMediaHostLabel }
 
     private var aboutPanelSourceTitle: String {
-        nasaPageURL == nil
+        sourceContext.nasaPageURL == nil
             ? AppBrandingPolicy.officialSourceLinkTitle()
             : archiveEntryTitle
     }
 
     private var aboutPanelSourceSummary: String {
-        nasaPageURL == nil
+        sourceContext.nasaPageURL == nil
             ? AppBrandingPolicy.officialSourceLinkSummary()
             : AppBrandingPolicy.entrySourceLinkSummary()
     }
 
-    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? {
-        APODOfflineMediaStatusPolicy.presentation(
-            for: nasa,
-            asset: fetcher.offlineMediaAsset(for: nasa),
-            isSaved: isFavorite
-        )
-    }
+    private var offlineStatusPresentation: APODOfflineMediaStatusPresentation? { presentation.offlineStatusPresentation }
 
     private var canOfferPhotoExport: Bool {
         PhotoExportService.exportSourceURL(for: nasa) != nil
     }
 
+    private var usesWideEditorialLayout: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var detailPanelPadding: CGFloat {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+            ? AppTheme.Spacing.xxl
+            : AppTheme.Spacing.xl
+    }
+
+    private var titleFont: Font {
+        appShellContext == .premiumRegularShell && usesWideEditorialLayout
+            ? AppTheme.Typography.heroTitle
+            : AppTheme.Typography.screenTitle
+    }
+
+    private var explanationLineSpacing: CGFloat {
+        usesWideEditorialLayout ? 6 : 4
+    }
+
     var body: some View {
-        MissionPanel(tone: .neutral, padding: AppTheme.Spacing.xl) {
+        MissionPanel(tone: .neutral, padding: detailPanelPadding) {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xl) {
-                headerSection
+                titleSection
+                explanationSection
                 provenanceSection
                 metadataStrip
-                APODAttributionNotice(
-                    title: rightsTitle,
-                    text: rightsNotice,
-                    systemImage: rightsSystemImage,
-                    tone: rightsTone
-                )
 
-                explanationSection
-
-                if nasaPageURL != nil || showsSeparateMediaAction {
+                if sourceContext.nasaPageURL != nil || showsSeparateMediaAction {
                     sourceSection
                 }
 
                 AboutSourceRightsPanel(
-                    sourceURL: nasaPageURL,
+                    sourceURL: sourceContext.nasaPageURL,
                     sourceTitle: aboutPanelSourceTitle,
                     sourceSummary: aboutPanelSourceSummary,
                     tone: .neutral
@@ -159,14 +168,15 @@ struct APODDetailsView: View {
                 dismissButton: .default(Text(L10n.text("OK", default: "OK")))
             )
         }
+        .appSensoryFeedback(.selection, trigger: explanationFeedbackToken)
+        .appSensoryFeedback(.success, trigger: savePhotosSuccessToken)
+        .appSensoryFeedback(.warning, trigger: savePhotosFailedToken)
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            SectionEyebrow(L10n.text("Mission Story", default: "Mission Story"), tone: .accent)
-
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             Text(nasa.title ?? L10n.text("Astronomy Picture", default: "Astronomy Picture"))
-                .font(AppTheme.Typography.screenTitle)
+                .font(titleFont)
                 .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .ignore)
@@ -174,10 +184,10 @@ struct APODDetailsView: View {
                 .accessibilityIdentifier(AccessibilityID.apodTitleText)
                 .accessibilityAddTraits(.isHeader)
 
-            Text(L10n.text("Curated directly from NASA’s Astronomy Picture of the Day archive.", default: "Curated directly from NASA’s Astronomy Picture of the Day archive."))
+            Text(formattedDate)
                 .font(AppTheme.Typography.subheadline)
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
-                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true)
         }
     }
 
@@ -233,6 +243,13 @@ struct APODDetailsView: View {
                     )
                 }
             }
+
+            APODAttributionNotice(
+                title: rightsTitle,
+                text: rightsNotice,
+                systemImage: rightsSystemImage,
+                tone: rightsTone
+            )
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.apodProvenanceSection)
@@ -282,21 +299,17 @@ struct APODDetailsView: View {
 
     private var explanationSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                SectionEyebrow(L10n.text("Mission Briefing", default: "Mission Briefing"), tone: .accent)
-
-                Text(L10n.text("About this APOD", default: "About this APOD"))
-                    .font(AppTheme.Typography.sectionTitle)
-                    .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
-                    .accessibilityAddTraits(.isHeader)
-            }
+            Text(L10n.text("About this APOD", default: "About this APOD"))
+                .font(AppTheme.Typography.sectionTitle)
+                .foregroundStyle(AppTheme.inkPrimary(isDarkMode: isDarkMode))
+                .accessibilityAddTraits(.isHeader)
 
             Text(explanationText)
                 .font(AppTheme.Typography.body)
                 .foregroundStyle(AppTheme.inkSecondary(isDarkMode: isDarkMode))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .multilineTextAlignment(.leading)
-                .lineSpacing(4)
+                .lineSpacing(explanationLineSpacing)
                 .lineLimit(isExplanationExpanded ? nil : APODExplanationDisplayPolicy.collapsedLineLimit)
                 .textSelection(.enabled)
                 .accessibilityIdentifier(AccessibilityID.apodExplanationText)
@@ -313,6 +326,7 @@ struct APODDetailsView: View {
                         isExplanationExpanded.toggle()
                     }
 
+                    explanationFeedbackToken += 1
                     if let animation = AppTheme.Motion.standard(reduceMotion: effectiveReduceMotion) {
                         withAnimation(animation, updates)
                     } else {
@@ -352,7 +366,7 @@ struct APODDetailsView: View {
                     .accessibilityIdentifier(AccessibilityID.saveToPhotosButton)
             }
 
-            if let nasaPageURL {
+            if let nasaPageURL = sourceContext.nasaPageURL {
                 APODSourceCard(
                     title: archiveEntryTitle,
                     subtitle: APODSourceLinkPolicy.archiveEntrySummary(),
@@ -365,12 +379,12 @@ struct APODDetailsView: View {
                 .accessibilityHint(L10n.text("Opens the official APOD page in the browser", default: "Opens the official APOD page in the browser"))
             }
 
-            if showsSeparateMediaAction, let preferredMediaSourceURL {
+            if showsSeparateMediaAction, let preferredMediaSourceURL = sourceContext.preferredMediaSourceURL {
                 APODSourceCard(
-                    title: preferredMediaSourceTitle,
-                    subtitle: preferredMediaSourceDescription,
+                    title: sourceContext.preferredMediaSourceTitle,
+                    subtitle: sourceContext.preferredMediaSourceDescription,
                     host: preferredMediaHostLabel,
-                    systemImage: preferredMediaSourceSystemImage,
+                    systemImage: sourceContext.preferredMediaSourceSystemImage,
                     tone: .neutral,
                     destination: preferredMediaSourceURL
                 )
@@ -422,6 +436,7 @@ struct APODDetailsView: View {
 
         do {
             try await photoExportService.exportOriginalImage(for: nasa)
+            savePhotosSuccessToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: L10n.text("media.save_success_title", default: "Saved to Photos"),
                 message: L10n.text(
@@ -430,11 +445,13 @@ struct APODDetailsView: View {
                 )
             )
         } catch let error as PhotoExportService.ExportError {
+            savePhotosFailedToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: error.errorTitle,
                 message: error.localizedDescription
             )
         } catch {
+            savePhotosFailedToken += 1
             photoExportNotice = PhotoExportNotice(
                 title: L10n.text("media.save_failed_title", default: "Could not save image"),
                 message: error.localizedDescription

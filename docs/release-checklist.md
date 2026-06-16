@@ -1,9 +1,8 @@
 # Space Briefing Release Checklist
 
 ## Automated Gate
-- [ ] `.github/workflows/ios-tests.yml` is green for both the iPhone suite and the iPad smoke job.
-- [ ] Local `xcodebuild test` passes on the target iPhone simulator.
-- [ ] Local iPad split-shell smoke tests pass on the target iPad simulator.
+- [ ] `.github/workflows/ios-tests.yml` is green for `Localization Parity`, `iPhone Smoke Tests`, and `iPad Smoke Tests`.
+- [ ] The release-blocking commands in `docs/stabilization-smoke-matrix.md` pass on the target iPhone and iPad simulators.
 - [ ] Local Pro purchase + restore flows pass with the `NASA New/SpaceBriefing.storekit` scheme configuration.
 
 ## Release Config
