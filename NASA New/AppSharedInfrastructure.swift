@@ -104,6 +104,17 @@ enum AppDestination: String, CaseIterable, Identifiable, Hashable, Codable {
             return "bookmark"
         }
     }
+
+    var selectedSystemImage: String {
+        switch self {
+        case .today:
+            return "sparkles.tv.fill"
+        case .archive:
+            return "books.vertical.fill"
+        case .saved:
+            return "bookmark.fill"
+        }
+    }
 }
 
 struct AppShellSelectionPolicy {

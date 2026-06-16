@@ -361,6 +361,97 @@ enum PaywallTrigger: String, Equatable {
     case appIntentLockedDate
 }
 
+struct PaywallNarrativePolicy {
+    let title: String
+    let summary: String
+    let freeNote: String
+    let leadFeature: PremiumFeature
+
+    static func resolve(trigger: PaywallTrigger, feature: PremiumFeature) -> PaywallNarrativePolicy {
+        switch feature {
+        case .fullArchive:
+            return archiveNarrative(trigger: trigger)
+        case .unlimitedFavorites:
+            return favoritesNarrative()
+        case .hdSave:
+            return hdSaveNarrative()
+        }
+    }
+
+    private static func archiveNarrative(trigger: PaywallTrigger) -> PaywallNarrativePolicy {
+        let freeNote = L10n.format(
+            "paywall.free_note.archive",
+            default: "Your first %d days of APOD history are always free.",
+            PremiumAccessPolicy.freeArchiveDayCount
+        )
+
+        switch trigger {
+        case .archiveVisitNudge:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_nudge", default: "You've found the archive"),
+                summary: L10n.text(
+                    "paywall.summary.archive_nudge",
+                    default: "The archive is one of Space Briefing's most-visited features. Pro unlocks every APOD from the past 30 years — over 10,000 images and stories."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        case .archiveLoadMore:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_load_more", default: "Keep going deeper"),
+                summary: L10n.text(
+                    "paywall.summary.archive_load_more",
+                    default: "You've reached the free window. Pro loads every APOD dating back to 1995 with no limits on how far back you go."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        default:
+            return PaywallNarrativePolicy(
+                title: L10n.text("paywall.title.archive_locked", default: "The full archive is waiting"),
+                summary: L10n.text(
+                    "paywall.summary.archive_locked",
+                    default: "You've reached the edge of the free window. Pro unlocks every APOD dating back to 1995 — over 10,000 images and stories."
+                ),
+                freeNote: freeNote,
+                leadFeature: .fullArchive
+            )
+        }
+    }
+
+    private static func favoritesNarrative() -> PaywallNarrativePolicy {
+        PaywallNarrativePolicy(
+            title: L10n.text("paywall.title.favorites", default: "You've built a great collection"),
+            summary: L10n.format(
+                "paywall.summary.favorites",
+                default: "You've saved %d favorites — the free limit. Pro removes the cap so you can keep every APOD story that matters to you.",
+                PremiumAccessPolicy.freeFavoritesLimit
+            ),
+            freeNote: L10n.format(
+                "paywall.free_note.favorites",
+                default: "Your first %d favorites are always free.",
+                PremiumAccessPolicy.freeFavoritesLimit
+            ),
+            leadFeature: .unlimitedFavorites
+        )
+    }
+
+    private static func hdSaveNarrative() -> PaywallNarrativePolicy {
+        PaywallNarrativePolicy(
+            title: L10n.text("paywall.title.hd_save", default: "Save this in full quality"),
+            summary: L10n.text(
+                "paywall.summary.hd_save",
+                default: "Pro lets you download any APOD image in the highest available resolution, straight to your photo library."
+            ),
+            freeNote: L10n.text(
+                "paywall.free_note.hd",
+                default: "Viewing images is always free. Saving originals in HD is a Pro feature."
+            ),
+            leadFeature: .hdSave
+        )
+    }
+}
+
 struct PremiumAccessPolicy {
     static let freeArchiveDayCount = 7
     static let freeFavoritesLimit = 10
