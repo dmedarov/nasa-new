@@ -10,9 +10,9 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
 
 ## Current Status
 
-- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`, `P1-02`, `P1-03`, `P1-04`, `P1-05`, `P1-06`, `P1-07`, `P2-01`, `P2-02`, `P2-03`, `P2-04`
+- Done: `P0-01`, `P0-02`, `P0-03`, `P0-04`, `P0-05`, `P0-06`, `P0-07`, `P0-08`, `P1-01`, `P1-02`, `P1-03`, `P1-04`, `P1-05`, `P1-06`, `P1-07`, `P2-01`, `P2-02`, `P2-03`, `P2-04`, `P2-05`, `P3-01`, `P3-02`, `P3-03`, `P3-04`, `P3-05`
 - In progress: `none`
-- Next recommended ticket: `P2-05`
+- Next recommended ticket: `P4-01`
 
 ## Phase 0: Stabilization Foundation
 
@@ -157,7 +157,7 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Engineering Excellence`
   Estimate: `0.5d`
   Depends on: `P2-02`, `P2-03`, `P2-04`
-  Status: `pending`
+  Status: `done`
   Scope: capture before/after notes, target surfaces, and validation workflow in repo docs.
 
 ## Phase 3: Premium Product Experience
@@ -166,35 +166,35 @@ This backlog turns the premium upgrade plan into executable work. Estimates are 
   Owner area: `Product Design`, `Reader Experience`
   Estimate: `1.5d`
   Depends on: `P1-04`, `P2-04`
-  Status: `pending`
+  Status: `done`
   Scope: tune rhythm, hierarchy, and source trust presentation for the landing experience.
 
 - `P3-02` Premium empty/loading/error state system
   Owner area: `Shared UI`, `Product Design`
   Estimate: `1.5d`
   Depends on: `P1-05`
-  Status: `pending`
+  Status: `done`
   Scope: unify empty, offline, loading, and recoverable error states across today, archive, saved, and settings.
 
 - `P3-03` Paywall narrative and trigger polish
   Owner area: `Monetization`
   Estimate: `1.5d`
   Depends on: `P1-06`
-  Status: `pending`
+  Status: `done`
   Scope: improve value framing, trigger timing, dismissal recovery, and perceived generosity.
 
 - `P3-04` iPad premium shell visual refinement
   Owner area: `Product Design`, `Core Shell`
   Estimate: `1.0d`
   Depends on: `P1-05`, `P3-01`
-  Status: `pending`
+  Status: `done`
   Scope: make split-shell feel intentionally designed instead of simply adaptive.
 
 - `P3-05` Motion and haptics polish pass
   Owner area: `Interaction Design`
   Estimate: `1.0d`
   Depends on: `P3-01`, `P3-04`
-  Status: `pending`
+  Status: `done`
   Scope: add meaningful transitions and tactile feedback without introducing visual noise.
 
 ## Phase 4: World-Class Quality System
