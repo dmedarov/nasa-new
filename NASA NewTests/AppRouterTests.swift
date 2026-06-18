@@ -390,6 +390,162 @@ struct AppRouterTests {
         #expect(synchronization.archiveSelectedItemForFetcher == nil)
     }
 
+    // MARK: - Explicit clear (P4-01)
+
+    @Test
+    func appShellSelectionPolicySuppressesArchiveFallbackAfterExplicitClear() {
+        let firstArchive = makeAPOD(date: "2025-01-14", title: "Archive First")
+
+        let resolution = AppShellSelectionPolicy.resolveArchive(
+            selectedID: firstArchive.id,
+            selectionClearedByUser: true,
+            archiveItems: [firstArchive],
+            favoriteItems: []
+        )
+
+        #expect(resolution.normalizedSelectionID == nil)
+        #expect(resolution.selectedItem == nil)
+        #expect(resolution.fallbackItem == nil)
+        #expect(!resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellRouteSelectionContractSetsArchiveClearFlagAndPreservesSavedFlag() {
+        let currentFlags = AppShellSelectionFlags(
+            archiveSelectionClearedByUser: false,
+            savedSelectionClearedByUser: true
+        )
+
+        let flags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .archive,
+            current: currentFlags
+        )
+
+        #expect(flags.archiveSelectionClearedByUser)
+        #expect(flags.savedSelectionClearedByUser)
+    }
+
+    @Test
+    func appShellRouteSelectionContractSetsSavedClearFlagAndPreservesArchiveFlag() {
+        let currentFlags = AppShellSelectionFlags(
+            archiveSelectionClearedByUser: true,
+            savedSelectionClearedByUser: false
+        )
+
+        let flags = AppShellRouteSelectionContract.flagsAfterExplicitClear(
+            for: .saved,
+            current: currentFlags
+        )
+
+        #expect(flags.archiveSelectionClearedByUser)
+        #expect(flags.savedSelectionClearedByUser)
+    }
+
+    // MARK: - Fallback prevention (P4-01)
+
+    @Test
+    func appShellSelectionPolicyReturnsNoContentWhenArchiveIsEmpty() {
+        let resolution = AppShellSelectionPolicy.resolveArchive(
+            selectedID: nil,
+            selectionClearedByUser: false,
+            archiveItems: [],
+            favoriteItems: []
+        )
+
+        #expect(resolution.normalizedSelectionID == nil)
+        #expect(resolution.selectedItem == nil)
+        #expect(resolution.fallbackItem == nil)
+        #expect(!resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellSelectionPolicyReturnsNoContentWhenSavedIsEmpty() {
+        let resolution = AppShellSelectionPolicy.resolveSaved(
+            selectedID: nil,
+            selectionClearedByUser: false,
+            favoriteItems: []
+        )
+
+        #expect(resolution.normalizedSelectionID == nil)
+        #expect(resolution.selectedItem == nil)
+        #expect(resolution.fallbackItem == nil)
+        #expect(!resolution.hasDetailContent)
+    }
+
+    @Test
+    func appShellRouteSelectionContractOnlyNormalizesSavedDestinationSelection() {
+        let firstFavorite = makeAPOD(date: "2025-01-15", title: "Saved First")
+        let selectedFavorite = makeAPOD(date: "2025-01-16", title: "Saved Selected")
+
+        let synchronization = AppShellRouteSelectionContract.synchronize(
+            destination: .saved,
+            archiveSelectedID: "stale-archive-selection",
+            savedSelectedID: selectedFavorite.id,
+            flags: AppShellSelectionFlags(),
+            archiveItems: [],
+            favoriteItems: [firstFavorite, selectedFavorite]
+        )
+
+        #expect(synchronization.normalizedSavedSelectionID == selectedFavorite.id)
+        #expect(synchronization.normalizedArchiveSelectionID == "stale-archive-selection")
+        #expect(synchronization.savedSelectedItemForFetcher?.id == selectedFavorite.id)
+        #expect(synchronization.archiveSelectedItemForFetcher == nil)
+    }
+
+    // MARK: - Route resolution (P4-01)
+
+    @Test
+    func appRouterNavigatesToTodayForTodayRouteWithNoDate() {
+        let latestItem = makeAPOD(date: "2025-01-15", title: "Latest Story")
+        let fetcher = makeFetcher(cachedItems: [latestItem])
+        let router = AppRouter()
+
+        router.handle(AppRoute(destination: .today), fetcher: fetcher)
+
+        #expect(router.destination == .today)
+        #expect(router.selectedArchiveItemID == nil)
+        #expect(router.selectedSavedItemID == nil)
+    }
+
+    // MARK: - Deep-link restoration (P4-01)
+
+    @Test
+    func appDeepLinkParsesCustomSchemeURLWithoutDateAsDestinationOnly() {
+        let url = URL(string: "nasanew://archive")!
+
+        let route = AppDeepLink.route(from: url, publicBaseURL: nil)
+
+        #expect(route == AppRoute(destination: .archive, apodDate: nil))
+    }
+
+    @Test
+    func appDeepLinkReturnsNilForUnrecognizedDestinationHost() {
+        let url = URL(string: "nasanew://unknown-destination")!
+
+        let route = AppDeepLink.route(from: url, publicBaseURL: nil)
+
+        #expect(route == nil)
+    }
+
+    @Test
+    func pendingRouteStoreRoundTripsDestinationWithNoDate() {
+        let suiteName = "AppRouterTests.noDateRoute.\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Expected isolated test defaults suite.")
+            return
+        }
+
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let route = AppRoute(destination: .today, apodDate: nil)
+        PendingAppRouteStore.save(route, userDefaults: userDefaults)
+
+        #expect(PendingAppRouteStore.consume(userDefaults: userDefaults) == route)
+        #expect(PendingAppRouteStore.consume(userDefaults: userDefaults) == nil)
+    }
+
     @Test
     func appRouterAllowsProUserToOpenLockedArchiveDate() {
         let lockedItem = makeAPOD(date: "2025-01-04", title: "Locked Archive Story")
